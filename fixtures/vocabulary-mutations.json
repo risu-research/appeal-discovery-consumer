@@ -1,0 +1,85 @@
+{
+  "semantic": "https://appeal.example/rels/appeal",
+  "pairs": [
+    {
+      "id": "rfc-title-mutation",
+      "before": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://mutation.test/decisions/rfc",
+        "linkHeaders": ["</route/rfc>; rel=\"https://appeal.example/rels/appeal\"; title=\"appeal\""]
+      },
+      "after": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://mutation.test/decisions/rfc",
+        "linkHeaders": ["</route/rfc>; rel=\"https://appeal.example/rels/appeal\"; title=\"x91\""]
+      }
+    },
+    {
+      "id": "html-visible-label-mutation",
+      "before": {
+        "carrier": "html",
+        "documentUrl": "https://mutation.test/decisions/html",
+        "html": "<a rel=\"https://appeal.example/rels/appeal\" href=\"/route/html\">requestReview</a>"
+      },
+      "after": {
+        "carrier": "html",
+        "documentUrl": "https://mutation.test/decisions/html",
+        "html": "<a rel=\"https://appeal.example/rels/appeal\" href=\"/route/html\">wf_7</a>"
+      }
+    },
+    {
+      "id": "mcp-tool-vocabulary-mutation",
+      "before": {
+        "carrier": "mcp",
+        "tools": [
+          {
+            "name": "challenge_enforcement",
+            "description": "seek redetermination",
+            "_meta": {
+              "example.appeal/semantic": "https://appeal.example/rels/appeal",
+              "example.appeal/context": "urn:decision:mutation:mcp"
+            }
+          }
+        ]
+      },
+      "after": {
+        "carrier": "mcp",
+        "tools": [
+          {
+            "name": "a02",
+            "description": "opaque",
+            "_meta": {
+              "example.appeal/semantic": "https://appeal.example/rels/appeal",
+              "example.appeal/context": "urn:decision:mutation:mcp"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "inline-label-mutation",
+      "before": {
+        "carrier": "inline-test",
+        "context": {"kind": "carrier-local", "value": "mutation:inline:1"},
+        "actions": [
+          {
+            "id": "stable-occurrence-1",
+            "label": "seek_redetermination",
+            "semantic": "https://appeal.example/rels/appeal"
+          }
+        ]
+      },
+      "after": {
+        "carrier": "inline-test",
+        "context": {"kind": "carrier-local", "value": "mutation:inline:1"},
+        "actions": [
+          {
+            "id": "stable-occurrence-1",
+            "label": "zz19",
+            "semantic": "https://appeal.example/rels/appeal"
+          }
+        ]
+      }
+    }
+  ]
+}

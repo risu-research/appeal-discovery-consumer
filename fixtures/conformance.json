@@ -1,0 +1,247 @@
+{
+  "semantic": "https://appeal.example/rels/appeal",
+  "status": "NON-PRODUCTION PLACEHOLDER",
+  "cases": [
+    {
+      "id": "rfc-canonical-multiple",
+      "class": "positive",
+      "input": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://rfc.test/decisions/d-1",
+        "linkHeaders": [
+          "</appeals/first>; rel=\"https://appeal.example/rels/appeal\"; title=\"Primary, route\", </appeals/second>; rel=\"next https://appeal.example/rels/appeal\""
+        ]
+      },
+      "expected": {
+        "count": 2,
+        "contexts": [
+          "https://rfc.test/decisions/d-1",
+          "https://rfc.test/decisions/d-1"
+        ],
+        "handoffs": [
+          "https://rfc.test/appeals/first",
+          "https://rfc.test/appeals/second"
+        ]
+      }
+    },
+    {
+      "id": "rfc-supported-anchor",
+      "class": "positive",
+      "input": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://rfc.test/accounts/a-7",
+        "linkHeaders": [
+          "</appeals/issue-2>; rel=\"https://appeal.example/rels/appeal\"; anchor=\"/issues/2\""
+        ]
+      },
+      "expected": {
+        "count": 1,
+        "contexts": ["https://rfc.test/issues/2"],
+        "handoffs": ["https://rfc.test/appeals/issue-2"]
+      }
+    },
+    {
+      "id": "html-canonical-multiple",
+      "class": "positive",
+      "input": {
+        "carrier": "html",
+        "documentUrl": "https://html.test/decisions/d-9",
+        "html": "<!doctype html><base href=\"/actions/\"><a rel=\"https://appeal.example/rels/appeal\" href=\"first\">Opaque</a><link rel=\"alternate https://appeal.example/rels/appeal\" href=\"second\">"
+      },
+      "expected": {
+        "count": 2,
+        "contexts": [
+          "https://html.test/decisions/d-9",
+          "https://html.test/decisions/d-9"
+        ],
+        "handoffs": [
+          "https://html.test/actions/first",
+          "https://html.test/actions/second"
+        ]
+      }
+    },
+    {
+      "id": "mcp-same-semantic-two-levels",
+      "class": "positive",
+      "input": {
+        "carrier": "mcp",
+        "tools": [
+          {
+            "name": "level_one",
+            "_meta": {
+              "example.appeal/semantic": "https://appeal.example/rels/appeal",
+              "example.appeal/context": "urn:decision:case:level-1"
+            }
+          },
+          {
+            "name": "level_two",
+            "_meta": {
+              "example.appeal/semantic": "https://appeal.example/rels/appeal",
+              "example.appeal/context": "urn:decision:case:level-2"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "count": 2,
+        "contexts": [
+          "urn:decision:case:level-1",
+          "urn:decision:case:level-2"
+        ],
+        "handoffs": ["level_one", "level_two"]
+      }
+    },
+    {
+      "id": "inline-multiple-occurrences",
+      "class": "positive",
+      "input": {
+        "carrier": "inline-test",
+        "context": {"kind": "carrier-local", "value": "payload-17:issue-2"},
+        "actions": [
+          {"id": "route-a", "semantic": "https://appeal.example/rels/appeal"},
+          {"id": "route-b", "semantic": "https://appeal.example/rels/appeal"}
+        ]
+      },
+      "expected": {
+        "count": 2,
+        "contexts": ["payload-17:issue-2", "payload-17:issue-2"],
+        "handoffs": ["route-a", "route-b"]
+      }
+    },
+    {
+      "id": "title-appeal-without-semantic",
+      "class": "negative",
+      "input": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://negative.test/decisions/1",
+        "linkHeaders": ["</help>; rel=\"related\"; title=\"Appeal\""]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "description-appeal-without-semantic",
+      "class": "negative",
+      "input": {
+        "carrier": "inline-test",
+        "context": {"kind": "carrier-local", "value": "issue-4"},
+        "actions": [{"id": "x1", "description": "Appeal this decision"}]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "rel-help",
+      "class": "negative",
+      "input": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://negative.test/decisions/2",
+        "linkHeaders": ["</appeal-looking-path>; rel=\"help\""]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "provider-local-rel-appeal",
+      "class": "negative",
+      "input": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://negative.test/decisions/3",
+        "linkHeaders": ["</appeals>; rel=\"appeal\""]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "mcp-name-only",
+      "class": "negative",
+      "input": {
+        "carrier": "mcp",
+        "tools": [{"name": "appeal_case", "inputSchema": {"type": "object"}}]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "mcp-description-only",
+      "class": "negative",
+      "input": {
+        "carrier": "mcp",
+        "tools": [
+          {
+            "name": "x54",
+            "description": "Request another review",
+            "inputSchema": {"type": "object"}
+          }
+        ]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "inline-label-only",
+      "class": "negative",
+      "input": {
+        "carrier": "inline-test",
+        "context": {"kind": "carrier-local", "value": "issue-5"},
+        "actions": [{"id": "x2", "label": "I disagree with the issue"}]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "initial-review-human-text",
+      "class": "negative",
+      "input": {
+        "carrier": "html",
+        "documentUrl": "https://negative.test/applications/new",
+        "html": "<a href=\"/submit\">Request initial review</a>"
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "wrong-canonical-semantic",
+      "class": "negative",
+      "input": {
+        "carrier": "mcp",
+        "tools": [
+          {
+            "name": "x55",
+            "_meta": {
+              "example.appeal/semantic": "https://wrong.example/rels/appeal",
+              "example.appeal/context": "urn:decision:wrong:55"
+            }
+          }
+        ]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "mcp-semantic-without-context",
+      "class": "negative",
+      "input": {
+        "carrier": "mcp",
+        "tools": [
+          {
+            "name": "x56",
+            "_meta": {
+              "example.appeal/semantic": "https://appeal.example/rels/appeal"
+            }
+          }
+        ]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "ambiguous-duplicate-anchor",
+      "class": "negative",
+      "input": {
+        "carrier": "rfc8288",
+        "representationUrl": "https://negative.test/account/1",
+        "linkHeaders": [
+          "</appeals>; rel=\"https://appeal.example/rels/appeal\"; anchor=\"/issues/1\"; anchor=\"/issues/2\""
+        ]
+      },
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    },
+    {
+      "id": "empty-open-world-result",
+      "class": "negative",
+      "input": {"carrier": "mcp", "tools": []},
+      "expected": {"count": 0, "contexts": [], "handoffs": []}
+    }
+  ]
+}

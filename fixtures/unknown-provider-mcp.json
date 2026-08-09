@@ -1,0 +1,28 @@
+{
+  "provider": "unknown-provider-7",
+  "why_unknown": "This external fixture is loaded after the consumer module and its provider identity is never passed to discovery.",
+  "semantic": "https://appeal.example/rels/appeal",
+  "input": {
+    "carrier": "mcp",
+    "source": {
+      "locator": "https://third-party.test/assertions/991",
+      "trusted": true,
+      "official": true
+    },
+    "tools": [
+      {
+        "name": "x92",
+        "inputSchema": {"type": "object", "additionalProperties": false},
+        "_meta": {
+          "example.appeal/semantic": "https://appeal.example/rels/appeal",
+          "example.appeal/context": "urn:decision:991"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "context": "urn:decision:991",
+    "toolName": "x92",
+    "sourceLocator": "https://third-party.test/assertions/991"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "appeal-discovery-consumer-v0",
+  "version": "0.0.0-experimental",
+  "private": true,
+  "type": "module",
+  "description": "Provider-independent appeal semantic discovery experiment",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CONFORMANCE.md",
+    "BOOTSTRAP_RESULT.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node --test test/*.test.mjs",
+    "verify": "pnpm run typecheck && pnpm run test"
+  },
+  "dependencies": {
+    "parse5": "8.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
