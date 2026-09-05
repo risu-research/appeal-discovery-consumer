@@ -142,6 +142,7 @@ def validate(path: Path) -> dict[str, Any]:
             counts = Counter(str(e["service"]) for e in calls)
             expected = {"R0": {"act1": tasks, "act2": tasks}, "R1": {"act1": tasks, "act2": tasks}, "R2": {"act1": tasks, "verify": tasks, "act2": tasks}}[mode]
             assert_true(counts == Counter(expected), f"t{t}_{mode}_native_call_conservation", checks)
+            assert_true(len(states) == 2 * tasks, f"t{t}_{mode}_native_state_conservation", checks)
             assert_true(verify_context_lineage(calls, states), f"t{t}_{mode}_context_lineage", checks)
             assert_true(s["miss_rate"] == 1.0, f"t{t}_{mode}_target_miss_all", checks)
             if mode in ("R0", "R1"):
@@ -181,6 +182,7 @@ def validate(path: Path) -> dict[str, Any]:
         assert_true(s["support_violation_rate"] == 0.0, f"noshift_{mode}_support_ok", checks)
         assert_true(s["verify_fraction"] == 0.0, f"noshift_{mode}_no_verify", checks)
         assert_true(counts == Counter({"act1":tasks,"act2":tasks}), f"noshift_{mode}_native_calls", checks)
+        assert_true(len(states) == 2 * tasks, f"noshift_{mode}_native_states", checks)
         assert_true(verify_context_lineage(calls, states), f"noshift_{mode}_context_lineage", checks)
 
     for mode in MODES:
@@ -193,6 +195,7 @@ def validate(path: Path) -> dict[str, Any]:
         assert_true(s["support_violation_rate"] == 0.0, f"insensitive_{mode}_support_ok", checks)
         assert_true(s["verify_fraction"] == 0.0, f"insensitive_{mode}_no_verify", checks)
         assert_true(counts == Counter({"act1":tasks,"act2":tasks}), f"insensitive_{mode}_native_calls", checks)
+        assert_true(len(states) == 2 * tasks, f"insensitive_{mode}_native_states", checks)
         assert_true(verify_context_lineage(calls, states), f"insensitive_{mode}_context_lineage", checks)
     ins_rows = control_rows["feedback_insensitive"]["R1"]
     ins_tgt = Counter(r["feedback_at_deadline"] for r in ins_rows)
