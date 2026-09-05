@@ -1,0 +1,57 @@
+{
+  "schema": "agentmark.natural_controller_corpus.seed.v1",
+  "policy": {
+    "status": "discovery_seeds_only",
+    "selection_rule": "qualification is determined by commit-pinned executability and fail-closed adapter support before replay outcomes are inspected",
+    "forbid_outcome_based_inclusion": true,
+    "forbid_manual_semantic_guessing": true
+  },
+  "candidates": [
+    {
+      "id": "ha-official-motion-light",
+      "repository": "home-assistant/core",
+      "commit": "0cb25fe4727b5466743285f048eb6aa75fd02bbb",
+      "path": "homeassistant/components/automation/blueprints/motion_light.yaml",
+      "source_author": "Home Assistant",
+      "qualification_status": "seed_unqualified",
+      "class_hints": ["wait_feedback", "restart_mode", "multiplicity_path"],
+      "notes": "Official motion-light blueprint: turn on, wait for no motion, delay, turn off."
+    },
+    {
+      "id": "ha-actionable-notification",
+      "repository": "maxi1134/Home-Assistant-Config",
+      "commit": "280f3424aa4fa54b2a11830ab4cc277c78d2a647",
+      "path": "blueprints/automation/McDAlexander/actionable_notifications_for_android_with_cam.yaml",
+      "qualification_status": "seed_unqualified",
+      "class_hints": ["event_response", "wait_feedback", "branch_action"],
+      "notes": "Waits for mobile_app_notification_action and chooses action1/action2/action3. Branch bodies are blueprint action inputs and must not be guessed statically."
+    },
+    {
+      "id": "ha-better-thermostat-lean",
+      "repository": "n3roGit/MyHomeAssistantMods",
+      "commit": "57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f",
+      "path": "automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml",
+      "qualification_status": "seed_unqualified",
+      "class_hints": ["state_priority", "same_operation_different_variant", "conditional_writeback"],
+      "notes": "Presence/night/boost/eco/activity/motion policy selects thermostat presets. Template-derived preset value requires native execution or a controlled template environment; do not infer by prose."
+    },
+    {
+      "id": "ha-ring-keypad",
+      "repository": "ImSorryButWho/HomeAssistantNotes",
+      "commit": "375e1d0501f676e3f52937cb4fd84ddfaef6a549",
+      "path": "keypad_blueprint.yaml",
+      "qualification_status": "seed_unqualified",
+      "class_hints": ["event_response", "alarm_state"],
+      "notes": "Candidate event/state controller; requires exact adapter qualification."
+    },
+    {
+      "id": "ha-frigate-notification",
+      "repository": "arsaboo/homeassistant-config",
+      "commit": "2a0376e3dca1a6d948f8f09b580f067d42ab8b0c",
+      "path": "blueprints/automation/hunterjm/frigate_0.10_notification.yaml",
+      "qualification_status": "seed_unqualified",
+      "class_hints": ["event_response", "wait_feedback", "notification_multiplicity"],
+      "notes": "Candidate event-driven controller; requires exact adapter qualification."
+    }
+  ]
+}
