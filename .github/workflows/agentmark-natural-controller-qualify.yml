@@ -1,0 +1,98 @@
+name: AgentMark Natural Controller Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-theory-lock]
+    paths:
+      - 'agentmark_natural_controllers/**'
+      - '.github/workflows/agentmark-natural-controller-qualify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve exact Home Assistant 2026.9.0 image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='ghcr.io/home-assistant/home-assistant:2026.9.0'
+          docker pull "$tag"
+          ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$tag")"
+          test -n "$ref"
+          case "$ref" in *@sha256:*) ;; *) echo "not digest pinned: $ref" >&2; exit 2;; esac
+          mkdir -p agentmark_natural_controllers/results
+          printf '%s\n' "$ref" > agentmark_natural_controllers/results/HOME_ASSISTANT_IMAGE_REF.txt
+          echo "image_ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch commit-pinned corpus seeds before qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p agentmark_natural_controllers/inputs
+          python agentmark_natural_controllers/fetch_seeds.py \
+            --manifest agentmark_natural_controllers/corpus_seed.json \
+            --out-dir agentmark_natural_controllers/inputs \
+            --provenance agentmark_natural_controllers/results/FETCH_PROVENANCE.json
+
+      - name: Qualify with native Home Assistant blueprint schema, offline
+        shell: bash
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            -v "$PWD:/repo" \
+            --entrypoint python3 \
+            "$IMAGE_REF" \
+            /repo/agentmark_natural_controllers/qualify_blueprints.py \
+              --manifest /repo/agentmark_natural_controllers/corpus_seed.json \
+              --input-dir /repo/agentmark_natural_controllers/inputs \
+              --fetch-provenance /repo/agentmark_natural_controllers/results/FETCH_PROVENANCE.json \
+              --out /repo/agentmark_natural_controllers/results/QUALIFICATION.json
+
+      - name: Verify qualification contract and hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          q = json.loads(Path('agentmark_natural_controllers/results/QUALIFICATION.json').read_text())
+          m = json.loads(Path('agentmark_natural_controllers/corpus_seed.json').read_text())
+          assert q['schema'] == 'agentmark.natural_controller_corpus.qualification.v1'
+          assert q['outcome_blind'] is True
+          assert len(q['results']) == len(m['candidates'])
+          assert {r['id'] for r in q['results']} == {c['id'] for c in m['candidates']}
+          for r in q['results']:
+              assert r['qualification'] in {
+                  'QUALIFIED_STAGE_A',
+                  'EXCLUDED_NATIVE_SCHEMA',
+                  'EXCLUDED_NO_ACTION_SITES',
+                  'EXCLUDED_NO_REACTIVE_DECISION_STRUCTURE',
+              }
+          PY
+          (
+            cd agentmark_natural_controllers/results
+            sha256sum \
+              HOME_ASSISTANT_IMAGE_REF.txt \
+              FETCH_PROVENANCE.json \
+              QUALIFICATION.json \
+              > CHECKSUMS.sha256
+            sha256sum -c CHECKSUMS.sha256
+          )
+
+      - name: Upload outcome-blind qualification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-natural-controller-qualification
+          path: agentmark_natural_controllers/results
+          if-no-files-found: error
+          retention-days: 90
