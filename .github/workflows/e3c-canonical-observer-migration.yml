@@ -1,0 +1,57 @@
+name: E3c Canonical Observer Migration
+
+on:
+  push:
+    branches: [agentmark-e3c-home-assistant]
+    paths:
+      - '.github/workflows/e3c-canonical-observer-migration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agentmark-e3c-home-assistant
+          fetch-depth: 0
+
+      - name: Apply guarded observer-only correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/e3c_canonicalize_observer.py
+          cat agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part2.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part3.pyfrag \
+              > /tmp/e3c-canonical.py
+          python -m py_compile /tmp/e3c-canonical.py \
+              agentmark_e3c_ha/validate_result.py \
+              agentmark_e3c_ha/aggregate_replicas.py
+          grep -q 'async_track_state_change_event' agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag
+          grep -q 'job_type=HassJobType.Callback' agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag
+          if grep -q 'hass.bus.async_listen(EVENT_STATE_CHANGED, listener)' agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag; then
+            echo 'legacy global decision listener still present' >&2
+            exit 2
+          fi
+          mapfile -t changed < <(git status --porcelain=v1 | awk '{print $2}' | sort)
+          printf 'changed: %s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 3
+          test "${changed[0]}" = 'agentmark_e3c_ha/EXECUTION_HISTORY.md'
+          test "${changed[1]}" = 'agentmark_e3c_ha/NO_SHIFT_CAUSAL_AUTOPSY.md'
+          test "${changed[2]}" = 'agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag'
+
+      - name: Commit exact canonical correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag \
+            agentmark_e3c_ha/NO_SHIFT_CAUSAL_AUTOPSY.md \
+            agentmark_e3c_ha/EXECUTION_HISTORY.md
+          git commit -m 'e3c: canonicalize HA observer after causal autopsy'
+          git push origin HEAD:agentmark-e3c-home-assistant
