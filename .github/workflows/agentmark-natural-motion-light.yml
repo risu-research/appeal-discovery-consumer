@@ -1,0 +1,198 @@
+name: AgentMark N1 Official HA Motion-Light
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-theory-lock]
+    paths:
+      - 'agentmark_natural_controllers/motion_light/**'
+      - '.github/workflows/agentmark-natural-motion-light.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-image:
+    runs-on: ubuntu-24.04
+    outputs:
+      image_ref: ${{ steps.pin.outputs.image_ref }}
+    steps:
+      - name: Resolve Home Assistant 2026.9.0 to immutable digest
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='ghcr.io/home-assistant/home-assistant:2026.9.0'
+          docker pull "$tag"
+          ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$tag")"
+          test -n "$ref"
+          case "$ref" in *@sha256:*) ;; *) echo "not digest-pinned: $ref" >&2; exit 2;; esac
+          echo "image_ref=$ref" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$ref"
+
+  n1:
+    needs: resolve-image
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [0, 1]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile frozen N1 producer and validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_natural_controllers/motion_light/experiment.py \
+            agentmark_natural_controllers/motion_light/validate_result.py \
+            agentmark_natural_controllers/motion_light/aggregate_replicas.py \
+            agentmark_e3b_lab/agentmark/kernel.py \
+            agentmark_e3b_lab/agentmark/minimize.py \
+            agentmark_e3b_lab/agentmark/semantics.py
+
+      - name: Fetch exact external controller and pin provenance
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          mkdir -p n1_results/provenance
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import urllib.request
+          url = 'https://raw.githubusercontent.com/home-assistant/core/0cb25fe4727b5466743285f048eb6aa75fd02bbb/homeassistant/components/automation/blueprints/motion_light.yaml'
+          expected = 'e07ac35fae7270131f118da767b036e7f7776672077691d9fbcd026e5a7e3f9c'
+          req = urllib.request.Request(url, headers={'User-Agent':'AgentMark-N1/1'})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              payload = response.read()
+          actual = hashlib.sha256(payload).hexdigest()
+          assert actual == expected, (actual, expected)
+          Path('n1_results/motion_light.yaml').write_bytes(payload)
+          Path('n1_results/provenance/EXTERNAL_SOURCE_URL.txt').write_text(url + '\n')
+          Path('n1_results/provenance/EXTERNAL_SOURCE_SHA256.txt').write_text(actual + '\n')
+          PY
+          printf '%s\n' "$IMAGE_REF" > n1_results/provenance/HOME_ASSISTANT_IMAGE_REF.txt
+          printf '%s\n' "$GITHUB_SHA" > n1_results/provenance/GITHUB_SHA.txt
+          printf '%s\n' "$REPLICA" > n1_results/provenance/REPLICA.txt
+          sha256sum \
+            agentmark_natural_controllers/motion_light/PREREGISTRATION.md \
+            agentmark_natural_controllers/motion_light/experiment.py \
+            agentmark_natural_controllers/motion_light/validate_result.py \
+            agentmark_natural_controllers/motion_light/aggregate_replicas.py \
+            n1_results/motion_light.yaml \
+            > n1_results/provenance/SOURCE_SHA256.txt
+
+      - name: Pull exact immutable Home Assistant image
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker image inspect "$IMAGE_REF" > n1_results/provenance/HOME_ASSISTANT_IMAGE_INSPECT.json
+
+      - name: Run frozen N1 in native Home Assistant
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            -e PYTHONPATH=/repo/agentmark_e3b_lab \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/n1_results:/results" \
+            --entrypoint python3 \
+            "$IMAGE_REF" \
+            /repo/agentmark_natural_controllers/motion_light/experiment.py \
+              --blueprint /results/motion_light.yaml \
+              --replica "$REPLICA" \
+              --trials 6 \
+              --out "/results/replica-${REPLICA}.json"
+
+      - name: Independently recompute N1 gates from raw events
+        shell: bash
+        env:
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=agentmark_e3b_lab \
+            python agentmark_natural_controllers/motion_light/validate_result.py \
+              "n1_results/replica-${REPLICA}.json" \
+              --out "n1_results/validation-${REPLICA}.json"
+          manifest="n1_results/manifest-${REPLICA}.sha256"
+          find n1_results -type f ! -name "manifest-${REPLICA}.sha256" -print0 \
+            | LC_ALL=C sort -z \
+            | xargs -0 -r sha256sum \
+            > "$manifest"
+          test -s "$manifest"
+
+      - name: Upload independently validated N1 replica
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-n1-motion-r${{ matrix.replica }}
+          path: n1_results
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: [resolve-image, n1]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: agentmark-n1-motion-r*
+          path: replicas
+
+      - name: Aggregate only independently validated replicas
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p aggregate
+          printf '%s\n' '${{ needs.resolve-image.outputs.image_ref }}' > aggregate/HOME_ASSISTANT_IMAGE_REF.txt
+          mapfile -t results < <(find replicas -type f -name 'replica-*.json' | sort)
+          mapfile -t vals < <(find replicas -type f -name 'validation-*.json' | sort)
+          mapfile -t sources < <(find replicas -type f -name 'motion_light.yaml' | sort)
+          test "${#results[@]}" -eq 2
+          test "${#vals[@]}" -eq 2
+          test "${#sources[@]}" -eq 2
+          cmp "${sources[0]}" "${sources[1]}"
+          PYTHONPATH=agentmark_e3b_lab \
+            python agentmark_natural_controllers/motion_light/aggregate_replicas.py \
+              "${results[@]}" \
+              --validations "${vals[@]}" \
+              --image-ref-file aggregate/HOME_ASSISTANT_IMAGE_REF.txt \
+              --out aggregate/N1_MOTION_LIGHT_REPLICATED.json
+          cp agentmark_natural_controllers/motion_light/PREREGISTRATION.md aggregate/
+          cp agentmark_natural_controllers/motion_light/experiment.py aggregate/
+          cp agentmark_natural_controllers/motion_light/validate_result.py aggregate/
+          cp agentmark_natural_controllers/motion_light/aggregate_replicas.py aggregate/
+          cp "${sources[0]}" aggregate/EXTERNAL_motion_light.yaml
+          (
+            cd aggregate
+            sha256sum \
+              HOME_ASSISTANT_IMAGE_REF.txt \
+              N1_MOTION_LIGHT_REPLICATED.json \
+              PREREGISTRATION.md \
+              experiment.py \
+              validate_result.py \
+              aggregate_replicas.py \
+              EXTERNAL_motion_light.yaml \
+              > CHECKSUMS.sha256
+            sha256sum -c CHECKSUMS.sha256
+          )
+
+      - name: Upload replicated natural-controller promotion bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-n1-official-motion-light-replicated
+          path: aggregate
+          if-no-files-found: error
+          retention-days: 90
