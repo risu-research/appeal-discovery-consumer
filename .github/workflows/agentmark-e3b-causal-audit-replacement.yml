@@ -1,0 +1,23 @@
+name: AgentMark E3b Causal Audit Replacement Replica
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-e3b-lab]
+    paths:
+      - '.github/workflows/agentmark-e3b-causal-audit-replacement.yml'
+
+jobs:
+  replacement-replica-4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run independent replacement replica under frozen protocol
+        run: bash agentmark_e3b_audit/run_replica.sh 4
+      - name: Upload replacement replica
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-e3b-causal-audit-r4
+          path: agentmark_e3b_audit/results/replica-4.json
+          if-no-files-found: error
