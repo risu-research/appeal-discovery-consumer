@@ -122,6 +122,106 @@ def verify_quotient_completion() -> int:
     return 1
 
 
+def verify_action_identity_projection() -> int:
+    """Same service name may still encode semantically distinct actions."""
+
+    kernel = ReactiveKernel(
+        {
+            "initial_state": "s",
+            "feedback_alphabet": ["home", "away"],
+            "states": {
+                "s": {
+                    "home": [
+                        {
+                            "p": 1,
+                            "operation": "climate.set_preset_mode",
+                            "target_class": "climate",
+                            "variant": "preset=home",
+                            "next_state": "s",
+                        }
+                    ],
+                    "away": [
+                        {
+                            "p": 1,
+                            "operation": "climate.set_preset_mode",
+                            "target_class": "climate",
+                            "variant": "preset=away",
+                            "next_state": "s",
+                        }
+                    ],
+                }
+            },
+        }
+    )
+
+    operation_partition = feedback_partition(
+        kernel,
+        "s",
+        projection="operation",
+    )
+    action_partition = feedback_partition(
+        kernel,
+        "s",
+        projection="action",
+    )
+    assert operation_partition.classes == (("away", "home"),)
+    assert action_partition.classes == (("away",), ("home",))
+
+    operation_shift = workload_shift_tv(
+        kernel,
+        "s",
+        {"home": 1},
+        {"away": 1},
+        projection="operation",
+    )
+    action_shift = workload_shift_tv(
+        kernel,
+        "s",
+        {"home": 1},
+        {"away": 1},
+        projection="action",
+    )
+    assert operation_shift == 0
+    assert action_shift == 1
+
+    op_verdict = step_replay_validity(
+        kernel,
+        state="s",
+        source_feedback="home",
+        target_feedback="away",
+        recorded_event="climate.set_preset_mode",
+        projection="operation",
+    )
+    action_verdict = step_replay_validity(
+        kernel,
+        state="s",
+        source_feedback="home",
+        target_feedback="away",
+        recorded_event=("climate.set_preset_mode", "climate", "preset=home"),
+        projection="action",
+    )
+    assert op_verdict.target_supports_recorded_event
+    assert not op_verdict.support_failure
+    assert action_verdict.source_consistent
+    assert action_verdict.support_failure
+
+    q = quotient(kernel)
+    minimized = ReactiveKernel(q.minimized_spec)
+    for feedback in kernel.feedback_alphabet:
+        assert kernel.distribution(
+            "s",
+            feedback,
+            state_blocks=q.state_to_block,
+            projection="full",
+        ) == minimized.distribution(
+            minimized.initial_state,
+            feedback,
+            projection="full",
+        )
+
+    return 5
+
+
 def verify_deterministic_decision_quotient() -> tuple[int, int]:
     feedback = ["y0", "y1", "y2"]
     operations = ["a0", "a1"]
@@ -291,6 +391,7 @@ def main() -> None:
         "schema": "agentmark.theory_lock.verification.v1",
         "zero_mass_canonicality_cases": verify_zero_mass_canonicality(),
         "quotient_completion_cases": verify_quotient_completion(),
+        "action_identity_cases": verify_action_identity_projection(),
     }
     quotient_cases, support_cases = verify_deterministic_decision_quotient()
     summary["deterministic_quotient_cases"] = quotient_cases
