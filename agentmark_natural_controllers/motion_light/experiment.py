@@ -12,6 +12,7 @@ import tempfile
 import time
 from typing import Any
 
+from homeassistant import loader
 from homeassistant.components import automation
 from homeassistant.const import EVENT_CALL_SERVICE, EVENT_STATE_CHANGED, __version__ as HA_VERSION
 from homeassistant.core import CoreState, Event, HomeAssistant, ServiceCall, callback
@@ -224,6 +225,7 @@ async def make_hass(
 ) -> tuple[HomeAssistant, LightLab, tempfile.TemporaryDirectory[str]]:
     temp = tempfile.TemporaryDirectory(prefix="agentmark-natural-motion-")
     hass = HomeAssistant(temp.name)
+    loader.async_setup(hass)
     hass.set_state(CoreState.running)
 
     hass.states.async_set(MOTION_ENTITY, "off")
