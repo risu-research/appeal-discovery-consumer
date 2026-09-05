@@ -44,7 +44,8 @@ jobs:
           p = Path('agentmark_theory/results/theory-verification.json')
           data = json.loads(p.read_text())
           assert data['verdict'] == 'PASS'
-          assert data['total_cases'] == 1151
+          assert data['total_cases'] == 1156
+          assert data['action_identity_cases'] == 5
           PY
 
       - name: Hash theory contract
