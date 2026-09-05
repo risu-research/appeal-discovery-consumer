@@ -64,6 +64,10 @@
                     m = trial["modes"][mode]
                     ev = m["ha_events"]
                     trial_gate[f"{mode}_call_service_conservation"] = ev["call_service_count"] == expected_calls_per_task * args.tasks
+                    trial_gate[f"{mode}_state_changed_conservation"] = (
+                        ev["state_changed_count"] == 2 * args.tasks
+                        and ev["context_lineage_eligible"] == 2 * args.tasks
+                    )
                     trial_gate[f"{mode}_context_lineage"] = bool(ev["context_lineage_all_match"])
                 trial_gate["R0_support_violation_all"] = trial["modes"]["R0"]["summary"]["support_violation_rate"] == 1.0
                 trial_gate["R1_support_violation_all"] = trial["modes"]["R1"]["summary"]["support_violation_rate"] == 1.0
@@ -80,12 +84,16 @@
                 no_shift[mode]["summary"]["support_violation_rate"] == 0.0
                 and no_shift[mode]["summary"]["feedback_miss_rate"] == 0.0
                 and no_shift[mode]["ha_events"]["call_service_count"] == 2 * args.tasks
+                and no_shift[mode]["ha_events"]["state_changed_count"] == 2 * args.tasks
+                and no_shift[mode]["ha_events"]["context_lineage_eligible"] == 2 * args.tasks
                 and no_shift[mode]["ha_events"]["context_lineage_all_match"]
                 for mode in ("R0", "R1", "R2")
             )
             insensitive_gate = all(
                 insensitive[mode]["summary"]["support_violation_rate"] == 0.0
                 and insensitive[mode]["ha_events"]["call_service_count"] == 2 * args.tasks
+                and insensitive[mode]["ha_events"]["state_changed_count"] == 2 * args.tasks
+                and insensitive[mode]["ha_events"]["context_lineage_eligible"] == 2 * args.tasks
                 and insensitive[mode]["ha_events"]["context_lineage_all_match"]
                 for mode in ("R0", "R1", "R2")
             ) and insensitive_certificate["certified_safe_at_epsilon"]
@@ -109,8 +117,6 @@
             }
             promotion["promoted"] = all(promotion.values())
 
-            # Trim gigantic per-state context details from the human-facing result while
-            # preserving raw event logs separately below.
             compact_trials = []
             for trial in decisive_trials:
                 compact_modes = {}
