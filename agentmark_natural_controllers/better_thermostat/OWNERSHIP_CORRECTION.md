@@ -1,73 +1,97 @@
-# N2 Better Thermostat — Ownership / Registry Bootstrap Correction
+# N2 Better Thermostat — Ownership / Registry Bootstrap Corrections
 
-Status: **IMPLEMENTATION CORRECTION ONLY; SCIENTIFIC PROTOCOL UNCHANGED**
+Status: **IMPLEMENTATION CORRECTIONS ONLY; SCIENTIFIC PROTOCOL UNCHANGED**
 
-## Invalid pre-correction execution
+## Permanently invalid implementation runs
 
-The first N2 workflow attempt that reached the Home Assistant harness was GitHub Actions run `33946918917`.
+### Run `33946918917`
 
-Both replicas failed before a source controller action or any decisive N2 replay outcome was produced. The relevant failures were:
+Both replicas failed before a source controller action or decisive replay outcome. Relevant failures:
 
 - `Setup failed for 'better_thermostat': Integration not found.`
 - `RuntimeError: Device registry not set up`
 
-The run is permanently classified as:
+Permanent classification:
 
 `INVALID_IMPLEMENTATION_CONFIG_ENTRY_AND_DEVICE_REGISTRY_BOOTSTRAP`
 
-It is not a scientific null, promotion failure, or N2 outcome.
+### Run `33963676524`
 
-## Root cause
+This was the first v2 ownership candidate. Both replicas again failed before a complete producer result or validator execution. It established two implementation facts:
 
-The pre-correction harness created a Home Assistant `ConfigEntry` whose domain string was `better_thermostat`, but the corresponding upstream custom integration was not installed in the fresh Home Assistant config directory. Adding that entry therefore asked Home Assistant to set up a domain it could not resolve. Separately, the harness attempted to load the device registry before calling the registry's official `async_setup` lifecycle hook.
+1. The exact upstream Better Thermostat source **was successfully fetched and recognized by Home Assistant's loader**. The log reported the custom integration and the exact upstream checkout was `b86561f61e5ba1259fc63e590f4847e9ac743d7f` / `1.9.2`.
+2. `ConfigEntries.async_add()` was the wrong lifecycle API for ownership-only registration. Home Assistant defines it as an add-and-setup operation. It therefore attempted Better Thermostat dependencies, including recorder, even though the experiment intended the entry only as disabled registry ownership.
+3. Repeated fresh Home Assistant instances plus per-instance custom-component directories exposed a second harness problem: Python/Home Assistant custom-component discovery retained the first temporary namespace path, which was deleted during per-trial cleanup. A later fresh instance therefore encountered a stale custom-component path.
 
-Neither defect concerns the frozen HOME/AWAY controller law, the action-identity adapter, the external blueprint, the source/target states, the replay semantics, or the TV prediction.
+Permanent classification:
 
-## Narrow correction
+`INVALID_IMPLEMENTATION_ADD_AND_SETUP_PLUS_STALE_CUSTOM_COMPONENT_PATH`
 
-The correction preserves the preregistered controlled-device boundary while making ownership real and auditable.
+No v2 result JSON was produced, independent validation was skipped, and no N2 TV outcome is admitted from this run.
 
-1. Fetch the actual upstream Better Thermostat custom integration from `KartoffelToby/better_thermostat` at exact commit `b86561f61e5ba1259fc63e590f4847e9ac743d7f` (release `1.9.2`).
-2. Verify its `custom_components/better_thermostat/manifest.json` SHA-256 exactly equals `710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28`.
-3. Install that exact component tree into each fresh Home Assistant config and require Home Assistant's loader to resolve domain `better_thermostat` and version `1.9.2`.
-4. Register a real Home Assistant `ConfigEntry` for that resolved domain with `ConfigEntryDisabler.USER`. The disabled state is deliberate: the ConfigEntry supplies authentic registry ownership, while Better Thermostat's internal PID/TRV control implementation is outside N2's preregistered controlled-device boundary and is not executed.
-5. Initialize Home Assistant's device registry using the official lifecycle (`dr.async_setup`, then `dr.async_load`) and the entity registry using `er.async_load`.
-6. Create the controlled virtual thermostat's device and entity records through the public Home Assistant registry APIs, owned by that ConfigEntry and platform `better_thermostat`.
-7. Do not monkeypatch `device_entities`. The external blueprint resolves `climate.agentmark_thermostat` through Home Assistant's native `device_entities(device_id)` implementation, which reads the entity registry.
-8. Keep the preregistered controlled `climate.set_preset_mode` service boundary. This boundary deterministically applies the requested preset and records the native rendered call; it does not determine the external controller's HOME/AWAY choice.
+## Corrected ownership architecture
 
-## Why the upstream integration is intentionally not loaded
+The correction separates **upstream integration authenticity qualification** from **per-trial runtime ownership**.
 
-N2 is a test of an independently authored automation controller's semantic action choice: the external blueprint maps Home Assistant feedback to a rendered `climate.set_preset_mode` action. The preregistration explicitly permits a controlled service implementation at the device boundary.
+### A. One-time upstream qualification before any scientific action
 
-Executing Better Thermostat's full internal TRV/PID/calibration stack would add unrelated device adapters, physical-TRV assumptions, startup timing, persistence, and control loops. Those mechanisms do not choose the blueprint's `target_preset` and would introduce new confounds into a test whose frozen causal contrast is HOME versus AWAY controller feedback.
+- Fetch the actual upstream Better Thermostat component from `KartoffelToby/better_thermostat` at exact commit `b86561f61e5ba1259fc63e590f4847e9ac743d7f` (release `1.9.2`).
+- Verify `custom_components/better_thermostat/manifest.json` SHA-256 exactly equals `710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28`.
+- Compute a deterministic component-tree SHA-256 over relative paths and file bytes.
+- Install those exact bytes in a dedicated qualification Home Assistant config.
+- Require Home Assistant's loader to resolve domain `better_thermostat` and version `1.9.2`.
+- Do **not** invoke Better Thermostat setup or its PID/TRV logic.
+- Keep this qualification config path alive for the entire producer run so any retained custom-component namespace remains valid; delete it only after all source, target, replay, and control trials finish.
 
-The corrected ownership therefore separates two claims cleanly:
+### B. Fresh per-trial native ownership without setup side effects
 
-- **claimed and tested:** Home Assistant-native loader/domain provenance, ConfigEntry ownership, device/entity registry linkage, `device_entities` resolution, automation parsing/triggering/branching/template rendering, and rendered service-call semantics;
-- **not claimed:** Better Thermostat PID/TRV internals, physical thermostat behavior, radio/device-stack behavior, or prevalence across all controllers.
+Each source, target, replay, and control trial still receives a fresh Home Assistant instance.
+
+For every fresh instance:
+
+1. Construct a real `ConfigEntry` for domain `better_thermostat` with `ConfigEntryDisabler.USER`.
+2. Persist it through Home Assistant's own `homeassistant.helpers.storage.Store` under `core.config_entries`.
+3. Load it through `ConfigEntries.async_initialize()`.
+4. Require the loaded entry to remain exactly `USER`-disabled and `NOT_LOADED`.
+5. Initialize DeviceRegistry through `dr.async_setup` + `dr.async_load`, and EntityRegistry through `er.async_load`.
+6. Create the controlled virtual thermostat device and entity using public registry APIs. Both records must link to the persisted ConfigEntry; the entity platform must be `better_thermostat` and the exact entity id must be `climate.agentmark_thermostat`.
+7. Do not monkeypatch `device_entities`, template rendering, automation branching, or service data. The external blueprint resolves its climate entity through Home Assistant's native `device_entities(device_id)` implementation, which reads EntityRegistry.
+8. Keep the preregistered controlled `climate.set_preset_mode` service implementation as the deterministic device boundary. It applies the already-rendered requested preset but does not choose HOME versus AWAY.
+
+This avoids both private `_entries` injection and `async_add()`'s setup semantics.
+
+## Why Better Thermostat internal control is intentionally outside N2
+
+N2 tests an independently authored automation controller's semantic action choice: the external blueprint maps current Home Assistant feedback to a rendered `climate.set_preset_mode` action.
+
+The preregistration explicitly permits a controlled service implementation at the device boundary. Executing Better Thermostat's full TRV/PID/calibration stack would add unrelated device adapters, persistence, startup timing, calibration, and physical-device assumptions. Those mechanisms do not choose the blueprint's `target_preset` and would introduce confounds into the frozen HOME-versus-AWAY contrast.
+
+The corrected evidence boundary is therefore:
+
+- **claimed and tested:** exact upstream integration source provenance; Home Assistant loader recognition of that domain; persisted native ConfigEntry ownership; native device/entity registry linkage; native `device_entities` resolution; automation parsing, triggering, branching, and template rendering; raw rendered service-call semantics; replay support under operation and action projections;
+- **not claimed:** Better Thermostat PID/TRV internals, physical thermostat behavior, radio/device-stack behavior, or prevalence across all Home Assistant controllers.
 
 ## Scientific invariants unchanged
 
-The correction does **not** change any of the following:
+None of the ownership corrections change:
 
-- external controller repository, commit, path, or byte content;
-- Home Assistant Core version or immutable container digest;
+- external controller repository, commit, path, or bytes;
+- Home Assistant Core version or immutable image digest;
 - source feedback `HOME`;
 - target feedback `AWAY`;
 - current preset `sleep`;
-- source action variant `{"preset_mode":"home"}`;
-- target-live action variant `{"preset_mode":"away"}`;
+- source variant `{"preset_mode":"home"}`;
+- target-live variant `{"preset_mode":"away"}`;
 - operation projection definition;
 - action projection definition;
-- generic variant canonicalization rule;
-- 6 target-native / 6 target-replay / 6 no-feedback-shift controls per runner;
+- generic rendered-service-data canonicalization;
+- six target-native, six replay, and six no-feedback-shift control trials per runner;
 - two independent runners;
 - exact prediction `TV_operation = 0`;
 - exact prediction `TV_action = 1`;
-- negative-control requirements;
-- requirement that no failed runner be dropped.
+- negative controls;
+- prohibition on dropping a failed runner.
 
 ## Artifact separation
 
-Corrected producer and validator schemas are bumped from v1 to v2. Aggregate promotion requires v2 on both independent runners. This prevents any pre-correction artifact from being accidentally mixed into the corrected evidence chain.
+The persisted-ownership producer and validator use schema **v3**. Aggregate promotion requires producer v3 and validator v3 from both independent runners. No v1/v2 artifact can enter a v3 aggregate.
