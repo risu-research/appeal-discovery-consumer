@@ -45,16 +45,31 @@ def _canonical_rows(
 ) -> list[dict[str, Any]]:
     """Return a deterministic, probability-preserving row representation."""
 
-    merged: dict[tuple[str, str | None, int, str], Fraction] = defaultdict(Fraction)
+    merged: dict[
+        tuple[str, str | None, str | None, int, str],
+        Fraction,
+    ] = defaultdict(Fraction)
     for atom in kernel.atoms(state, feedback, state_blocks=state_to_block):
         if atom.probability <= 0:
             continue
         event = atom.event
-        key = (event.operation, event.target_class, event.delay_ms, event.next_state)
+        key = (
+            event.operation,
+            event.target_class,
+            event.variant,
+            event.delay_ms,
+            event.next_state,
+        )
         merged[key] += atom.probability
 
     rows: list[dict[str, Any]] = []
-    for (operation, target_class, delay_ms, next_state), probability in sorted(
+    for (
+        operation,
+        target_class,
+        variant,
+        delay_ms,
+        next_state,
+    ), probability in sorted(
         merged.items(),
         key=lambda item: repr(item[0]),
     ):
@@ -69,6 +84,8 @@ def _canonical_rows(
         }
         if target_class is not None:
             row["target_class"] = target_class
+        if variant is not None:
+            row["variant"] = variant
         if delay_ms:
             row["delay_ms"] = delay_ms
         rows.append(row)
@@ -79,11 +96,11 @@ def quotient(kernel: ReactiveKernel) -> QuotientResult:
     """Compute the exact finite behavioral quotient and feedback partitions.
 
     State partition refinement uses the full transition signature, including
-    operation, target class, delay, and successor quotient block. Once stable,
-    feedback symbols are partitioned by the same full signature. This is the
-    strongest built-in equivalence; paper-facing analyses may intentionally
-    project further (for example to operation identity) without weakening this
-    structural quotient.
+    operation, target class, semantic variant, delay, and successor quotient
+    block. Once stable, feedback symbols are partitioned by the same full
+    signature. This is the strongest built-in equivalence; paper-facing
+    analyses may intentionally project further without weakening the structural
+    quotient.
     """
 
     groups = [list(kernel.states)]
