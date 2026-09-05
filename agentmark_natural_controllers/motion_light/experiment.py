@@ -13,10 +13,9 @@ import time
 from typing import Any
 
 from homeassistant.components import automation
-from homeassistant.const import EVENT_CALL_SERVICE, EVENT_STATE_CHANGED
+from homeassistant.const import EVENT_CALL_SERVICE, EVENT_STATE_CHANGED, __version__ as HA_VERSION
 from homeassistant.core import CoreState, Event, HomeAssistant, ServiceCall, callback
 from homeassistant.setup import async_setup_component
-from homeassistant import __version__ as HA_VERSION
 
 from agentmark.kernel import ReactiveKernel
 from agentmark.semantics import step_replay_validity
