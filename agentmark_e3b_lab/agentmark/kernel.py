@@ -99,6 +99,12 @@ class ReactiveKernel:
     def distribution(self, state: str, feedback: str, *, state_blocks: Mapping[str, str | int] | None = None, projection: str = "full") -> dict[Any, Fraction]:
         out: dict[Any, Fraction] = defaultdict(Fraction)
         for atom in self.atoms(state, feedback, state_blocks=state_blocks):
+            # Zero-mass rows are legal input syntax but are not part of a
+            # probability distribution's support. Dropping them here keeps
+            # canonical signatures invariant to semantically irrelevant
+            # explicit p=0 rows.
+            if atom.probability <= 0:
+                continue
             if projection == "full": key: Any = (atom.event.operation, atom.event.target_class, atom.event.delay_ms, atom.event.next_state)
             elif projection == "operation": key = atom.event.operation
             elif projection == "semantic": key = (atom.event.operation, atom.event.target_class, atom.event.delay_ms)
