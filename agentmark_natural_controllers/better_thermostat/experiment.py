@@ -18,6 +18,7 @@ from homeassistant.const import EVENT_CALL_SERVICE, __version__ as HA_VERSION
 from homeassistant.core import CoreState, Event, HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import trigger as trigger_helper
 from homeassistant.setup import async_setup_component
 
 from agentmark.kernel import ReactiveKernel
@@ -238,6 +239,7 @@ async def make_hass(
     loader.async_setup(hass)
     hass.config_entries = config_entries.ConfigEntries(hass, {})
     await hass.config_entries.async_initialize()
+    await trigger_helper.async_setup(hass)
     hass.set_state(CoreState.running)
 
     entry = await _make_config_entry(hass)
