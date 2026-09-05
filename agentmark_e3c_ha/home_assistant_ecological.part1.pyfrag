@@ -1,0 +1,430 @@
+from __future__ import annotations
+
+import argparse
+import asyncio
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+import json
+import math
+from pathlib import Path
+import platform
+import statistics
+import sys
+import tempfile
+import time
+from typing import Any, Callable
+
+from homeassistant.const import EVENT_CALL_SERVICE, EVENT_STATE_CHANGED, __version__ as HA_VERSION
+from homeassistant.core import Context, CoreState, Event, HomeAssistant
+
+# Reuse the already-promoted AgentMark kernel/certificate implementation rather
+# than copying certificate math into E3c. The workflow mounts the repository at
+# /repo and sets PYTHONPATH accordingly.
+from agentmark.certificate import high_confidence_replay_certificate, trace_compatibility
+from agentmark.kernel import ReactiveKernel
+
+DOMAIN = "agentmark_lab"
+ACT1 = "act1"
+VERIFY = "verify"
+ACT2 = "act2"
+
+
+def now_ns() -> int:
+    return time.perf_counter_ns()
+
+
+def ns_to_ms(ns: int) -> float:
+    return ns / 1_000_000.0
+
+
+def percentile(values: list[float], q: float) -> float:
+    if not values:
+        return math.nan
+    xs = sorted(values)
+    if len(xs) == 1:
+        return xs[0]
+    pos = (len(xs) - 1) * q
+    lo, hi = math.floor(pos), math.ceil(pos)
+    if lo == hi:
+        return xs[lo]
+    w = pos - lo
+    return xs[lo] * (1 - w) + xs[hi] * w
+
+
+@dataclass(frozen=True)
+class SourceTaskTrace:
+    task_index: int
+    act1_issue_ms: float
+    act1_complete_ms: float
+    act2_issue_ms: float
+    act2_complete_ms: float
+
+    @property
+    def think_after_act1_ms(self) -> float:
+        return max(0.0, self.act2_issue_ms - self.act1_complete_ms)
+
+
+class HALab:
+    """Actual Home Assistant Core ServiceRegistry/EventBus/StateMachine substrate."""
+
+    def __init__(self, hass: HomeAssistant):
+        self.hass = hass
+        self.call_events: list[dict[str, Any]] = []
+        self.state_events: list[dict[str, Any]] = []
+        self.service_completions: list[dict[str, Any]] = []
+        self._unsubs: list[Callable[[], None]] = []
+
+    def install(self) -> None:
+        def on_call(event: Event) -> None:
+            data = event.data
+            if data.get("domain") != DOMAIN:
+                return
+            service_data = dict(data.get("service_data") or {})
+            self.call_events.append(
+                {
+                    "t_ns": now_ns(),
+                    "service": data.get("service"),
+                    "service_data": service_data,
+                    "context_id": str(event.context.id),
+                    "context_parent_id": None if event.context.parent_id is None else str(event.context.parent_id),
+                }
+            )
+
+        def on_state(event: Event) -> None:
+            entity_id = event.data.get("entity_id")
+            if not isinstance(entity_id, str) or not entity_id.startswith(("binary_sensor.agentmark_", "sensor.agentmark_")):
+                return
+            new_state = event.data.get("new_state")
+            self.state_events.append(
+                {
+                    "t_ns": now_ns(),
+                    "entity_id": entity_id,
+                    "new_state": None if new_state is None else new_state.state,
+                    "attributes": {} if new_state is None else dict(new_state.attributes),
+                    "context_id": str(event.context.id),
+                    "context_parent_id": None if event.context.parent_id is None else str(event.context.parent_id),
+                }
+            )
+
+        self._unsubs.append(self.hass.bus.async_listen(EVENT_CALL_SERVICE, on_call))
+        self._unsubs.append(self.hass.bus.async_listen(EVENT_STATE_CHANGED, on_state))
+
+        async def act1(call) -> None:
+            data = call.data
+            delay_ms = float(data["delay_ms"])
+            entity_id = str(data["entity_id"])
+            await asyncio.sleep(delay_ms / 1000.0)
+            self.hass.states.async_set(
+                entity_id,
+                "on",
+                {
+                    "agentmark_task": str(data["task_id"]),
+                    "agentmark_run": str(data["run_id"]),
+                    "cause": "act1_visible",
+                    "command_delay_ms": delay_ms,
+                },
+                context=call.context,
+            )
+            self.service_completions.append(
+                {
+                    "t_ns": now_ns(),
+                    "service": ACT1,
+                    "task_id": str(data["task_id"]),
+                    "run_id": str(data["run_id"]),
+                    "context_id": str(call.context.id),
+                }
+            )
+
+        async def verify(call) -> None:
+            data = call.data
+            entity_id = str(data["entity_id"])
+            timeout_ms = float(data.get("timeout_ms", 1000.0))
+            visible, visible_ns = await wait_for_on(self.hass, entity_id, timeout_ms)
+            self.service_completions.append(
+                {
+                    "t_ns": now_ns(),
+                    "service": VERIFY,
+                    "task_id": str(data["task_id"]),
+                    "run_id": str(data["run_id"]),
+                    "context_id": str(call.context.id),
+                    "visible": visible,
+                    "visible_event_ns": visible_ns,
+                }
+            )
+
+        async def act2(call) -> None:
+            data = call.data
+            entity_id = str(data["commit_entity_id"])
+            self.hass.states.async_set(
+                entity_id,
+                "committed",
+                {
+                    "agentmark_task": str(data["task_id"]),
+                    "agentmark_run": str(data["run_id"]),
+                    "cause": "act2_commit",
+                },
+                context=call.context,
+            )
+            self.service_completions.append(
+                {
+                    "t_ns": now_ns(),
+                    "service": ACT2,
+                    "task_id": str(data["task_id"]),
+                    "run_id": str(data["run_id"]),
+                    "context_id": str(call.context.id),
+                }
+            )
+
+        self.hass.services.async_register(DOMAIN, ACT1, act1)
+        self.hass.services.async_register(DOMAIN, VERIFY, verify)
+        self.hass.services.async_register(DOMAIN, ACT2, act2)
+
+    def close(self) -> None:
+        for unsub in self._unsubs:
+            unsub()
+        self._unsubs.clear()
+
+
+async def wait_for_on(hass: HomeAssistant, entity_id: str, timeout_ms: float) -> tuple[bool, int | None]:
+    state = hass.states.get(entity_id)
+    if state is not None and state.state == "on":
+        return True, now_ns()
+
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future[int] = loop.create_future()
+
+    def listener(event: Event) -> None:
+        if event.data.get("entity_id") != entity_id:
+            return
+        new_state = event.data.get("new_state")
+        if new_state is not None and new_state.state == "on" and not fut.done():
+            fut.set_result(now_ns())
+
+    unsub = hass.bus.async_listen(EVENT_STATE_CHANGED, listener)
+    try:
+        # Close the check/listen race.
+        state = hass.states.get(entity_id)
+        if state is not None and state.state == "on" and not fut.done():
+            fut.set_result(now_ns())
+        try:
+            event_ns = await asyncio.wait_for(fut, timeout=timeout_ms / 1000.0)
+            return True, event_ns
+        except TimeoutError:
+            return False, None
+    finally:
+        unsub()
+
+
+def ids(run_id: str, task_index: int) -> tuple[str, str, str]:
+    safe = run_id.lower().replace("-", "_")
+    task_id = f"{safe}_{task_index:04d}"
+    return task_id, f"binary_sensor.agentmark_{task_id}", f"sensor.agentmark_commit_{task_id}"
+
+
+async def call_service(
+    hass: HomeAssistant,
+    service: str,
+    data: dict[str, Any],
+    *,
+    blocking: bool,
+    context: Context | None = None,
+) -> None:
+    await hass.services.async_call(
+        DOMAIN,
+        service,
+        data,
+        blocking=blocking,
+        context=context,
+    )
+
+
+async def source_task(
+    hass: HomeAssistant,
+    run_id: str,
+    task_index: int,
+    *,
+    source_delay_ms: float,
+    verify_ms: float,
+) -> SourceTaskTrace:
+    task_id, entity_id, commit_entity_id = ids(run_id, task_index)
+    t0 = now_ns()
+    act1_ctx = Context()
+    act1_task = asyncio.create_task(
+        call_service(
+            hass,
+            ACT1,
+            {
+                "run_id": run_id,
+                "task_id": task_id,
+                "entity_id": entity_id,
+                "delay_ms": source_delay_ms,
+            },
+            blocking=True,
+            context=act1_ctx,
+        )
+    )
+    visible, _ = await wait_for_on(hass, entity_id, verify_ms)
+    if not visible:
+        raise AssertionError(f"source task {task_id} missed frozen verify deadline")
+    await act1_task
+    act1_complete = now_ns()
+    act2_issue = now_ns()
+    await call_service(
+        hass,
+        ACT2,
+        {
+            "run_id": run_id,
+            "task_id": task_id,
+            "commit_entity_id": commit_entity_id,
+        },
+        blocking=True,
+        context=Context(),
+    )
+    act2_complete = now_ns()
+    return SourceTaskTrace(
+        task_index=task_index,
+        act1_issue_ms=0.0,
+        act1_complete_ms=ns_to_ms(act1_complete - t0),
+        act2_issue_ms=ns_to_ms(act2_issue - t0),
+        act2_complete_ms=ns_to_ms(act2_complete - t0),
+    )
+
+
+async def launch_waves(
+    one: Callable[[int], Any],
+    n_tasks: int,
+    wave_size: int,
+    wave_period_ms: float,
+) -> list[Any]:
+    pending: list[asyncio.Task] = []
+    for start in range(0, n_tasks, wave_size):
+        for i in range(start, min(n_tasks, start + wave_size)):
+            pending.append(asyncio.create_task(one(i)))
+        if start + wave_size < n_tasks:
+            await asyncio.sleep(wave_period_ms / 1000.0)
+    return await asyncio.gather(*pending)
+
+
+async def record_source(
+    hass: HomeAssistant,
+    *,
+    n_tasks: int,
+    wave_size: int,
+    wave_period_ms: float,
+    source_delay_ms: float,
+    verify_ms: float,
+) -> list[SourceTaskTrace]:
+    run_id = "source"
+    traces = await launch_waves(
+        lambda i: source_task(
+            hass,
+            run_id,
+            i,
+            source_delay_ms=source_delay_ms,
+            verify_ms=verify_ms,
+        ),
+        n_tasks,
+        wave_size,
+        wave_period_ms,
+    )
+    return sorted(traces, key=lambda x: x.task_index)
+
+
+async def replay_task(
+    hass: HomeAssistant,
+    mode: str,
+    run_id: str,
+    trace: SourceTaskTrace,
+    *,
+    target_delay_ms: float,
+    verify_ms: float,
+    policy_sensitive: bool,
+) -> dict[str, Any]:
+    task_index = trace.task_index
+    task_id, entity_id, commit_entity_id = ids(run_id, task_index)
+    t0 = now_ns()
+
+    monitor = asyncio.create_task(wait_for_on(hass, entity_id, verify_ms))
+    act1_ctx = Context()
+    act1_issue_ns = now_ns()
+    act1_task = asyncio.create_task(
+        call_service(
+            hass,
+            ACT1,
+            {
+                "run_id": run_id,
+                "task_id": task_id,
+                "entity_id": entity_id,
+                "delay_ms": target_delay_ms,
+            },
+            blocking=True,
+            context=act1_ctx,
+        )
+    )
+
+    verify_called = False
+    if mode == "R0":
+        await asyncio.sleep(max(0.0, trace.act2_issue_ms) / 1000.0)
+        act2_issue_ns = now_ns()
+        await call_service(
+            hass,
+            ACT2,
+            {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
+            blocking=True,
+            context=Context(),
+        )
+        visible_by_deadline, visible_ns = await monitor
+        await act1_task
+    elif mode == "R1":
+        await act1_task
+        act1_complete_ns = now_ns()
+        await asyncio.sleep(trace.think_after_act1_ms / 1000.0)
+        act2_issue_ns = now_ns()
+        await call_service(
+            hass,
+            ACT2,
+            {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
+            blocking=True,
+            context=Context(),
+        )
+        visible_by_deadline, visible_ns = await monitor
+    elif mode == "R2":
+        visible_by_deadline, visible_ns = await monitor
+        if policy_sensitive and not visible_by_deadline:
+            verify_called = True
+            await call_service(
+                hass,
+                VERIFY,
+                {
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "entity_id": entity_id,
+                    "timeout_ms": max(1000.0, target_delay_ms * 4.0),
+                },
+                blocking=True,
+                context=Context(),
+            )
+        await act1_task
+        act1_complete_ns = now_ns()
+        act2_issue_ns = now_ns()
+        await call_service(
+            hass,
+            ACT2,
+            {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
+            blocking=True,
+            context=Context(),
+        )
+    else:
+        raise ValueError(mode)
+
+    # For R0, await happened after ACT2. Completion timestamp here still reflects
+    # target completion rather than recorded issue schedule.
+    act1_complete_ns = now_ns() if mode == "R0" else act1_complete_ns
+    final_ns = now_ns()
+    feedback = "VISIBLE" if visible_by_deadline else "MISS"
+    supported_next = "ACT2" if (not policy_sensitive or visible_by_deadline) else "VERIFY"
+    observed_decision_op = "VERIFY" if verify_called else "ACT2"
+    support_violation = observed_decision_op != supported_next
+
+    return {
+        "task_index": task_index,
