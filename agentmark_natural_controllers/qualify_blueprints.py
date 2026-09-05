@@ -44,7 +44,7 @@ def dynamic_kind(value: Any) -> str | None:
 def json_static(value: Any) -> tuple[bool, Any]:
     """Return a JSON-safe static value or fail closed.
 
-    Blueprint inputs and templates are not evaluated here.  This qualifier is
+    Blueprint inputs and templates are not evaluated here. This qualifier is
     intentionally structural and outcome-blind; native execution is required
     when semantics depend on dynamic values.
     """
@@ -85,105 +85,201 @@ def selector_action_inputs(blueprint: blueprint_models.Blueprint) -> list[str]:
     return sorted(found)
 
 
-def scan_structure(data: Any) -> dict[str, Any]:
-    constructs: Counter[str] = Counter()
-    dynamic_nodes: Counter[str] = Counter()
-    action_sites: list[dict[str, Any]] = []
+def count_dynamic_nodes(data: Any) -> Counter[str]:
+    """Count dynamic syntax anywhere without interpreting arbitrary payloads."""
 
-    def walk(node: Any, path: tuple[str, ...]) -> None:
+    counts: Counter[str] = Counter()
+
+    def walk(node: Any) -> None:
         kind = dynamic_kind(node)
         if kind is not None:
-            dynamic_nodes[kind] += 1
+            counts[kind] += 1
             return
-
         if isinstance(node, list):
-            for index, item in enumerate(node):
-                walk(item, path + (str(index),))
-            return
+            for item in node:
+                walk(item)
+        elif isinstance(node, dict):
+            for value in node.values():
+                walk(value)
 
-        if not isinstance(node, dict):
-            return
+    walk(data)
+    return counts
 
-        for key in DECISION_KEYS:
-            if key in node:
-                constructs[key] += 1
-        for key in TIMING_KEYS:
-            if key in node:
-                constructs[key] += 1
 
-        # A Home Assistant action step uses `action:` in current syntax and
-        # `service:` in legacy syntax.  Root `actions:` / `action:` lists are
-        # not mistaken for a service site because only scalar values qualify.
+def scan_structure(data: Any) -> dict[str, Any]:
+    """Traverse only Home Assistant action-sequence positions.
+
+    The earlier discovery scanner recursively treated every dictionary key named
+    ``action`` as an executable HA action. That is wrong for nested payloads such
+    as mobile-notification ``data.actions[].action: URI`` and event-data fields.
+
+    Native schema validation establishes that ``data`` is a valid automation
+    blueprint. From there this scanner enters only the root automation action
+    sequence and recursively follows known script control-flow edges. It never
+    searches arbitrary service data, target payloads, trigger event_data, or
+    condition dictionaries for action sites.
+    """
+
+    constructs: Counter[str] = Counter()
+    action_sites: list[dict[str, Any]] = []
+    dynamic_action_bodies: list[dict[str, Any]] = []
+
+    def add_action_site(step: dict[str, Any], path: tuple[str, ...]) -> None:
         operation_key: str | None = None
         operation_value: Any = None
         for candidate in ("action", "service"):
-            if candidate in node and not isinstance(node[candidate], (dict, list)):
+            if candidate in step and not isinstance(step[candidate], (dict, list)):
                 operation_key = candidate
-                operation_value = node[candidate]
+                operation_value = step[candidate]
                 break
+        if operation_key is None:
+            return
 
-        if operation_key is not None:
-            op_kind = dynamic_kind(operation_value)
-            operation_static = isinstance(operation_value, str) and op_kind is None
-            operation = str(operation_value) if operation_static else None
-            domain = (
-                operation.split(".", 1)[0]
-                if operation is not None and "." in operation
-                else None
-            )
+        op_kind = dynamic_kind(operation_value)
+        operation_static = isinstance(operation_value, str) and op_kind is None
+        operation = str(operation_value) if operation_static else None
+        domain = (
+            operation.split(".", 1)[0]
+            if operation is not None and "." in operation
+            else None
+        )
 
-            target_value = node.get("target")
-            target_static, target_normalized = json_static(target_value)
-            if target_value is None:
-                target_static = True
-                target_normalized = None
+        target_value = step.get("target")
+        target_static, target_normalized = json_static(target_value)
+        if target_value is None:
+            target_static = True
+            target_normalized = None
 
-            data_key = "data" if "data" in node else "data_template" if "data_template" in node else None
-            data_value = node.get(data_key) if data_key else None
-            data_static, data_normalized = json_static(data_value)
-            if data_key is None:
-                data_static = True
-                data_normalized = None
+        data_key = (
+            "data"
+            if "data" in step
+            else "data_template"
+            if "data_template" in step
+            else None
+        )
+        data_value = step.get(data_key) if data_key else None
+        data_static, data_normalized = json_static(data_value)
+        if data_key is None:
+            data_static = True
+            data_normalized = None
 
-            # This is a *candidate* fingerprint, not yet a semantic variant.
-            # The adapter policy decides which consequential arguments belong
-            # in AgentMark `variant`; the qualifier never guesses that choice.
-            static_fingerprint = None
-            if operation_static and target_static and data_static:
-                material = {
-                    "operation": operation,
-                    "target": target_normalized,
-                    "data": data_normalized,
-                }
-                static_fingerprint = hashlib.sha256(
-                    json.dumps(
-                        material,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ).encode("utf-8")
-                ).hexdigest()
+        static_fingerprint = None
+        if operation_static and target_static and data_static:
+            material = {
+                "operation": operation,
+                "target": target_normalized,
+                "data": data_normalized,
+            }
+            static_fingerprint = hashlib.sha256(
+                json.dumps(
+                    material,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
 
-            action_sites.append(
+        action_sites.append(
+            {
+                "path": "/".join(path),
+                "syntax_key": operation_key,
+                "operation_static": operation_static,
+                "operation": operation,
+                "operation_domain": domain,
+                "operation_dynamic_kind": op_kind,
+                "target_static": target_static,
+                "data_static": data_static,
+                "static_action_fingerprint": static_fingerprint,
+            }
+        )
+
+    def scan_sequence(sequence: Any, path: tuple[str, ...]) -> None:
+        if is_input(sequence):
+            dynamic_action_bodies.append(
                 {
                     "path": "/".join(path),
-                    "syntax_key": operation_key,
-                    "operation_static": operation_static,
-                    "operation": operation,
-                    "operation_domain": domain,
-                    "operation_dynamic_kind": op_kind,
-                    "target_static": target_static,
-                    "data_static": data_static,
-                    "static_action_fingerprint": static_fingerprint,
+                    "dynamic_kind": "blueprint_input_action_sequence",
                 }
             )
+            return
+        if not isinstance(sequence, list):
+            return
 
-        for key, value in node.items():
-            walk(value, path + (str(key),))
+        for index, step in enumerate(sequence):
+            step_path = path + (str(index),)
+            if is_input(step):
+                dynamic_action_bodies.append(
+                    {
+                        "path": "/".join(step_path),
+                        "dynamic_kind": "blueprint_input_action_step",
+                    }
+                )
+                continue
+            if not isinstance(step, dict):
+                continue
 
-    walk(data, ())
+            for key in DECISION_KEYS:
+                if key in step:
+                    constructs[key] += 1
+            for key in TIMING_KEYS:
+                if key in step:
+                    constructs[key] += 1
+
+            add_action_site(step, step_path)
+
+            # Follow only script control-flow fields that contain action
+            # sequences. Conditions, trigger definitions, service payloads and
+            # target dictionaries are deliberately opaque to this traversal.
+            choose = step.get("choose")
+            if isinstance(choose, list):
+                for choice_index, choice in enumerate(choose):
+                    if isinstance(choice, dict):
+                        scan_sequence(
+                            choice.get("sequence"),
+                            step_path + ("choose", str(choice_index), "sequence"),
+                        )
+                scan_sequence(step.get("default"), step_path + ("default",))
+
+            if "if" in step:
+                scan_sequence(step.get("then"), step_path + ("then",))
+                scan_sequence(step.get("else"), step_path + ("else",))
+
+            repeat = step.get("repeat")
+            if isinstance(repeat, dict):
+                scan_sequence(
+                    repeat.get("sequence"),
+                    step_path + ("repeat", "sequence"),
+                )
+
+            parallel = step.get("parallel")
+            if isinstance(parallel, list):
+                for branch_index, branch in enumerate(parallel):
+                    branch_path = step_path + ("parallel", str(branch_index))
+                    if isinstance(branch, dict) and "sequence" in branch:
+                        scan_sequence(branch.get("sequence"), branch_path + ("sequence",))
+                    elif isinstance(branch, list):
+                        scan_sequence(branch, branch_path)
+                    elif is_input(branch):
+                        dynamic_action_bodies.append(
+                            {
+                                "path": "/".join(branch_path),
+                                "dynamic_kind": "blueprint_input_parallel_branch",
+                            }
+                        )
+
+    if isinstance(data, dict):
+        root_actions = data.get("actions")
+        root_key = "actions"
+        if root_actions is None and isinstance(data.get("action"), list):
+            root_actions = data.get("action")
+            root_key = "action"
+        scan_sequence(root_actions, (root_key,))
+
+    dynamic_nodes = count_dynamic_nodes(data)
     return {
+        "scanner": "context_sensitive_ha_action_sequence_v2",
         "construct_counts": dict(sorted(constructs.items())),
         "dynamic_node_counts": dict(sorted(dynamic_nodes.items())),
+        "dynamic_action_bodies": dynamic_action_bodies,
         "action_sites": action_sites,
     }
 
@@ -220,6 +316,7 @@ def qualify_one(candidate: dict[str, Any], input_dir: Path) -> dict[str, Any]:
 
     structure = scan_structure(blueprint.data)
     action_sites = structure["action_sites"]
+    dynamic_action_bodies = structure["dynamic_action_bodies"]
     static_ops = sum(bool(site["operation_static"]) for site in action_sites)
     dynamic_ops = len(action_sites) - static_ops
     decision_constructs = sum(
@@ -229,7 +326,7 @@ def qualify_one(candidate: dict[str, Any], input_dir: Path) -> dict[str, Any]:
     )
     action_input_names = selector_action_inputs(blueprint)
 
-    if not action_sites:
+    if not action_sites and not dynamic_action_bodies:
         qualification = "EXCLUDED_NO_ACTION_SITES"
     elif decision_constructs == 0:
         qualification = "EXCLUDED_NO_REACTIVE_DECISION_STRUCTURE"
@@ -238,6 +335,7 @@ def qualify_one(candidate: dict[str, Any], input_dir: Path) -> dict[str, Any]:
 
     needs_native_instantiation = bool(
         dynamic_ops
+        or dynamic_action_bodies
         or action_input_names
         or structure["dynamic_node_counts"].get("template", 0)
     )
@@ -252,6 +350,7 @@ def qualify_one(candidate: dict[str, Any], input_dir: Path) -> dict[str, Any]:
         "qualification": qualification,
         "decision_construct_count": decision_constructs,
         "action_site_count": len(action_sites),
+        "dynamic_action_body_count": len(dynamic_action_bodies),
         "static_operation_site_count": static_ops,
         "dynamic_operation_site_count": dynamic_ops,
         "needs_native_instantiation": needs_native_instantiation,
@@ -283,8 +382,9 @@ def main() -> None:
 
     counts = Counter(str(row["qualification"]) for row in results)
     report = {
-        "schema": "agentmark.natural_controller_corpus.qualification.v1",
+        "schema": "agentmark.natural_controller_corpus.qualification.v2",
         "home_assistant_parser": "native automation Blueprint + AUTOMATION_BLUEPRINT_SCHEMA",
+        "scanner": "context_sensitive_ha_action_sequence_v2",
         "outcome_blind": True,
         "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
         "qualification_counts": dict(sorted(counts.items())),
