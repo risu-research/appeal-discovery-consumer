@@ -20,7 +20,7 @@ services:
     build:
       context: ..
       dockerfile: e3_mqtt/app/Dockerfile
-    command: ["python", "/app/ladder.py", "--broker", "mosquitto", "--tasks", "128", "--wave-size", "32", "--wave-period-ms", "300", "--verify-ms", "100", "--changed-delay-ms", "150", "--post-completion-gap-ms", "20", "--trials", "12", "--out", "/results/e3b_r0_r1_r2_certificate.json"]
+    command: ["python", "/app/ladder_v2.py", "--broker", "mosquitto", "--tasks", "128", "--wave-size", "32", "--wave-period-ms", "300", "--verify-floor-ms", "100", "--source-guard-ms", "20", "--changed-delay-floor-ms", "150", "--target-margin-ms", "50", "--post-completion-gap-ms", "20", "--trials", "12", "--out", "/results/e3b_r0_r1_r2_certificate.json"]
     environment: {BROKER_HOST: mosquitto, BROKER_PORT: "1883", BROKER_IMAGE: "eclipse-mosquitto:2.1.2-alpine"}
     volumes: ["./results:/results"]
     depends_on:

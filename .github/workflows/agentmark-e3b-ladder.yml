@@ -15,8 +15,10 @@ jobs:
       - name: Run decisive Mosquitto R0/R1/R2 + certificate gate
         working-directory: agentmark_e3b_lab
         run: ./e3_mqtt/run_ladder.sh
-      - name: Upload decisive report
+      - name: Upload decisive report even if a promotion assertion fails
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: agentmark-e3b-r0-r1-r2-certificate
           path: agentmark_e3b_lab/e3_mqtt/results/e3b_r0_r1_r2_certificate.json
+          if-no-files-found: warn
