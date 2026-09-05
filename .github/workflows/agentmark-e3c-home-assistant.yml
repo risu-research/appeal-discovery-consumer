@@ -114,8 +114,15 @@ jobs:
           PYTHONPATH=agentmark_e3b_lab python agentmark_e3c_ha/validate_result.py \
             "agentmark_e3c_results/replica-${REPLICA}.json" \
             --out "agentmark_e3c_results/validation-${REPLICA}.json"
-          sha256sum agentmark_e3c_results/* agentmark_e3c_results/provenance/* \
-            2>/dev/null | sort > "agentmark_e3c_results/manifest-${REPLICA}.sha256"
+          # Hash regular files only. The previous glob also passed the provenance
+          # directory to sha256sum; with pipefail that turned a PASSing validator
+          # into a packaging failure after validation had already succeeded.
+          manifest="agentmark_e3c_results/manifest-${REPLICA}.sha256"
+          find agentmark_e3c_results -type f ! -name "manifest-${REPLICA}.sha256" -print0 \
+            | LC_ALL=C sort -z \
+            | xargs -0 -r sha256sum \
+            > "$manifest"
+          test -s "$manifest"
 
       - name: Upload independently validated replica
         if: always()
