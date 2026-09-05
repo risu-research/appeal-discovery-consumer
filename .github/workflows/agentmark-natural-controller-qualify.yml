@@ -67,7 +67,8 @@ jobs:
           from pathlib import Path
           q = json.loads(Path('agentmark_natural_controllers/results/QUALIFICATION.json').read_text())
           m = json.loads(Path('agentmark_natural_controllers/corpus_seed.json').read_text())
-          assert q['schema'] == 'agentmark.natural_controller_corpus.qualification.v1'
+          assert q['schema'] == 'agentmark.natural_controller_corpus.qualification.v2'
+          assert q['scanner'] == 'context_sensitive_ha_action_sequence_v2'
           assert q['outcome_blind'] is True
           assert len(q['results']) == len(m['candidates'])
           assert {r['id'] for r in q['results']} == {c['id'] for c in m['candidates']}
@@ -78,6 +79,22 @@ jobs:
                   'EXCLUDED_NO_ACTION_SITES',
                   'EXCLUDED_NO_REACTIVE_DECISION_STRUCTURE',
               }
+              assert r.get('scanner') == 'context_sensitive_ha_action_sequence_v2'
+
+          by_id = {r['id']: r for r in q['results']}
+          motion = by_id['ha-official-motion-light']
+          assert motion['qualification'] == 'QUALIFIED_STAGE_A'
+          assert [s['operation'] for s in motion['action_sites']] == [
+              'light.turn_on', 'light.turn_off'
+          ]
+
+          # Regression for the discovery bug: notification payload buttons use
+          # dictionaries like {action: URI}; those are service data, not HA
+          # executable action steps, and must never appear in action_sites.
+          frigate = by_id['ha-frigate-notification']
+          assert all(s['operation'] != 'URI' for s in frigate['action_sites'])
+          assert all('/data/' not in s['path'] for s in frigate['action_sites'])
+          assert all('/event_data' not in s['path'] for s in frigate['action_sites'])
           PY
           (
             cd agentmark_natural_controllers/results
