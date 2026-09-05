@@ -1,0 +1,25 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.1.2-alpine
+    volumes:
+      - ../agentmark_e3b_lab/e3_mqtt/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -p 1883 -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 4s
+      retries: 15
+  device:
+    build:
+      context: ..
+      dockerfile: agentmark_e3b_audit/Dockerfile
+    command: ["python", "/app/core/e3_mqtt/app/device.py"]
+    environment: {BROKER_HOST: mosquitto, BROKER_PORT: "1883"}
+    depends_on: {mosquitto: {condition: service_healthy}}
+  runner:
+    build:
+      context: ..
+      dockerfile: agentmark_e3b_audit/Dockerfile
+    command: ["python", "/app/audit/causal_audit.py", "--help"]
+    environment: {BROKER_HOST: mosquitto, BROKER_PORT: "1883"}
+    volumes: ["./results:/results"]
+    depends_on: {mosquitto: {condition: service_healthy}, device: {condition: service_started}}
