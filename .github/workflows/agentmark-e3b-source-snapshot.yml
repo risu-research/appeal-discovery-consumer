@@ -10,11 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Record commit metadata
+      - name: Record clean commit metadata
         run: |
+          git status --porcelain=v1 > /tmp/GIT_STATUS.txt
+          git diff --no-ext-diff --binary HEAD > /tmp/GIT_DIFF.patch
           mkdir -p provenance
           printf '%s\n' "${GITHUB_SHA}" > provenance/GITHUB_SHA.txt
-          git status --porcelain=v1 > provenance/GIT_STATUS.txt
+          cp /tmp/GIT_STATUS.txt provenance/GIT_STATUS.txt
+          cp /tmp/GIT_DIFF.patch provenance/GIT_DIFF.patch
           git ls-tree -r --full-tree HEAD agentmark_e3b_lab agentmark_e3b_audit .github/workflows/agentmark-e3b-ladder.yml .github/workflows/agentmark-e3b-causal-audit.yml > provenance/GIT_LS_TREE.txt
       - name: Upload exact source snapshot
         uses: actions/upload-artifact@v4
