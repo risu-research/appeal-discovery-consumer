@@ -9,7 +9,7 @@ cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 docker compose up -d --build mosquitto device
 docker compose run --rm runner \
-  python /app/audit/causal_audit.py \
+  python /app/audit/barrier_wrapper.py \
   --broker mosquitto \
   --replica "$replica" \
   --verify-ms 100 \
