@@ -1,0 +1,304 @@
+name: AgentMark N2b Natural Decision Equivalence
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-n2b-decision-equivalence]
+    paths:
+      - 'agentmark_paper/CLAIM_EVIDENCE_MATRIX.md'
+      - 'agentmark_natural_controllers/better_thermostat/N2B_PREREGISTRATION.md'
+      - 'agentmark_natural_controllers/better_thermostat/n2b_experiment.py'
+      - 'agentmark_natural_controllers/better_thermostat/n2b_validate.py'
+      - 'agentmark_natural_controllers/better_thermostat/n2b_aggregate.py'
+      - '.github/workflows/agentmark-n2b-decision-equivalence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-image:
+    runs-on: ubuntu-24.04
+    outputs:
+      image_ref: ${{ steps.pin.outputs.image_ref }}
+    steps:
+      - name: Resolve and enforce exact Home Assistant image
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293'
+          tag='ghcr.io/home-assistant/home-assistant:2026.9.0'
+          docker pull "$tag"
+          ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$tag")"
+          test "$ref" = "$expected"
+          echo "image_ref=$ref" >> "$GITHUB_OUTPUT"
+
+  n2b:
+    needs: resolve-image
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [0, 1]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile frozen N2b producer, validator, aggregate, and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_natural_controllers/action_identity.py \
+            agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py \
+            agentmark_natural_controllers/better_thermostat/n2b_experiment.py \
+            agentmark_natural_controllers/better_thermostat/n2b_validate.py \
+            agentmark_natural_controllers/better_thermostat/n2b_aggregate.py \
+            agentmark_e3b_lab/agentmark/kernel.py \
+            agentmark_e3b_lab/agentmark/minimize.py \
+            agentmark_e3b_lab/agentmark/semantics.py
+          find agentmark_natural_controllers agentmark_e3b_lab -type d -name '__pycache__' -prune -exec rm -rf {} +
+
+      - name: Fetch exact external controller and exact upstream ownership component
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          mkdir -p n2b_results/provenance
+
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import urllib.request
+          url = 'https://raw.githubusercontent.com/n3roGit/MyHomeAssistantMods/57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f/automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml'
+          expected = '16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443'
+          req = urllib.request.Request(url, headers={'User-Agent':'AgentMark-N2b/1'})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              payload = response.read()
+          actual = hashlib.sha256(payload).hexdigest()
+          assert actual == expected, (actual, expected)
+          Path('n2b_results/better_thermostat_lean.yaml').write_bytes(payload)
+          Path('n2b_results/provenance/EXTERNAL_SOURCE_URL.txt').write_text(url + '\n')
+          Path('n2b_results/provenance/EXTERNAL_SOURCE_SHA256.txt').write_text(actual + '\n')
+          PY
+
+          bt_commit='b86561f61e5ba1259fc63e590f4847e9ac743d7f'
+          bt_repo='https://github.com/KartoffelToby/better_thermostat.git'
+          git init -q n2b_results/bt_checkout
+          git -C n2b_results/bt_checkout remote add origin "$bt_repo"
+          git -C n2b_results/bt_checkout fetch --depth=1 origin "$bt_commit"
+          git -C n2b_results/bt_checkout checkout --detach FETCH_HEAD
+          test "$(git -C n2b_results/bt_checkout rev-parse HEAD)" = "$bt_commit"
+          test -d n2b_results/bt_checkout/custom_components/better_thermostat
+          mkdir -p n2b_results/upstream_better_thermostat_component
+          cp -a n2b_results/bt_checkout/custom_components/better_thermostat/. \
+            n2b_results/upstream_better_thermostat_component/
+          rm -rf n2b_results/bt_checkout
+
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          root = Path('n2b_results/upstream_better_thermostat_component')
+          payload = (root / 'manifest.json').read_bytes()
+          actual_manifest = hashlib.sha256(payload).hexdigest()
+          expected_manifest = '710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28'
+          assert actual_manifest == expected_manifest, (actual_manifest, expected_manifest)
+          data = json.loads(payload)
+          assert data['domain'] == 'better_thermostat'
+          assert data['version'] == '1.9.2'
+          digest = hashlib.sha256()
+          files = sorted(path for path in root.rglob('*') if path.is_file())
+          assert files
+          for path in files:
+              rel = path.relative_to(root).as_posix().encode('utf-8')
+              body = path.read_bytes()
+              digest.update(len(rel).to_bytes(8, 'big'))
+              digest.update(rel)
+              digest.update(len(body).to_bytes(8, 'big'))
+              digest.update(body)
+          tree = digest.hexdigest()
+          expected_tree = 'bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0'
+          assert tree == expected_tree, (tree, expected_tree)
+          Path('n2b_results/provenance/BETTER_THERMOSTAT_UPSTREAM_MANIFEST_SHA256.txt').write_text(actual_manifest + '\n')
+          Path('n2b_results/provenance/BETTER_THERMOSTAT_UPSTREAM_COMPONENT_TREE_SHA256.txt').write_text(tree + '\n')
+          PY
+
+          printf '%s\n' "$bt_repo" > n2b_results/provenance/BETTER_THERMOSTAT_UPSTREAM_REPOSITORY.txt
+          printf '%s\n' "$bt_commit" > n2b_results/provenance/BETTER_THERMOSTAT_UPSTREAM_COMMIT.txt
+          printf '%s\n' '1.9.2' > n2b_results/provenance/BETTER_THERMOSTAT_UPSTREAM_VERSION.txt
+          printf '%s\n' "$IMAGE_REF" > n2b_results/provenance/HOME_ASSISTANT_IMAGE_REF.txt
+          printf '%s\n' "$GITHUB_SHA" > n2b_results/provenance/GITHUB_SHA.txt
+          printf '%s\n' "$REPLICA" > n2b_results/provenance/REPLICA.txt
+
+          sha256sum \
+            agentmark_paper/CLAIM_EVIDENCE_MATRIX.md \
+            agentmark_natural_controllers/better_thermostat/N2B_PREREGISTRATION.md \
+            agentmark_natural_controllers/action_identity.py \
+            agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py \
+            agentmark_natural_controllers/better_thermostat/n2b_experiment.py \
+            agentmark_natural_controllers/better_thermostat/n2b_validate.py \
+            agentmark_natural_controllers/better_thermostat/n2b_aggregate.py \
+            agentmark_e3b_lab/agentmark/kernel.py \
+            agentmark_e3b_lab/agentmark/minimize.py \
+            agentmark_e3b_lab/agentmark/semantics.py \
+            n2b_results/better_thermostat_lean.yaml \
+            n2b_results/upstream_better_thermostat_component/manifest.json \
+            > n2b_results/provenance/SOURCE_SHA256.txt
+
+      - name: Pull exact immutable Home Assistant image
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker image inspect "$IMAGE_REF" > n2b_results/provenance/HOME_ASSISTANT_IMAGE_INSPECT.json
+
+      - name: Run frozen N2b native decision-equivalence protocol
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            -e PYTHONPATH=/repo/agentmark_e3b_lab:/repo \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/n2b_results:/results" \
+            --entrypoint python3 \
+            "$IMAGE_REF" \
+            /repo/agentmark_natural_controllers/better_thermostat/n2b_experiment.py \
+              --blueprint /results/better_thermostat_lean.yaml \
+              --ownership-component /results/upstream_better_thermostat_component \
+              --replica "$REPLICA" \
+              --trials 6 \
+              --out "/results/replica-${REPLICA}.json"
+
+      - name: Independently recompute N2b and seal portable replica manifest
+        shell: bash
+        env:
+          REPLICA: ${{ matrix.replica }}
+          PYTHONPATH: ${{ github.workspace }}/agentmark_e3b_lab:${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python agentmark_natural_controllers/better_thermostat/n2b_validate.py \
+            "n2b_results/replica-${REPLICA}.json" \
+            --ownership-component n2b_results/upstream_better_thermostat_component \
+            --out "n2b_results/validation-${REPLICA}.json"
+          (
+            cd n2b_results
+            manifest="manifest-${REPLICA}.sha256"
+            find . -type f ! -name "$manifest" -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 -r sha256sum \
+              > "$manifest"
+            test -s "$manifest"
+            sha256sum -c "$manifest"
+          )
+
+      - name: Upload independently validated N2b replica
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-n2b-decision-equivalence-v1-r${{ matrix.replica }}
+          path: n2b_results
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: [resolve-image, n2b]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: agentmark-n2b-decision-equivalence-v1-r*
+          path: replicas
+
+      - name: Verify raw replica capsules and aggregate independently
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}/agentmark_e3b_lab:${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          for replica in 0 1; do
+            replica_dir="replicas/agentmark-n2b-decision-equivalence-v1-r${replica}"
+            test -d "$replica_dir"
+            (
+              cd "$replica_dir"
+              sha256sum -c "manifest-${replica}.sha256"
+            )
+          done
+
+          mkdir -p aggregate
+          printf '%s\n' '${{ needs.resolve-image.outputs.image_ref }}' > aggregate/HOME_ASSISTANT_IMAGE_REF.txt
+          mapfile -t results < <(find replicas -type f -name 'replica-*.json' | sort)
+          mapfile -t vals < <(find replicas -type f -name 'validation-*.json' | sort)
+          mapfile -t controllers < <(find replicas -type f -name 'better_thermostat_lean.yaml' | sort)
+          mapfile -t bt_manifests < <(find replicas -type f -path '*/upstream_better_thermostat_component/manifest.json' | sort)
+          mapfile -t bt_tree_hashes < <(find replicas -type f -name 'BETTER_THERMOSTAT_UPSTREAM_COMPONENT_TREE_SHA256.txt' | sort)
+          test "${#results[@]}" -eq 2
+          test "${#vals[@]}" -eq 2
+          test "${#controllers[@]}" -eq 2
+          test "${#bt_manifests[@]}" -eq 2
+          test "${#bt_tree_hashes[@]}" -eq 2
+          cmp "${controllers[0]}" "${controllers[1]}"
+          cmp "${bt_manifests[0]}" "${bt_manifests[1]}"
+          cmp "${bt_tree_hashes[0]}" "${bt_tree_hashes[1]}"
+
+          python agentmark_natural_controllers/better_thermostat/n2b_aggregate.py \
+            "${results[@]}" \
+            --validations "${vals[@]}" \
+            --image-ref-file aggregate/HOME_ASSISTANT_IMAGE_REF.txt \
+            --out aggregate/N2B_DECISION_EQUIVALENCE_REPLICATED.json
+
+          cp agentmark_paper/CLAIM_EVIDENCE_MATRIX.md aggregate/
+          cp agentmark_natural_controllers/better_thermostat/N2B_PREREGISTRATION.md aggregate/
+          cp agentmark_natural_controllers/better_thermostat/n2b_experiment.py aggregate/experiment.py
+          cp agentmark_natural_controllers/better_thermostat/n2b_validate.py aggregate/validate_result.py
+          cp agentmark_natural_controllers/better_thermostat/n2b_aggregate.py aggregate/aggregate_replicas.py
+          cp agentmark_natural_controllers/action_identity.py aggregate/
+          mkdir -p aggregate/agentmark_runtime
+          cp agentmark_e3b_lab/agentmark/kernel.py aggregate/agentmark_runtime/
+          cp agentmark_e3b_lab/agentmark/minimize.py aggregate/agentmark_runtime/
+          cp agentmark_e3b_lab/agentmark/semantics.py aggregate/agentmark_runtime/
+          cp "${controllers[0]}" aggregate/EXTERNAL_better_thermostat_lean.yaml
+          first_component_dir="$(dirname "${bt_manifests[0]}")"
+          cp -a "$first_component_dir" aggregate/UPSTREAM_better_thermostat_component
+          cp "${bt_tree_hashes[0]}" aggregate/UPSTREAM_COMPONENT_TREE_SHA256.txt
+          printf '%s\n' 'b86561f61e5ba1259fc63e590f4847e9ac743d7f' > aggregate/UPSTREAM_COMPONENT_COMMIT.txt
+          printf '%s\n' 'KartoffelToby/better_thermostat' > aggregate/UPSTREAM_COMPONENT_REPOSITORY.txt
+          printf '%s\n' "$GITHUB_SHA" > aggregate/AGENTMARK_GITHUB_SHA.txt
+
+          mkdir -p aggregate/RAW_REPLICAS
+          cp -a replicas/agentmark-n2b-decision-equivalence-v1-r0 aggregate/RAW_REPLICAS/r0
+          cp -a replicas/agentmark-n2b-decision-equivalence-v1-r1 aggregate/RAW_REPLICAS/r1
+          (
+            cd aggregate/RAW_REPLICAS/r0
+            sha256sum -c manifest-0.sha256
+          )
+          (
+            cd aggregate/RAW_REPLICAS/r1
+            sha256sum -c manifest-1.sha256
+          )
+
+          (
+            cd aggregate
+            find . -type f ! -name 'CHECKSUMS.sha256' -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 -r sha256sum \
+              > CHECKSUMS.sha256
+            test -s CHECKSUMS.sha256
+            sha256sum -c CHECKSUMS.sha256
+          )
+
+      - name: Upload replicated N2b promotion bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-n2b-decision-equivalence-v1-replicated
+          path: aggregate
+          if-no-files-found: error
+          retention-days: 90
