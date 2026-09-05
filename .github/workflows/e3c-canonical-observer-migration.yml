@@ -36,6 +36,7 @@ jobs:
             echo 'legacy global decision listener still present' >&2
             exit 2
           fi
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
           mapfile -t changed < <(git status --porcelain=v1 | awk '{print $2}' | sort)
           printf 'changed: %s\n' "${changed[@]}"
           test "${#changed[@]}" -eq 3
