@@ -168,7 +168,18 @@ jobs:
               > aggregate/home_assistant_ecological.py
           cp agentmark_e3c_ha/validate_result.py aggregate/
           cp agentmark_e3c_ha/aggregate_replicas.py aggregate/
-          sha256sum aggregate/* | sort > aggregate/CHECKSUMS.sha256
+          # The uploaded artifact uses aggregate/ as its root. Generate the
+          # manifest from inside that directory so `sha256sum -c` works exactly
+          # as downloaded, without path rewriting or extraction assumptions.
+          (
+            cd aggregate
+            find . -maxdepth 1 -type f ! -name 'CHECKSUMS.sha256' -printf '%f\0' \
+              | LC_ALL=C sort -z \
+              | xargs -0 -r sha256sum \
+              > CHECKSUMS.sha256
+            test -s CHECKSUMS.sha256
+            sha256sum -c CHECKSUMS.sha256
+          )
       - name: Upload replicated E3c promotion bundle
         uses: actions/upload-artifact@v4
         with:
