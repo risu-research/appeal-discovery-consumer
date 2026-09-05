@@ -1,0 +1,51 @@
+name: AgentMark E3b Near-Threshold Causal Audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-e3b-lab]
+    paths:
+      - 'agentmark_e3b_audit/**'
+      - '.github/workflows/agentmark-e3b-causal-audit.yml'
+
+jobs:
+  replica:
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run independent Mosquitto causal-audit replica
+        run: bash agentmark_e3b_audit/run_replica.sh ${{ matrix.replica }}
+      - name: Upload replica result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-e3b-causal-audit-r${{ matrix.replica }}
+          path: agentmark_e3b_audit/results/replica-${{ matrix.replica }}.json
+          if-no-files-found: error
+
+  aggregate:
+    needs: replica
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: agentmark-e3b-causal-audit-r*
+          path: agentmark_e3b_audit/collected
+          merge-multiple: true
+      - name: Aggregate preregistered causal audit
+        run: |
+          python agentmark_e3b_audit/aggregate.py \
+            --inputs 'agentmark_e3b_audit/collected/replica-*.json' \
+            --out agentmark_e3b_audit/collected/e3b_near_threshold_causal_audit.json
+      - name: Upload aggregate verdict
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-e3b-causal-audit-aggregate
+          path: agentmark_e3b_audit/collected/e3b_near_threshold_causal_audit.json
+          if-no-files-found: error
