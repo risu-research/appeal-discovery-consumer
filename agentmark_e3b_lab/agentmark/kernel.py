@@ -12,6 +12,11 @@ class EventKey:
     target_class: str | None
     delay_ms: int
     next_state: str
+    # Optional adapter-supplied semantic discriminator.  It is deliberately
+    # opaque to the kernel: e.g. a Home Assistant adapter can distinguish the
+    # same service invoked with preset=home vs preset=away without teaching the
+    # generic replay semantics anything about climate domains.
+    variant: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +74,9 @@ class ReactiveKernel:
                         raise ValueError(f"unknown next_state {nxt!r}")
                     if not str(row.get("operation", "")):
                         raise ValueError("transition operation must be non-empty")
+                    variant = row.get("variant")
+                    if variant is not None and not isinstance(variant, str):
+                        raise ValueError("transition variant must be a string or null")
                 if abs(float(total) - 1.0) > 1e-12:
                     raise ValueError(f"probabilities for {state}/{feedback} sum to {float(total)}, not 1")
 
@@ -93,7 +101,18 @@ class ReactiveKernel:
         for row, raw_p in zip(rows, raw_probs):
             nxt = str(row["next_state"])
             nxt_key = state_blocks[nxt] if state_blocks is not None else nxt
-            atoms.append(Atom(raw_p / total, EventKey(str(row["operation"]), row.get("target_class"), int(row.get("delay_ms", 0)), str(nxt_key))))
+            atoms.append(
+                Atom(
+                    raw_p / total,
+                    EventKey(
+                        str(row["operation"]),
+                        row.get("target_class"),
+                        int(row.get("delay_ms", 0)),
+                        str(nxt_key),
+                        row.get("variant"),
+                    ),
+                )
+            )
         return tuple(atoms)
 
     def distribution(self, state: str, feedback: str, *, state_blocks: Mapping[str, str | int] | None = None, projection: str = "full") -> dict[Any, Fraction]:
@@ -105,10 +124,31 @@ class ReactiveKernel:
             # explicit p=0 rows.
             if atom.probability <= 0:
                 continue
-            if projection == "full": key: Any = (atom.event.operation, atom.event.target_class, atom.event.delay_ms, atom.event.next_state)
-            elif projection == "operation": key = atom.event.operation
-            elif projection == "semantic": key = (atom.event.operation, atom.event.target_class, atom.event.delay_ms)
-            else: raise ValueError(f"unknown projection {projection!r}")
+            if projection == "full":
+                key: Any = (
+                    atom.event.operation,
+                    atom.event.target_class,
+                    atom.event.variant,
+                    atom.event.delay_ms,
+                    atom.event.next_state,
+                )
+            elif projection == "operation":
+                key = atom.event.operation
+            elif projection == "action":
+                # Parameter-sensitive action identity while deliberately
+                # excluding timing and successor state.  ``variant`` is
+                # adapter-supplied and must be declared before evaluation.
+                key = (
+                    atom.event.operation,
+                    atom.event.target_class,
+                    atom.event.variant,
+                )
+            elif projection == "semantic":
+                # Legacy E3b/E3c projection retained byte-semantically for
+                # compatibility: operation + target class + delay.
+                key = (atom.event.operation, atom.event.target_class, atom.event.delay_ms)
+            else:
+                raise ValueError(f"unknown projection {projection!r}")
             out[key] += atom.probability
         return dict(out)
 
@@ -117,7 +157,7 @@ class ReactiveKernel:
         dist = self.distribution(state, feedback, state_blocks=state_blocks, projection=projection)
         return tuple(sorted(((key, p.numerator, p.denominator) for key, p in dist.items()), key=repr))
 
-    def event_probability(self, state: str, feedback: str, *, operation: str, target_class: str | None | object = ..., delay_ms: int | object = ..., next_state: str | object = ...) -> Fraction:
+    def event_probability(self, state: str, feedback: str, *, operation: str, target_class: str | None | object = ..., delay_ms: int | object = ..., next_state: str | object = ..., variant: str | None | object = ...) -> Fraction:
         total = Fraction(0, 1)
         for atom in self.atoms(state, feedback):
             e = atom.event
@@ -125,5 +165,6 @@ class ReactiveKernel:
             if target_class is not ... and e.target_class != target_class: continue
             if delay_ms is not ... and e.delay_ms != int(delay_ms): continue
             if next_state is not ... and e.next_state != str(next_state): continue
+            if variant is not ... and e.variant != variant: continue
             total += atom.probability
         return total
