@@ -185,7 +185,12 @@ class HALab:
         self._unsubs.clear()
 
 
-async def wait_for_on(hass: HomeAssistant, entity_id: str, timeout_ms: float) -> tuple[bool, int | None]:
+async def wait_for_on_until(
+    hass: HomeAssistant,
+    entity_id: str,
+    deadline_ns: int,
+) -> tuple[bool, int | None]:
+    """Observe HA state visibility against an absolute monotonic deadline."""
     state = hass.states.get(entity_id)
     if state is not None and state.state == "on":
         return True, now_ns()
@@ -202,17 +207,38 @@ async def wait_for_on(hass: HomeAssistant, entity_id: str, timeout_ms: float) ->
 
     unsub = hass.bus.async_listen(EVENT_STATE_CHANGED, listener)
     try:
-        # Close the check/listen race.
+        # Close the check/listen race after listener registration.
         state = hass.states.get(entity_id)
         if state is not None and state.state == "on" and not fut.done():
             fut.set_result(now_ns())
+        remaining_s = max(0.0, (deadline_ns - now_ns()) / 1_000_000_000.0)
+        if remaining_s <= 0.0:
+            return False, None
         try:
-            event_ns = await asyncio.wait_for(fut, timeout=timeout_ms / 1000.0)
+            event_ns = await asyncio.wait_for(fut, timeout=remaining_s)
             return True, event_ns
         except TimeoutError:
             return False, None
     finally:
         unsub()
+
+
+async def wait_for_on(
+    hass: HomeAssistant,
+    entity_id: str,
+    timeout_ms: float,
+) -> tuple[bool, int | None]:
+    return await wait_for_on_until(
+        hass,
+        entity_id,
+        now_ns() + int(timeout_ms * 1_000_000.0),
+    )
+
+
+async def sleep_until_ns(deadline_ns: int) -> None:
+    remaining_s = (deadline_ns - now_ns()) / 1_000_000_000.0
+    if remaining_s > 0:
+        await asyncio.sleep(remaining_s)
 
 
 def ids(run_id: str, task_index: int) -> tuple[str, str, str]:
@@ -228,7 +254,14 @@ async def call_service(
     *,
     blocking: bool,
     context: Context | None = None,
-) -> None:
+    issued: asyncio.Future[int] | None = None,
+) -> tuple[int, int]:
+    # The scientific deadline is defined relative to operation issue, not to
+    # coroutine creation.  Set the clock only once this coroutine is actually
+    # scheduled and immediately before Home Assistant receives async_call().
+    issue_ns = now_ns()
+    if issued is not None and not issued.done():
+        issued.set_result(issue_ns)
     await hass.services.async_call(
         DOMAIN,
         service,
@@ -236,6 +269,8 @@ async def call_service(
         blocking=blocking,
         context=context,
     )
+    complete_ns = now_ns()
+    return issue_ns, complete_ns
 
 
 async def source_task(
@@ -247,7 +282,8 @@ async def source_task(
     verify_ms: float,
 ) -> SourceTaskTrace:
     task_id, entity_id, commit_entity_id = ids(run_id, task_index)
-    t0 = now_ns()
+    loop = asyncio.get_running_loop()
+    act1_issued: asyncio.Future[int] = loop.create_future()
     act1_ctx = Context()
     act1_task = asyncio.create_task(
         call_service(
@@ -261,32 +297,45 @@ async def source_task(
             },
             blocking=True,
             context=act1_ctx,
+            issued=act1_issued,
         )
     )
-    visible, _ = await wait_for_on(hass, entity_id, verify_ms)
-    if not visible:
-        raise AssertionError(f"source task {task_id} missed frozen verify deadline")
-    await act1_task
-    act1_complete = now_ns()
-    act2_issue = now_ns()
-    await call_service(
+    act1_issue_ns = await act1_issued
+    visible, visible_ns = await wait_for_on_until(
         hass,
-        ACT2,
-        {
-            "run_id": run_id,
-            "task_id": task_id,
-            "commit_entity_id": commit_entity_id,
-        },
-        blocking=True,
-        context=Context(),
+        entity_id,
+        act1_issue_ns + int(verify_ms * 1_000_000.0),
     )
-    act2_complete = now_ns()
+    if not visible:
+        await act1_task
+        raise AssertionError(f"source task {task_id} missed frozen verify deadline")
+
+    _, act1_complete_ns = await act1_task
+
+    act2_issued: asyncio.Future[int] = loop.create_future()
+    act2_task = asyncio.create_task(
+        call_service(
+            hass,
+            ACT2,
+            {
+                "run_id": run_id,
+                "task_id": task_id,
+                "commit_entity_id": commit_entity_id,
+            },
+            blocking=True,
+            context=Context(),
+            issued=act2_issued,
+        )
+    )
+    act2_issue_ns = await act2_issued
+    _, act2_complete_ns = await act2_task
+
     return SourceTaskTrace(
         task_index=task_index,
         act1_issue_ms=0.0,
-        act1_complete_ms=ns_to_ms(act1_complete - t0),
-        act2_issue_ms=ns_to_ms(act2_issue - t0),
-        act2_complete_ms=ns_to_ms(act2_complete - t0),
+        act1_complete_ms=ns_to_ms(act1_complete_ns - act1_issue_ns),
+        act2_issue_ms=ns_to_ms(act2_issue_ns - act1_issue_ns),
+        act2_complete_ms=ns_to_ms(act2_complete_ns - act1_issue_ns),
     )
 
 
@@ -327,6 +376,7 @@ async def record_source(
         wave_size,
         wave_period_ms,
     )
+    await hass.async_block_till_done()
     return sorted(traces, key=lambda x: x.task_index)
 
 
@@ -342,11 +392,10 @@ async def replay_task(
 ) -> dict[str, Any]:
     task_index = trace.task_index
     task_id, entity_id, commit_entity_id = ids(run_id, task_index)
-    t0 = now_ns()
+    loop = asyncio.get_running_loop()
 
-    monitor = asyncio.create_task(wait_for_on(hass, entity_id, verify_ms))
+    act1_issued: asyncio.Future[int] = loop.create_future()
     act1_ctx = Context()
-    act1_issue_ns = now_ns()
     act1_task = asyncio.create_task(
         call_service(
             hass,
@@ -359,34 +408,55 @@ async def replay_task(
             },
             blocking=True,
             context=act1_ctx,
+            issued=act1_issued,
+        )
+    )
+    act1_issue_ns = await act1_issued
+    t0 = act1_issue_ns
+    monitor = asyncio.create_task(
+        wait_for_on_until(
+            hass,
+            entity_id,
+            t0 + int(verify_ms * 1_000_000.0),
         )
     )
 
     verify_called = False
     if mode == "R0":
-        await asyncio.sleep(max(0.0, trace.act2_issue_ms) / 1000.0)
-        act2_issue_ns = now_ns()
-        await call_service(
-            hass,
-            ACT2,
-            {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
-            blocking=True,
-            context=Context(),
+        # Preserve the recorded source issue schedule against the actual target
+        # ACT1 issue clock, not against coroutine creation/scheduler queue time.
+        await sleep_until_ns(t0 + int(trace.act2_issue_ms * 1_000_000.0))
+        act2_issued: asyncio.Future[int] = loop.create_future()
+        act2_task = asyncio.create_task(
+            call_service(
+                hass,
+                ACT2,
+                {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
+                blocking=True,
+                context=Context(),
+                issued=act2_issued,
+            )
         )
+        act2_issue_ns = await act2_issued
+        await act2_task
         visible_by_deadline, visible_ns = await monitor
-        await act1_task
+        _, act1_complete_ns = await act1_task
     elif mode == "R1":
-        await act1_task
-        act1_complete_ns = now_ns()
+        _, act1_complete_ns = await act1_task
         await asyncio.sleep(trace.think_after_act1_ms / 1000.0)
-        act2_issue_ns = now_ns()
-        await call_service(
-            hass,
-            ACT2,
-            {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
-            blocking=True,
-            context=Context(),
+        act2_issued = loop.create_future()
+        act2_task = asyncio.create_task(
+            call_service(
+                hass,
+                ACT2,
+                {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
+                blocking=True,
+                context=Context(),
+                issued=act2_issued,
+            )
         )
+        act2_issue_ns = await act2_issued
+        await act2_task
         visible_by_deadline, visible_ns = await monitor
     elif mode == "R2":
         visible_by_deadline, visible_ns = await monitor
@@ -404,22 +474,23 @@ async def replay_task(
                 blocking=True,
                 context=Context(),
             )
-        await act1_task
-        act1_complete_ns = now_ns()
-        act2_issue_ns = now_ns()
-        await call_service(
-            hass,
-            ACT2,
-            {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
-            blocking=True,
-            context=Context(),
+        _, act1_complete_ns = await act1_task
+        act2_issued = loop.create_future()
+        act2_task = asyncio.create_task(
+            call_service(
+                hass,
+                ACT2,
+                {"run_id": run_id, "task_id": task_id, "commit_entity_id": commit_entity_id},
+                blocking=True,
+                context=Context(),
+                issued=act2_issued,
+            )
         )
+        act2_issue_ns = await act2_issued
+        await act2_task
     else:
         raise ValueError(mode)
 
-    # For R0, await happened after ACT2. Completion timestamp here still reflects
-    # target completion rather than recorded issue schedule.
-    act1_complete_ns = now_ns() if mode == "R0" else act1_complete_ns
     final_ns = now_ns()
     feedback = "VISIBLE" if visible_by_deadline else "MISS"
     supported_next = "ACT2" if (not policy_sensitive or visible_by_deadline) else "VERIFY"

@@ -5,7 +5,7 @@
         "observed_decision_operation": observed_decision_op,
         "support_violation": support_violation,
         "verify_called": verify_called,
-        "act1_issue_ms": ns_to_ms(act1_issue_ns - t0),
+        "act1_issue_ms": 0.0,
         "act1_complete_ms": ns_to_ms(act1_complete_ns - t0),
         "act2_issue_ms": ns_to_ms(act2_issue_ns - t0),
         "final_ms": ns_to_ms(final_ns - t0),
@@ -42,9 +42,9 @@ async def run_mode(
         wave_size,
         wave_period_ms,
     )
-    # Give Home Assistant's EventBus one event-loop turn to deliver any final
-    # call_service/state_changed callbacks before native-event slicing.
-    await asyncio.sleep(0)
+    # Home Assistant dispatches event callbacks as tracked jobs. A single
+    # asyncio loop turn is not a completeness barrier; use HA's own drain.
+    await hass.async_block_till_done()
     return sorted(rows, key=lambda r: r["task_index"])
 
 
