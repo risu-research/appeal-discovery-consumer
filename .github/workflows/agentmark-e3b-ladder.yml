@@ -1,24 +1,31 @@
-name: AgentMark E3b R0-R1-R2 Mosquitto Ladder
+name: AgentMark E3b Mosquitto Promotion
 on:
   workflow_dispatch:
   push:
     branches: [agentmark-e3b-lab]
-    paths:
-      - 'agentmark_e3b_lab/**'
-      - '.github/workflows/agentmark-e3b-ladder.yml'
+    paths: ['agentmark_e3b_lab/**','.github/workflows/agentmark-e3b-ladder.yml']
 jobs:
-  e3b-ladder:
+  decisive-ladder:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Run decisive Mosquitto R0/R1/R2 + certificate gate
+      - name: R0 R1 R2 plus Safety Certificate
         working-directory: agentmark_e3b_lab
         run: ./e3_mqtt/run_ladder.sh
-      - name: Upload decisive report even if a promotion assertion fails
+      - name: Upload decisive report
         if: always()
         uses: actions/upload-artifact@v4
-        with:
-          name: agentmark-e3b-r0-r1-r2-certificate
-          path: agentmark_e3b_lab/e3_mqtt/results/e3b_r0_r1_r2_certificate.json
-          if-no-files-found: warn
+        with: {name: agentmark-e3b-decisive-v2, path: agentmark_e3b_lab/e3_mqtt/results/e3b_r0_r1_r2_certificate.json, if-no-files-found: warn}
+  safety-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real Mosquitto Replay Safety boundary sweep
+        working-directory: agentmark_e3b_lab
+        run: ./e3_mqtt/run_sweep.sh
+      - name: Upload Safety Map data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: agentmark-e3b-safety-boundary, path: agentmark_e3b_lab/e3_mqtt/results/e3b_replay_safety_sweep.json, if-no-files-found: warn}
