@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compile frozen N2 v3 producer, adapter, validator, and aggregate
+      - name: Compile N2 v4 producer, independent validator, aggregate, and runtime dependencies
         shell: bash
         run: |
           set -euo pipefail
@@ -49,10 +49,13 @@ jobs:
             agentmark_natural_controllers/action_identity.py \
             agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py \
             agentmark_natural_controllers/better_thermostat/validate_persisted_ownership.py \
-            agentmark_natural_controllers/better_thermostat/aggregate_persisted_ownership.py \
+            agentmark_natural_controllers/better_thermostat/experiment_initial_snapshot.py \
+            agentmark_natural_controllers/better_thermostat/validate_initial_snapshot.py \
+            agentmark_natural_controllers/better_thermostat/aggregate_initial_snapshot.py \
             agentmark_e3b_lab/agentmark/kernel.py \
             agentmark_e3b_lab/agentmark/minimize.py \
             agentmark_e3b_lab/agentmark/semantics.py
+          find agentmark_natural_controllers agentmark_e3b_lab -type d -name '__pycache__' -prune -exec rm -rf {} +
 
       - name: Fetch exact external controller and exact upstream ownership component
         shell: bash
@@ -69,7 +72,7 @@ jobs:
           import urllib.request
           url = 'https://raw.githubusercontent.com/n3roGit/MyHomeAssistantMods/57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f/automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml'
           expected = '16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443'
-          req = urllib.request.Request(url, headers={'User-Agent':'AgentMark-N2/3'})
+          req = urllib.request.Request(url, headers={'User-Agent':'AgentMark-N2/4'})
           with urllib.request.urlopen(req, timeout=30) as response:
               payload = response.read()
           actual = hashlib.sha256(payload).hexdigest()
@@ -115,6 +118,8 @@ jobs:
               digest.update(len(body).to_bytes(8, 'big'))
               digest.update(body)
           tree = digest.hexdigest()
+          expected_tree = 'bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0'
+          assert tree == expected_tree, (tree, expected_tree)
           Path('n2_results/provenance/BETTER_THERMOSTAT_UPSTREAM_MANIFEST_SHA256.txt').write_text(actual_manifest + '\n')
           Path('n2_results/provenance/BETTER_THERMOSTAT_UPSTREAM_COMPONENT_TREE_SHA256.txt').write_text(tree + '\n')
           PY
@@ -132,7 +137,12 @@ jobs:
             agentmark_natural_controllers/better_thermostat/OWNERSHIP_CORRECTION.md \
             agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py \
             agentmark_natural_controllers/better_thermostat/validate_persisted_ownership.py \
-            agentmark_natural_controllers/better_thermostat/aggregate_persisted_ownership.py \
+            agentmark_natural_controllers/better_thermostat/experiment_initial_snapshot.py \
+            agentmark_natural_controllers/better_thermostat/validate_initial_snapshot.py \
+            agentmark_natural_controllers/better_thermostat/aggregate_initial_snapshot.py \
+            agentmark_e3b_lab/agentmark/kernel.py \
+            agentmark_e3b_lab/agentmark/minimize.py \
+            agentmark_e3b_lab/agentmark/semantics.py \
             n2_results/better_thermostat_lean.yaml \
             n2_results/upstream_better_thermostat_component/manifest.json \
             > n2_results/provenance/SOURCE_SHA256.txt
@@ -146,7 +156,7 @@ jobs:
           docker pull "$IMAGE_REF"
           docker image inspect "$IMAGE_REF" > n2_results/provenance/HOME_ASSISTANT_IMAGE_INSPECT.json
 
-      - name: Run frozen N2 v3 in native Home Assistant
+      - name: Run frozen N2 v4 with explicit pre-action snapshots in native Home Assistant
         shell: bash
         env:
           IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
@@ -159,20 +169,20 @@ jobs:
             -v "$PWD/n2_results:/results" \
             --entrypoint python3 \
             "$IMAGE_REF" \
-            /repo/agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py \
+            /repo/agentmark_natural_controllers/better_thermostat/experiment_initial_snapshot.py \
               --blueprint /results/better_thermostat_lean.yaml \
               --ownership-component /results/upstream_better_thermostat_component \
               --replica "$REPLICA" \
               --trials 6 \
               --out "/results/replica-${REPLICA}.json"
 
-      - name: Independently recompute N2 v3 from raw events and upstream bytes
+      - name: Independently recompute N2 v4 from raw events, explicit snapshots, and upstream bytes
         shell: bash
         env:
           REPLICA: ${{ matrix.replica }}
         run: |
           set -euo pipefail
-          python agentmark_natural_controllers/better_thermostat/validate_persisted_ownership.py \
+          python agentmark_natural_controllers/better_thermostat/validate_initial_snapshot.py \
             "n2_results/replica-${REPLICA}.json" \
             --ownership-component n2_results/upstream_better_thermostat_component \
             --out "n2_results/validation-${REPLICA}.json"
@@ -183,11 +193,11 @@ jobs:
             > "$manifest"
           test -s "$manifest"
 
-      - name: Upload independently validated N2 v3 replica
+      - name: Upload independently validated N2 v4 replica
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agentmark-n2-better-thermostat-r${{ matrix.replica }}
+          name: agentmark-n2-better-thermostat-v4-r${{ matrix.replica }}
           path: n2_results
           if-no-files-found: error
           retention-days: 90
@@ -199,10 +209,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: agentmark-n2-better-thermostat-r*
+          pattern: agentmark-n2-better-thermostat-v4-r*
           path: replicas
 
-      - name: Aggregate exactly two independently validated N2 v3 replicas
+      - name: Aggregate exactly two independently validated N2 v4 replicas
         shell: bash
         run: |
           set -euo pipefail
@@ -222,7 +232,7 @@ jobs:
           cmp "${bt_manifests[0]}" "${bt_manifests[1]}"
           cmp "${bt_tree_hashes[0]}" "${bt_tree_hashes[1]}"
 
-          python agentmark_natural_controllers/better_thermostat/aggregate_persisted_ownership.py \
+          python agentmark_natural_controllers/better_thermostat/aggregate_initial_snapshot.py \
             "${results[@]}" \
             --validations "${vals[@]}" \
             --image-ref-file aggregate/HOME_ASSISTANT_IMAGE_REF.txt \
@@ -231,15 +241,22 @@ jobs:
           cp agentmark_natural_controllers/action_identity.py aggregate/
           cp agentmark_natural_controllers/better_thermostat/PREREGISTRATION.md aggregate/
           cp agentmark_natural_controllers/better_thermostat/OWNERSHIP_CORRECTION.md aggregate/
-          cp agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py aggregate/experiment.py
-          cp agentmark_natural_controllers/better_thermostat/validate_persisted_ownership.py aggregate/validate_result.py
-          cp agentmark_natural_controllers/better_thermostat/aggregate_persisted_ownership.py aggregate/aggregate_replicas.py
+          cp agentmark_natural_controllers/better_thermostat/experiment_initial_snapshot.py aggregate/experiment.py
+          cp agentmark_natural_controllers/better_thermostat/validate_initial_snapshot.py aggregate/validate_result.py
+          cp agentmark_natural_controllers/better_thermostat/aggregate_initial_snapshot.py aggregate/aggregate_replicas.py
+          cp agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py aggregate/experiment_persisted_ownership.py
+          cp agentmark_natural_controllers/better_thermostat/validate_persisted_ownership.py aggregate/validate_persisted_ownership.py
+          mkdir -p aggregate/agentmark_runtime
+          cp agentmark_e3b_lab/agentmark/kernel.py aggregate/agentmark_runtime/
+          cp agentmark_e3b_lab/agentmark/minimize.py aggregate/agentmark_runtime/
+          cp agentmark_e3b_lab/agentmark/semantics.py aggregate/agentmark_runtime/
           cp "${controllers[0]}" aggregate/EXTERNAL_better_thermostat_lean.yaml
           first_component_dir="$(dirname "${bt_manifests[0]}")"
           cp -a "$first_component_dir" aggregate/UPSTREAM_better_thermostat_component
           cp "${bt_tree_hashes[0]}" aggregate/UPSTREAM_COMPONENT_TREE_SHA256.txt
           printf '%s\n' 'b86561f61e5ba1259fc63e590f4847e9ac743d7f' > aggregate/UPSTREAM_COMPONENT_COMMIT.txt
           printf '%s\n' 'KartoffelToby/better_thermostat' > aggregate/UPSTREAM_COMPONENT_REPOSITORY.txt
+          printf '%s\n' "$GITHUB_SHA" > aggregate/AGENTMARK_GITHUB_SHA.txt
 
           (
             cd aggregate
@@ -251,10 +268,10 @@ jobs:
             sha256sum -c CHECKSUMS.sha256
           )
 
-      - name: Upload replicated N2 v3 promotion bundle
+      - name: Upload replicated N2 v4 promotion bundle
         uses: actions/upload-artifact@v4
         with:
-          name: agentmark-n2-better-thermostat-replicated
+          name: agentmark-n2-better-thermostat-v4-replicated
           path: aggregate
           if-no-files-found: error
           retention-days: 90
