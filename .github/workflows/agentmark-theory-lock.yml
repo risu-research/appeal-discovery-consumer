@@ -1,0 +1,70 @@
+name: AgentMark Theory Lock
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-theory-lock]
+    paths:
+      - 'agentmark_e3b_lab/agentmark/**'
+      - 'agentmark_theory/**'
+      - 'agentmark_paper/**'
+      - '.github/workflows/agentmark-theory-lock.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  theory-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile theory surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_e3b_lab/agentmark/kernel.py \
+            agentmark_e3b_lab/agentmark/minimize.py \
+            agentmark_e3b_lab/agentmark/semantics.py \
+            agentmark_e3b_lab/agentmark/certificate.py \
+            agentmark_theory/verify_theory.py
+
+      - name: Exhaustively verify finite theory contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p agentmark_theory/results
+          PYTHONPATH=agentmark_e3b_lab \
+            python agentmark_theory/verify_theory.py \
+            | tee agentmark_theory/results/theory-verification.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('agentmark_theory/results/theory-verification.json')
+          data = json.loads(p.read_text())
+          assert data['verdict'] == 'PASS'
+          assert data['total_cases'] == 1151
+          PY
+
+      - name: Hash theory contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            agentmark_e3b_lab/agentmark/kernel.py \
+            agentmark_e3b_lab/agentmark/minimize.py \
+            agentmark_e3b_lab/agentmark/semantics.py \
+            agentmark_e3b_lab/agentmark/certificate.py \
+            agentmark_theory/verify_theory.py \
+            agentmark_theory/results/theory-verification.json \
+            > agentmark_theory/results/CHECKSUMS.sha256
+          sha256sum -c agentmark_theory/results/CHECKSUMS.sha256
+
+      - name: Upload verified theory contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-theory-lock
+          path: agentmark_theory/results
+          if-no-files-found: error
+          retention-days: 90
