@@ -176,7 +176,7 @@ jobs:
               --trials 6 \
               --out "/results/replica-${REPLICA}.json"
 
-      - name: Independently recompute N2 v4 from raw events, explicit snapshots, and upstream bytes
+      - name: Independently recompute N2 v4 and seal portable replica manifest
         shell: bash
         env:
           REPLICA: ${{ matrix.replica }}
@@ -187,12 +187,16 @@ jobs:
             "n2_results/replica-${REPLICA}.json" \
             --ownership-component n2_results/upstream_better_thermostat_component \
             --out "n2_results/validation-${REPLICA}.json"
-          manifest="n2_results/manifest-${REPLICA}.sha256"
-          find n2_results -type f ! -name "manifest-${REPLICA}.sha256" -print0 \
-            | LC_ALL=C sort -z \
-            | xargs -0 -r sha256sum \
-            > "$manifest"
-          test -s "$manifest"
+          (
+            cd n2_results
+            manifest="manifest-${REPLICA}.sha256"
+            find . -type f ! -name "$manifest" -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 -r sha256sum \
+              > "$manifest"
+            test -s "$manifest"
+            sha256sum -c "$manifest"
+          )
 
       - name: Upload independently validated N2 v4 replica
         if: always()
@@ -217,6 +221,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          for replica in 0 1; do
+            replica_dir="replicas/agentmark-n2-better-thermostat-v4-r${replica}"
+            test -d "$replica_dir"
+            (
+              cd "$replica_dir"
+              sha256sum -c "manifest-${replica}.sha256"
+            )
+          done
+
           mkdir -p aggregate
           printf '%s\n' '${{ needs.resolve-image.outputs.image_ref }}' > aggregate/HOME_ASSISTANT_IMAGE_REF.txt
           mapfile -t results < <(find replicas -type f -name 'replica-*.json' | sort)
@@ -258,6 +272,18 @@ jobs:
           printf '%s\n' 'b86561f61e5ba1259fc63e590f4847e9ac743d7f' > aggregate/UPSTREAM_COMPONENT_COMMIT.txt
           printf '%s\n' 'KartoffelToby/better_thermostat' > aggregate/UPSTREAM_COMPONENT_REPOSITORY.txt
           printf '%s\n' "$GITHUB_SHA" > aggregate/AGENTMARK_GITHUB_SHA.txt
+
+          mkdir -p aggregate/RAW_REPLICAS
+          cp -a replicas/agentmark-n2-better-thermostat-v4-r0 aggregate/RAW_REPLICAS/r0
+          cp -a replicas/agentmark-n2-better-thermostat-v4-r1 aggregate/RAW_REPLICAS/r1
+          (
+            cd aggregate/RAW_REPLICAS/r0
+            sha256sum -c manifest-0.sha256
+          )
+          (
+            cd aggregate/RAW_REPLICAS/r1
+            sha256sum -c manifest-1.sha256
+          )
 
           (
             cd aggregate
