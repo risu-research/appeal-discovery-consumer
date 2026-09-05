@@ -1,0 +1,171 @@
+name: AgentMark E3c Home Assistant Ecological Replication
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-e3c-home-assistant]
+    paths:
+      - 'agentmark_e3c_ha/**'
+      - '.github/workflows/agentmark-e3c-home-assistant.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-image:
+    runs-on: ubuntu-24.04
+    outputs:
+      image_ref: ${{ steps.pin.outputs.image_ref }}
+    steps:
+      - name: Resolve Home Assistant 2026.9.0 to immutable digest
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='ghcr.io/home-assistant/home-assistant:2026.9.0'
+          docker pull "$tag"
+          ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$tag")"
+          test -n "$ref"
+          case "$ref" in *@sha256:*) ;; *) echo "not digest-pinned: $ref" >&2; exit 2;; esac
+          echo "image_ref=$ref" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$ref"
+
+  e3c:
+    needs: resolve-image
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [0, 1]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize exact experiment source and record provenance
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          mkdir -p agentmark_e3c_results/provenance
+          cat agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part2.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part3.pyfrag \
+              > agentmark_e3c_results/home_assistant_ecological.py
+          python -m py_compile \
+              agentmark_e3c_results/home_assistant_ecological.py \
+              agentmark_e3c_ha/validate_result.py \
+              agentmark_e3c_ha/aggregate_replicas.py
+          printf '%s\n' "$GITHUB_SHA" > agentmark_e3c_results/provenance/GITHUB_SHA.txt
+          printf '%s\n' "$IMAGE_REF" > agentmark_e3c_results/provenance/HOME_ASSISTANT_IMAGE_REF.txt
+          printf '%s\n' "$REPLICA" > agentmark_e3c_results/provenance/REPLICA.txt
+          uname -a > agentmark_e3c_results/provenance/UNAME.txt
+          docker version > agentmark_e3c_results/provenance/DOCKER_VERSION.txt
+          git status --porcelain=v1 > agentmark_e3c_results/provenance/GIT_STATUS.txt
+          git ls-tree -r --full-tree HEAD agentmark_e3c_ha agentmark_e3b_lab \
+              > agentmark_e3c_results/provenance/GIT_LS_TREE.txt
+          sha256sum \
+              agentmark_e3c_results/home_assistant_ecological.py \
+              agentmark_e3c_ha/validate_result.py \
+              agentmark_e3c_ha/aggregate_replicas.py \
+              agentmark_e3c_ha/PREREGISTRATION.md \
+              > agentmark_e3c_results/provenance/SOURCE_SHA256.txt
+
+      - name: Pull exact immutable Home Assistant image
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker image inspect "$IMAGE_REF" > agentmark_e3c_results/provenance/HOME_ASSISTANT_IMAGE_INSPECT.json
+
+      - name: Run frozen E3c experiment inside Home Assistant Core
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            -e PYTHONPATH=/repo/agentmark_e3b_lab \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/agentmark_e3c_results:/results" \
+            --entrypoint python3 \
+            "$IMAGE_REF" \
+            /results/home_assistant_ecological.py \
+              --replica "$REPLICA" \
+              --tasks 128 \
+              --trials 6 \
+              --wave-size 32 \
+              --wave-period-ms 300 \
+              --source-delay-ms 35 \
+              --target-delay-ms 180 \
+              --verify-ms 100 \
+              --out "/results/replica-${REPLICA}.json"
+
+      - name: Independently recompute all scientific gates
+        shell: bash
+        env:
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=agentmark_e3b_lab python agentmark_e3c_ha/validate_result.py \
+            "agentmark_e3c_results/replica-${REPLICA}.json" \
+            --out "agentmark_e3c_results/validation-${REPLICA}.json"
+          sha256sum agentmark_e3c_results/* agentmark_e3c_results/provenance/* \
+            2>/dev/null | sort > "agentmark_e3c_results/manifest-${REPLICA}.sha256"
+
+      - name: Upload independently validated replica
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-e3c-ha-r${{ matrix.replica }}
+          path: agentmark_e3c_results
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: [resolve-image, e3c]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: agentmark-e3c-ha-r*
+          path: replicas
+      - name: Pin aggregate provenance
+        run: |
+          set -euo pipefail
+          mkdir -p aggregate
+          printf '%s\n' '${{ needs.resolve-image.outputs.image_ref }}' > aggregate/HOME_ASSISTANT_IMAGE_REF.txt
+      - name: Aggregate only independently validated replicas
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t results < <(find replicas -type f -name 'replica-*.json' | sort)
+          mapfile -t vals < <(find replicas -type f -name 'validation-*.json' | sort)
+          test "${#results[@]}" -eq 2
+          test "${#vals[@]}" -eq 2
+          python agentmark_e3c_ha/aggregate_replicas.py \
+            "${results[@]}" \
+            --validations "${vals[@]}" \
+            --image-ref-file aggregate/HOME_ASSISTANT_IMAGE_REF.txt \
+            --out aggregate/e3c_home_assistant_replicated.json
+          cp agentmark_e3c_ha/PREREGISTRATION.md aggregate/
+          cp agentmark_e3c_ha/README.md aggregate/
+          cat agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part2.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part3.pyfrag \
+              > aggregate/home_assistant_ecological.py
+          cp agentmark_e3c_ha/validate_result.py aggregate/
+          cp agentmark_e3c_ha/aggregate_replicas.py aggregate/
+          sha256sum aggregate/* | sort > aggregate/CHECKSUMS.sha256
+      - name: Upload replicated E3c promotion bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-e3c-home-assistant-replicated
+          path: aggregate
+          if-no-files-found: error
+          retention-days: 90
