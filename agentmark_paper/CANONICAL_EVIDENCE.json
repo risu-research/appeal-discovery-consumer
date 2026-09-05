@@ -1,0 +1,290 @@
+{
+  "evidence": {
+    "e3b": {
+      "provenance": {
+        "archive_sha256": "829e05748ae38c76f880ab57538112a980c1da3d3ebedd4b84c1e6409093eb95",
+        "artifact_id": 9960088059,
+        "artifact_name": "agentmark-e3b-decisive-v2",
+        "branch": "agentmark-e3b-lab",
+        "execution_commit": "5f5eb578f2d47de8e8ac53c1dacee917c49cd9dd",
+        "run_id": 33935626964,
+        "source_primary_filename": "e3b_r0_r1_r2_certificate.json",
+        "source_primary_sha256": "46d0ef0c82cf1fd40c3746cffb667d101d32a5431e7b52f99a9fa7fecf323b12",
+        "source_schema": "agentmark.e3b.r0_r1_r2_certificate.v2",
+        "workflow": "AgentMark E3b Mosquitto Promotion"
+      },
+      "result": {
+        "broker_version": "mosquitto version 2.1.2",
+        "decision": "PROMOTED",
+        "decisive_trials": 12,
+        "native_publish_per_trial": {
+          "R0": 512,
+          "R1": 512,
+          "R2": 768
+        },
+        "safety_certificate": {
+          "classification": "CERTIFIED_UNSAFE",
+          "confidence": 0.95,
+          "epsilon": 0.05,
+          "eta": 1
+        },
+        "support_failures": {
+          "R0": 12,
+          "R1": 12,
+          "R2": 0
+        },
+        "timing_ms": {
+          "R0_p99": 230.316334165,
+          "R1_p99": 416.9958557075,
+          "R1_shift_vs_R0": 145.8477432721354,
+          "R2_p99": 393.5352068258333
+        },
+        "verify_trials_R2": 12
+      }
+    },
+    "e3c": {
+      "provenance": {
+        "archive_sha256": "7ef5140a6dcdaee508154d49071aa15733da95b7507ead7d8d63afc963a12cb3",
+        "artifact_id": 9962430737,
+        "artifact_name": "agentmark-e3c-home-assistant-replicated",
+        "branch": "agentmark-e3c-home-assistant",
+        "execution_commit": "02028046d3f3d4fc32ed44b15c4b986e9df3545a",
+        "run_id": 33942887473,
+        "source_primary_filename": "e3c_home_assistant_replicated.json",
+        "source_primary_sha256": "9e1e91d4e7733880da8236b3a4afb3647f8aa9582fe8f7d6d2a8ec44f038653b",
+        "source_schema": "agentmark.e3c.home_assistant.replicated_aggregate.v1",
+        "workflow": "AgentMark E3c Home Assistant Ecological Replication"
+      },
+      "result": {
+        "claim_boundary": "This promotes ecological replication on Home Assistant Core middleware semantics. The device is still a deterministic virtual device; E3c does not claim physical-device or radio-layer validation.",
+        "decision": "PROMOTED_REPLICATED",
+        "mean_act2_shift_vs_source_ms": {
+          "R1": 146.0417852701823,
+          "R2": 144.87051512174477
+        },
+        "native_work_per_trial": {
+          "R0": 256,
+          "R1": 256,
+          "R2": 384
+        },
+        "replicas": 2,
+        "rows_per_mode": 1536,
+        "source_completion_p99_ms_by_replica": [
+          36.60292459,
+          36.695745620000004
+        ],
+        "support_failures": {
+          "R0": 1536,
+          "R1": 1536,
+          "R2": 0
+        },
+        "validation_passes": 2,
+        "verify_rows_R2": 1536
+      }
+    },
+    "n1": {
+      "provenance": {
+        "archive_sha256": "14dfde9ff11865a548984ec4858429258d2d4fc1b7584c41d96a251530eb3f27",
+        "artifact_id": 9963663630,
+        "artifact_name": "agentmark-n1-official-motion-light-replicated",
+        "branch": "agentmark-theory-lock",
+        "execution_commit": "5b2ba2aa35bf0bd00715b6b9475b44d9695c3c8f",
+        "noncanonical_history": [
+          {
+            "reason": "initial workflow execution failed",
+            "run_id": 33945478968
+          }
+        ],
+        "replica_artifacts": [
+          {
+            "archive_sha256": "b444792e46d8fa76b7a6829fa6de526948ddcc61d17710e5b0bfdb48b27042d4",
+            "artifact_id": 9963661146,
+            "replica": 0
+          },
+          {
+            "archive_sha256": "1e6fe88ddc380329897ab9441c1974ce0174bfd35198e3ceadddfa37b8999fc1",
+            "artifact_id": 9963660995,
+            "replica": 1
+          }
+        ],
+        "run_id": 33946985750,
+        "source_primary_filename": "N1_MOTION_LIGHT_REPLICATED.json",
+        "source_primary_sha256": "4812816bd830b5e71d89843f8510c44f93c37a89b054ae8ef7a9358e90ec00f7",
+        "source_schema": "agentmark.natural_controller.motion_light.replicated.v1",
+        "workflow": "AgentMark N1 Official HA Motion-Light"
+      },
+      "result": {
+        "decision": "PROMOTED_REPLICATED",
+        "external_controller": {
+          "commit": "0cb25fe4727b5466743285f048eb6aa75fd02bbb",
+          "path": "homeassistant/components/automation/blueprints/motion_light.yaml",
+          "repository": "home-assistant/core",
+          "sha256": "e07ac35fae7270131f118da767b036e7f7776672077691d9fbcd026e5a7e3f9c",
+          "source_edited": false
+        },
+        "home_assistant_image_ref": "ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293",
+        "replicas": [
+          0,
+          1
+        ],
+        "runner_timing_ms": [
+          {
+            "R1_minus_R0": 35.24896700000001,
+            "R2_minus_source": 119.99267666666667,
+            "replica": 0
+          },
+          {
+            "R1_minus_R0": 35.178532166666656,
+            "R2_minus_source": 119.14601116666667,
+            "replica": 1
+          }
+        ],
+        "support_failures": {
+          "R0": 12,
+          "R1": 12,
+          "R2": 0
+        },
+        "trials_per_mode_total": 12,
+        "validation_passes": 2
+      }
+    },
+    "n2": {
+      "provenance": {
+        "archive_sha256": "76bd2850156040139aabd935ccab44f01fb27344770c2f04a055fed81ee901b7",
+        "artifact_id": 9969439579,
+        "artifact_name": "agentmark-n2-better-thermostat-v4-replicated",
+        "branch": "agentmark-theory-lock",
+        "execution_commit": "4264c43d013178c8babedf772b1c06c5ddbe73cb",
+        "replica_artifacts": [
+          {
+            "archive_sha256": "765bc094b51173341ddd1af7539b46e6714d92f66c0ccb30267f6ada813f388e",
+            "artifact_id": 9969436636,
+            "replica": 0
+          },
+          {
+            "archive_sha256": "632eaae611e2bc1d96340eaa6ff19f4ab980aebffe65e0d8ed30e7f2256dd046",
+            "artifact_id": 9969435125,
+            "replica": 1
+          }
+        ],
+        "run_id": 33965918153,
+        "source_primary_filename": "N2_BETTER_THERMOSTAT_REPLICATED.json",
+        "source_primary_sha256": "df389a937832374008e459afd2a0454e632675a713b0a3b2b7d1b9258894d446",
+        "source_schema": "agentmark.natural_controller.better_thermostat.replicated.v4",
+        "workflow": "AgentMark N2 Better Thermostat Action Identity"
+      },
+      "result": {
+        "TV_action": 1,
+        "TV_operation": 0,
+        "claim_boundary": "N2 establishes, for this independently authored Home Assistant controller, that operation identity remains unchanged while rendered consequential action semantics change under HOME versus AWAY feedback: TV_operation=0 and TV_action=1. Upstream Better Thermostat is exact-source-pinned and Home-Assistant-loader-qualified for registry ownership provenance; its PID/TRV internals and physical-device behavior are intentionally outside this experiment.",
+        "decision": "PROMOTED_REPLICATED",
+        "observer_ordering_diagnostics_used_for_promotion": false,
+        "replicas": [
+          0,
+          1
+        ],
+        "source_action": {
+          "operation": "climate.set_preset_mode",
+          "target_class": "climate",
+          "variant": "{\"preset_mode\":\"home\"}"
+        },
+        "target_action": {
+          "operation": "climate.set_preset_mode",
+          "target_class": "climate",
+          "variant": "{\"preset_mode\":\"away\"}"
+        },
+        "validation_passes": 2
+      }
+    },
+    "n2b": {
+      "provenance": {
+        "archive_sha256": "4d75b17e6bd0bd9ba41cb574f9bca022364c312c09b215b74a36a92fda5861db",
+        "artifact_id": 9971397583,
+        "artifact_name": "agentmark-n2b-decision-equivalence-v2-replicated",
+        "branch": "agentmark-n2b-decision-equivalence",
+        "execution_commit": "9ec25a1cc2a16bff893d7ff5ffc9271bf6e059f6",
+        "replica_artifacts": [
+          {
+            "archive_sha256": "e7282f932832ac241dfd98ea60ee6a70157d74773e9c385917e37dc2388ba6a5",
+            "artifact_id": 9971395032,
+            "replica": 0
+          },
+          {
+            "archive_sha256": "3be804d49d91cc4d1a9a03281495b90c6136df4ad773a51bfa8c3f2f6029649e",
+            "artifact_id": 9971395797,
+            "replica": 1
+          }
+        ],
+        "run_id": 33972619262,
+        "source_primary_filename": "N2B_DECISION_EQUIVALENCE_V2_REPLICATED.json",
+        "source_primary_sha256": "93975a490a6af4e48e35152a77129430df0b0f7883015fc2ce72bd0d6fdffe75",
+        "source_schema": "agentmark.n2b.replicated_aggregate.v2",
+        "workflow": "AgentMark N2b Decision Equivalence v2"
+      },
+      "result": {
+        "TV_action": 0,
+        "TV_operation": 0,
+        "counts": {
+          "control_replay_action_support_failures": 0,
+          "no_shift_replay": 12,
+          "source_native": 12,
+          "target_native": 12,
+          "target_replay": 12,
+          "target_replay_action_support_failures": 0
+        },
+        "decision": "PROMOTED_REPLICATED",
+        "decision_equivalence_class": [
+          [
+            "AWAY_MOTION_OFF",
+            "AWAY_MOTION_ON"
+          ]
+        ],
+        "measurement_contract": {
+          "v1_failure_run": 33972326066,
+          "version": "n2b-v2-event-level-feedback-witness"
+        },
+        "pair_restricted_eta_action": 0,
+        "quotient_feedback_TV": 0,
+        "raw_feedback_TV": 1,
+        "replicas": [
+          0,
+          1
+        ],
+        "unsupported_feedback": [],
+        "validation_passes": 2
+      }
+    }
+  },
+  "governance": {
+    "empirical_stop_active": true,
+    "empirical_stop_git_blob_sha": "4566b5f4847a4385d1de39f47abcbe56d92494b7",
+    "empirical_stop_path": "agentmark_paper/N2B_RESULT_AND_EMPIRICAL_STOP_LOCK.md",
+    "excluded": [
+      {
+        "canonical": false,
+        "id": "N2b-v1",
+        "reason": "invalid/superseded measurement contract",
+        "run_id": 33972326066
+      },
+      {
+        "artifact_id": 9960095929,
+        "canonical_headline": false,
+        "id": "E3b-safety-boundary",
+        "reason": "falsification/exploratory boundary artifact"
+      }
+    ]
+  },
+  "policy": {
+    "capsule_contains_only_paper_admitted_fields": true,
+    "exact_and_measured_metrics_must_remain_typed_separately": true,
+    "narrative_memory_is_source": false,
+    "original_aggregate_bytes_retained_in_actions_artifacts": true
+  },
+  "schema": "agentmark.paper_canonical_evidence.v1",
+  "source_snapshot": {
+    "branch": "agentmark-n2b-decision-equivalence",
+    "head": "1a38808a2c83fb6cf68091beb0a244eec3dab9ec",
+    "note": "post-N2b result lock, empirical stop, and paper architecture snapshot"
+  },
+  "status": "SEALED_PAPER_ADMITTED_EVIDENCE"
+}
