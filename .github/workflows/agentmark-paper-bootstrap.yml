@@ -1,0 +1,62 @@
+name: AgentMark Paper Results Bootstrap
+
+on:
+  push:
+    branches: [agentmark-paper-results-freeze]
+    paths:
+      - 'agentmark_paper/.bootstrap/**'
+      - '.github/workflows/agentmark-paper-bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    name: Materialize and validate canonical freeze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agentmark-paper-results-freeze
+          fetch-depth: 0
+
+      - name: Reassemble and verify canonical freeze payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat agentmark_paper/.bootstrap/chunk-* > /tmp/agentmark-paper-payload.tar.gz
+          printf '%s  %s\n' '795eb7226c067ccb6478036501b813c67800a843b65bb8be1de3f411de1c5e14' '/tmp/agentmark-paper-payload.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/agentmark-paper-payload.tar.gz -C .
+          rm -rf agentmark_paper/.bootstrap
+          rm -rf agentmark_paper/scripts/__pycache__ agentmark_paper/tests/__pycache__
+          rm -f agentmark_paper/CANONICAL_EVIDENCE.json
+
+      - name: Validate materialized freeze before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            agentmark_paper/scripts/paper_results_lib.py \
+            agentmark_paper/scripts/extract_paper_results.py \
+            agentmark_paper/scripts/validate_paper_results.py \
+            agentmark_paper/scripts/generate_paper_views.py \
+            agentmark_paper/scripts/independent_paper_audit.py \
+            agentmark_paper/tests/test_paper_results.py
+          python3 agentmark_paper/scripts/validate_paper_results.py
+          python3 agentmark_paper/scripts/extract_paper_results.py --check
+          python3 agentmark_paper/scripts/generate_paper_views.py --check
+          python3 agentmark_paper/scripts/independent_paper_audit.py
+          python3 -m unittest discover -s agentmark_paper/tests -p 'test_*.py' -v
+          rm -rf agentmark_paper/scripts/__pycache__ agentmark_paper/tests/__pycache__
+
+      - name: Publish materialized freeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'agentmark-freeze-bot'
+          git config user.email 'agentmark-freeze-bot@users.noreply.github.com'
+          git add -A agentmark_paper
+          git diff --cached --quiet && { echo 'no materialization changes' >&2; exit 2; }
+          git commit -m 'paper: materialize canonical results freeze'
+          git push origin HEAD:agentmark-paper-results-freeze
