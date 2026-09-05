@@ -65,3 +65,15 @@ Attempt 1 is retained permanently and must not be cited as a valid E3c promotion
 ### Correction commit
 
 The synchronization-only correction was atomically committed as `1aa7a7e6425ea4fec3d6b479df83ea938d1e17a1`, directly parented on the invalid attempt's frozen execution commit. The preregistered scientific parameters and promotion thresholds were not changed.
+
+
+## No-shift causal autopsy and canonical observer correction
+
+- Eight minimally perturbative v3 differential-autopsy runners were completed across workflow runs `33941999055` and `33942017584`.
+- Frozen observer no-shift MISS tasks: 125.
+- Same-task entity-indexed Home Assistant callback already visible by the identical 100 ms deadline: 116/125 (92.8%).
+- Remaining state-set-late cases under frozen observer load: 9/125 (7.2%).
+- Root cause: per-task global plain listeners were Home Assistant Executor jobs, creating O(N^2) fanout and cross-thread asyncio Future mutation; tail cases additionally exhibited observer self-interference.
+- Canonical correction: entity-indexed `async_track_state_change_event` + explicit `HassJobType.Callback` + strict callback-timestamp deadline test.
+- Scientific protocol and all promotion thresholds remain unchanged.
+- This correction is not a promotion result; a fresh replicated run is required.

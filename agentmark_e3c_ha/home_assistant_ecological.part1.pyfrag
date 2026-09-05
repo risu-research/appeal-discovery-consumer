@@ -15,7 +15,8 @@ import time
 from typing import Any, Callable
 
 from homeassistant.const import EVENT_CALL_SERVICE, EVENT_STATE_CHANGED, __version__ as HA_VERSION
-from homeassistant.core import Context, CoreState, Event, HomeAssistant
+from homeassistant.core import Context, CoreState, Event, HassJobType, HomeAssistant, callback
+from homeassistant.helpers.event import async_track_state_change_event
 
 # Reuse the already-promoted AgentMark kernel/certificate implementation rather
 # than copying certificate math into E3c. The workflow mounts the repository at
@@ -75,6 +76,7 @@ class HALab:
         self._unsubs: list[Callable[[], None]] = []
 
     def install(self) -> None:
+        @callback
         def on_call(event: Event) -> None:
             data = event.data
             if data.get("domain") != DOMAIN:
@@ -90,6 +92,7 @@ class HALab:
                 }
             )
 
+        @callback
         def on_state(event: Event) -> None:
             entity_id = event.data.get("entity_id")
             if not isinstance(entity_id, str) or not entity_id.startswith(("binary_sensor.agentmark_", "sensor.agentmark_")):
@@ -190,35 +193,62 @@ async def wait_for_on_until(
     entity_id: str,
     deadline_ns: int,
 ) -> tuple[bool, int | None]:
-    """Observe HA state visibility against an absolute monotonic deadline."""
+    """Observe one entity through HA's indexed callback path to an absolute deadline.
+
+    The previous implementation registered one global EVENT_STATE_CHANGED listener
+    per task. Because those plain ``def`` listeners were classified by Home
+    Assistant as Executor jobs, a 32-task wave generated O(N^2) executor fanout
+    and cross-thread ``asyncio.Future.set_result`` calls. This observer uses Home
+    Assistant's entity-indexed helper and explicit Callback job type instead.
+
+    A callback that executes after the absolute deadline is a MISS even if
+    asyncio timeout scheduling happens to resume it before the timeout waiter.
+    """
+    now = now_ns()
     state = hass.states.get(entity_id)
     if state is not None and state.state == "on":
-        return True, now_ns()
+        return (now <= deadline_ns), (now if now <= deadline_ns else None)
 
     loop = asyncio.get_running_loop()
     fut: asyncio.Future[int] = loop.create_future()
 
+    @callback
     def listener(event: Event) -> None:
-        if event.data.get("entity_id") != entity_id:
-            return
         new_state = event.data.get("new_state")
         if new_state is not None and new_state.state == "on" and not fut.done():
             fut.set_result(now_ns())
 
-    unsub = hass.bus.async_listen(EVENT_STATE_CHANGED, listener)
+    unsub = async_track_state_change_event(
+        hass,
+        entity_id,
+        listener,
+        job_type=HassJobType.Callback,
+    )
     try:
-        # Close the check/listen race after listener registration.
+        # Close the state-check / listener-registration race without leaving the
+        # event loop or creating executor work.
         state = hass.states.get(entity_id)
         if state is not None and state.state == "on" and not fut.done():
-            fut.set_result(now_ns())
+            observed_ns = now_ns()
+            if observed_ns <= deadline_ns:
+                fut.set_result(observed_ns)
+            else:
+                return False, None
+
         remaining_s = max(0.0, (deadline_ns - now_ns()) / 1_000_000_000.0)
         if remaining_s <= 0.0:
             return False, None
         try:
             event_ns = await asyncio.wait_for(fut, timeout=remaining_s)
-            return True, event_ns
         except TimeoutError:
             return False, None
+
+        # Strict absolute-deadline semantics. This guard matters if the event
+        # loop resumes both a late callback and the timeout after a scheduler
+        # stall; callback ordering must not turn a post-deadline event into a hit.
+        if event_ns > deadline_ns:
+            return False, None
+        return True, event_ns
     finally:
         unsub()
 
