@@ -144,7 +144,7 @@ This directory is the canonical interface between sealed experiments and manuscr
 
 ## Freeze contract
 
-1. `evidence/*/primary.json` contains exact copies of canonical aggregate JSONs from successful GitHub Actions artifacts.
+1. Each evidence capsule exposes the exact logical `primary.json` bytes from its canonical successful GitHub Actions artifact. Storage may be plain `primary.json` or lossless deterministic `primary.json.gz`; validation hashes and parses the logical decompressed bytes, so transport representation cannot change the scientific record.
 2. Each `PROVENANCE.json` pins workflow run, execution commit, artifact ID, archive digest, source schema, and primary-file digest; those identities are independently hard-locked in `paper_results_lib.py`.
 3. `scripts/extract_paper_results.py` is the only supported path from evidence to `PAPER_RESULTS_MANIFEST.json`; provenance cannot be repointed merely by rehashing a replacement capsule.
 4. `scripts/validate_paper_results.py` fails closed on provenance drift, content-hash drift, schema drift, result drift, exclusion drift, or exact/measured type confusion.
