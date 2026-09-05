@@ -1,0 +1,495 @@
+{
+  "canonical_provenance_lock_sha256": "4e9381bc21e0b6e6a225bd0ede2f69b7b05178aad49a686fd9ed5c8b0b0049f0",
+  "claim_boundaries": {
+    "e3c": "This promotes ecological replication on Home Assistant Core middleware semantics. The device is still a deterministic virtual device; E3c does not claim physical-device or radio-layer validation.",
+    "n2": "N2 establishes, for this independently authored Home Assistant controller, that operation identity remains unchanged while rendered consequential action semantics change under HOME versus AWAY feedback: TV_operation=0 and TV_action=1. Upstream Better Thermostat is exact-source-pinned and Home-Assistant-loader-qualified for registry ownership provenance; its PID/TRV internals and physical-device behavior are intentionally outside this experiment.",
+    "n2b": "pair-restricted eta=0 is not a claim that the full Better Thermostat controller is feedback-insensitive."
+  },
+  "evidence": {
+    "e3b": {
+      "artifact_archive_sha256": "829e05748ae38c76f880ab57538112a980c1da3d3ebedd4b84c1e6409093eb95",
+      "artifact_id": 9960088059,
+      "artifact_name": "agentmark-e3b-decisive-v2",
+      "branch": "agentmark-e3b-lab",
+      "canonical": true,
+      "execution_commit": "5f5eb578f2d47de8e8ac53c1dacee917c49cd9dd",
+      "primary_sha256": "46d0ef0c82cf1fd40c3746cffb667d101d32a5431e7b52f99a9fa7fecf323b12",
+      "role": "headline_positive_witness",
+      "run_id": 33935626964,
+      "source_schema": "agentmark.e3b.r0_r1_r2_certificate.v2",
+      "workflow": "AgentMark E3b Mosquitto Promotion"
+    },
+    "e3c": {
+      "artifact_archive_sha256": "7ef5140a6dcdaee508154d49071aa15733da95b7507ead7d8d63afc963a12cb3",
+      "artifact_id": 9962430737,
+      "artifact_name": "agentmark-e3c-home-assistant-replicated",
+      "branch": "agentmark-e3c-home-assistant",
+      "canonical": true,
+      "execution_commit": "02028046d3f3d4fc32ed44b15c4b986e9df3545a",
+      "primary_sha256": "9e1e91d4e7733880da8236b3a4afb3647f8aa9582fe8f7d6d2a8ec44f038653b",
+      "role": "headline_ecological_replication",
+      "run_id": 33942887473,
+      "source_schema": "agentmark.e3c.home_assistant.replicated_aggregate.v1",
+      "workflow": "AgentMark E3c Home Assistant Ecological Replication"
+    },
+    "n1": {
+      "artifact_archive_sha256": "14dfde9ff11865a548984ec4858429258d2d4fc1b7584c41d96a251530eb3f27",
+      "artifact_id": 9963663630,
+      "artifact_name": "agentmark-n1-official-motion-light-replicated",
+      "branch": "agentmark-theory-lock",
+      "canonical": true,
+      "execution_commit": "5b2ba2aa35bf0bd00715b6b9475b44d9695c3c8f",
+      "primary_sha256": "4812816bd830b5e71d89843f8510c44f93c37a89b054ae8ef7a9358e90ec00f7",
+      "role": "headline_external_official_controller",
+      "run_id": 33946985750,
+      "source_schema": "agentmark.natural_controller.motion_light.replicated.v1",
+      "workflow": "AgentMark N1 Official HA Motion-Light"
+    },
+    "n2": {
+      "artifact_archive_sha256": "76bd2850156040139aabd935ccab44f01fb27344770c2f04a055fed81ee901b7",
+      "artifact_id": 9969439579,
+      "artifact_name": "agentmark-n2-better-thermostat-v4-replicated",
+      "branch": "agentmark-theory-lock",
+      "canonical": true,
+      "execution_commit": "4264c43d013178c8babedf772b1c06c5ddbe73cb",
+      "primary_sha256": "df389a937832374008e459afd2a0454e632675a713b0a3b2b7d1b9258894d446",
+      "role": "headline_action_identity_counterexample",
+      "run_id": 33965918153,
+      "source_schema": "agentmark.natural_controller.better_thermostat.replicated.v4",
+      "workflow": "AgentMark N2 Better Thermostat Action Identity"
+    },
+    "n2b": {
+      "artifact_archive_sha256": "4d75b17e6bd0bd9ba41cb574f9bca022364c312c09b215b74a36a92fda5861db",
+      "artifact_id": 9971397583,
+      "artifact_name": "agentmark-n2b-decision-equivalence-v2-replicated",
+      "branch": "agentmark-n2b-decision-equivalence",
+      "canonical": true,
+      "execution_commit": "9ec25a1cc2a16bff893d7ff5ffc9271bf6e059f6",
+      "primary_sha256": "93975a490a6af4e48e35152a77129430df0b0f7883015fc2ce72bd0d6fdffe75",
+      "role": "headline_safe_side_decision_equivalence",
+      "run_id": 33972619262,
+      "source_schema": "agentmark.n2b.replicated_aggregate.v2",
+      "workflow": "AgentMark N2b Decision Equivalence v2"
+    }
+  },
+  "evidence_file_hashes": [
+    {
+      "path": "evidence/GOVERNANCE.json",
+      "sha256": "bf372ece2e7b2b1b7d9bfe4fe0cbac524e0794d4f57f6a40cf8c0ddbb3c23f53"
+    },
+    {
+      "path": "evidence/e3b/PROVENANCE.json",
+      "sha256": "633ed336150fa810ab40c92f7d26a5f5d8e645e19e2586778604e075333a51b8"
+    },
+    {
+      "path": "evidence/e3b/primary.json",
+      "sha256": "46d0ef0c82cf1fd40c3746cffb667d101d32a5431e7b52f99a9fa7fecf323b12"
+    },
+    {
+      "path": "evidence/e3c/PROVENANCE.json",
+      "sha256": "c96aeece693398ea7f7a0fc9a67c7d03aaedb69540e1ab5b9bd22e18936d6279"
+    },
+    {
+      "path": "evidence/e3c/primary.json",
+      "sha256": "9e1e91d4e7733880da8236b3a4afb3647f8aa9582fe8f7d6d2a8ec44f038653b"
+    },
+    {
+      "path": "evidence/n1/PROVENANCE.json",
+      "sha256": "8f8205cf2f5fb7e0fa3e9638fc6cea886e41b4dd5e10505fd6c1d9c552fdb83d"
+    },
+    {
+      "path": "evidence/n1/primary.json",
+      "sha256": "4812816bd830b5e71d89843f8510c44f93c37a89b054ae8ef7a9358e90ec00f7"
+    },
+    {
+      "path": "evidence/n2/PROVENANCE.json",
+      "sha256": "1aa65320b7d7135ce0137d6fb55aa14d9587fb52b012d205fdb80bd41916438d"
+    },
+    {
+      "path": "evidence/n2/primary.json",
+      "sha256": "df389a937832374008e459afd2a0454e632675a713b0a3b2b7d1b9258894d446"
+    },
+    {
+      "path": "evidence/n2b/PROVENANCE.json",
+      "sha256": "ee7a65d61405a7c193dde9ec3853677e25b904ed2f630326eac09f00aee6cfca"
+    },
+    {
+      "path": "evidence/n2b/primary.json",
+      "sha256": "93975a490a6af4e48e35152a77129430df0b0f7883015fc2ce72bd0d6fdffe75"
+    }
+  ],
+  "evidence_tree_sha256": "d95859dbfb6a415f354b96e51981e3621aae758f2de139383f1512c8d14db210",
+  "generation_policy": {
+    "exact_vs_measured_type_separation": true,
+    "machine_owned": true,
+    "narrative_memory_is_authoritative": false,
+    "source": "sealed evidence capsules only"
+  },
+  "governance": {
+    "authoritative_rule": "Only bytes in canonical evidence capsules plus pinned immutable Actions provenance may feed paper-result generation.",
+    "empirical_stop_active": true,
+    "empirical_stop_source": {
+      "git_blob_sha": "4566b5f4847a4385d1de39f47abcbe56d92494b7",
+      "path": "agentmark_paper/N2B_RESULT_AND_EMPIRICAL_STOP_LOCK.md",
+      "source_branch_head": "1a38808a2c83fb6cf68091beb0a244eec3dab9ec"
+    },
+    "excluded_evidence": [
+      {
+        "canonical": false,
+        "conclusion": "failure",
+        "execution_commit": "e2bb6c8e90295c448a4679ae4a342d791542c5ce",
+        "id": "N2b-v1",
+        "reason": "superseded invalid measurement contract; failed before a valid N2b result",
+        "run_id": 33972326066,
+        "workflow": "AgentMark N2b Natural Decision Equivalence"
+      },
+      {
+        "artifact_archive_sha256": "214a25bc666336d86d0e59f2031713b6d79d3cdd9704b8e6f9b75da03bfef257",
+        "artifact_id": 9960095929,
+        "artifact_name": "agentmark-e3b-safety-boundary",
+        "canonical_headline": false,
+        "id": "E3b-safety-boundary",
+        "reason": "falsification/exploratory boundary evidence; not a headline result source",
+        "run_id": 33935626964
+      }
+    ]
+  },
+  "headline_results": {
+    "operation_identity_is_not_action_identity": {
+      "TV_action": {
+        "kind": "exact_scalar",
+        "label": "action-level total variation",
+        "value": 1
+      },
+      "TV_operation": {
+        "kind": "exact_scalar",
+        "label": "operation-level total variation",
+        "value": 0
+      },
+      "evidence": [
+        "n2"
+      ],
+      "source_action": {
+        "operation": "climate.set_preset_mode",
+        "target_class": "climate",
+        "variant": "{\"preset_mode\":\"home\"}"
+      },
+      "state": "CLOSED",
+      "target_action": {
+        "operation": "climate.set_preset_mode",
+        "target_class": "climate",
+        "variant": "{\"preset_mode\":\"away\"}"
+      }
+    },
+    "raw_feedback_difference_is_not_replay_invalidity": {
+      "TV_action": {
+        "kind": "exact_scalar",
+        "label": "action-level total variation",
+        "value": 0
+      },
+      "TV_operation": {
+        "kind": "exact_scalar",
+        "label": "operation-level total variation",
+        "value": 0
+      },
+      "evidence": [
+        "n2b"
+      ],
+      "pair_restricted_eta_action": {
+        "kind": "exact_scalar",
+        "label": "pair-restricted action sensitivity eta",
+        "value": 0
+      },
+      "quotient_feedback_TV": {
+        "kind": "exact_scalar",
+        "label": "decision-quotient feedback total variation",
+        "value": 0
+      },
+      "raw_feedback_TV": {
+        "kind": "exact_scalar",
+        "label": "raw feedback total variation",
+        "value": 1
+      },
+      "state": "CLOSED",
+      "target_replay_support_failures": {
+        "decimal": 0.0,
+        "kind": "empirical_fraction",
+        "label": "action-support failures",
+        "successes": 0,
+        "trials": 12
+      }
+    },
+    "replay_semantics_can_change_benchmark_workload": {
+      "e3b": {
+        "R2_over_R1": {
+          "decimal": 1.5,
+          "denominator": 2,
+          "kind": "exact_fraction",
+          "label": "native broker-PUBLISH workload ratio",
+          "numerator": 3
+        },
+        "work_per_trial": {
+          "R0": {
+            "kind": "exact_count",
+            "unit": "broker PUBLISH",
+            "value": 512
+          },
+          "R1": {
+            "kind": "exact_count",
+            "unit": "broker PUBLISH",
+            "value": 512
+          },
+          "R2": {
+            "kind": "exact_count",
+            "unit": "broker PUBLISH",
+            "value": 768
+          }
+        }
+      },
+      "e3c": {
+        "R2_over_R1": {
+          "decimal": 1.5,
+          "denominator": 2,
+          "kind": "exact_fraction",
+          "label": "native Home Assistant workload ratio",
+          "numerator": 3
+        },
+        "work_per_trial": {
+          "R0": {
+            "kind": "exact_count",
+            "unit": "native Home Assistant service calls",
+            "value": 256
+          },
+          "R1": {
+            "kind": "exact_count",
+            "unit": "native Home Assistant service calls",
+            "value": 256
+          },
+          "R2": {
+            "kind": "exact_count",
+            "unit": "native Home Assistant service calls",
+            "value": 384
+          }
+        }
+      },
+      "evidence": [
+        "e3b",
+        "e3c"
+      ],
+      "state": "CLOSED"
+    },
+    "timing_fidelity_is_not_controller_semantic_fidelity": {
+      "e3b": {
+        "R2_verify": {
+          "decimal": 1.0,
+          "kind": "empirical_fraction",
+          "label": "VERIFY trials",
+          "successes": 12,
+          "trials": 12
+        },
+        "semantic_support_failure": {
+          "R0": {
+            "decimal": 1.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating trials",
+            "successes": 12,
+            "trials": 12
+          },
+          "R1": {
+            "decimal": 1.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating trials",
+            "successes": 12,
+            "trials": 12
+          },
+          "R2": {
+            "decimal": 0.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating trials",
+            "successes": 0,
+            "trials": 12
+          }
+        }
+      },
+      "e3c": {
+        "R2_verify": {
+          "decimal": 1.0,
+          "kind": "empirical_fraction",
+          "label": "VERIFY rows",
+          "successes": 1536,
+          "trials": 1536
+        },
+        "semantic_support_failure": {
+          "R0": {
+            "decimal": 1.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating rows",
+            "successes": 1536,
+            "trials": 1536
+          },
+          "R1": {
+            "decimal": 1.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating rows",
+            "successes": 1536,
+            "trials": 1536
+          },
+          "R2": {
+            "decimal": 0.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating rows",
+            "successes": 0,
+            "trials": 1536
+          }
+        }
+      },
+      "evidence": [
+        "e3b",
+        "e3c",
+        "n1"
+      ],
+      "n1": {
+        "semantic_support_failure": {
+          "R0": {
+            "decimal": 1.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating trials",
+            "successes": 12,
+            "trials": 12
+          },
+          "R1": {
+            "decimal": 1.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating trials",
+            "successes": 12,
+            "trials": 12
+          },
+          "R2": {
+            "decimal": 0.0,
+            "kind": "empirical_fraction",
+            "label": "support-violating trials",
+            "successes": 0,
+            "trials": 12
+          }
+        }
+      },
+      "state": "CLOSED"
+    }
+  },
+  "measured_timing": {
+    "e3b": {
+      "R0_p99": {
+        "kind": "measured_ms",
+        "label": "R0 p99",
+        "unit": "ms",
+        "value": 230.316334165
+      },
+      "R1_p99": {
+        "kind": "measured_ms",
+        "label": "R1 p99",
+        "unit": "ms",
+        "value": 416.9958557075
+      },
+      "R1_shift_vs_R0": {
+        "kind": "measured_ms",
+        "label": "aggregate R1 timing shift vs R0",
+        "unit": "ms",
+        "value": 145.8477432721354
+      },
+      "R2_p99": {
+        "kind": "measured_ms",
+        "label": "R2 p99",
+        "unit": "ms",
+        "value": 393.5352068258333
+      }
+    },
+    "e3c": {
+      "R1_mean_act2_shift_vs_source": {
+        "kind": "measured_ms",
+        "label": "R1 mean act2 shift vs source",
+        "unit": "ms",
+        "value": 146.0417852701823
+      },
+      "R2_mean_act2_shift_vs_source": {
+        "kind": "measured_ms",
+        "label": "R2 mean act2 shift vs source",
+        "unit": "ms",
+        "value": 144.87051512174477
+      },
+      "source_completion_p99_by_replica": [
+        {
+          "kind": "measured_ms",
+          "label": "source completion p99",
+          "replica": 0,
+          "unit": "ms",
+          "value": 36.60292459
+        },
+        {
+          "kind": "measured_ms",
+          "label": "source completion p99",
+          "replica": 1,
+          "unit": "ms",
+          "value": 36.695745620000004
+        }
+      ]
+    },
+    "n1": {
+      "policy": "replica values remain separate; no canonical cross-runner average",
+      "timing_by_replica": [
+        {
+          "R1_minus_R0": {
+            "kind": "measured_ms",
+            "label": "R1 minus R0 mean",
+            "replica": 0,
+            "unit": "ms",
+            "value": 35.24896700000001
+          },
+          "R2_minus_source": {
+            "kind": "measured_ms",
+            "label": "R2 minus source mean",
+            "replica": 0,
+            "unit": "ms",
+            "value": 119.99267666666667
+          },
+          "replica": 0
+        },
+        {
+          "R1_minus_R0": {
+            "kind": "measured_ms",
+            "label": "R1 minus R0 mean",
+            "replica": 1,
+            "unit": "ms",
+            "value": 35.178532166666656
+          },
+          "R2_minus_source": {
+            "kind": "measured_ms",
+            "label": "R2 minus source mean",
+            "replica": 1,
+            "unit": "ms",
+            "value": 119.14601116666667
+          },
+          "replica": 1
+        }
+      ]
+    }
+  },
+  "schema": "agentmark.paper_results_manifest.v1",
+  "status": "FROZEN_CANONICAL",
+  "validation_summary": {
+    "n1": {
+      "kind": "exact_count",
+      "unit": "validators passed",
+      "value": 2
+    },
+    "n2": {
+      "kind": "exact_count",
+      "unit": "validators passed",
+      "value": 2
+    },
+    "n2b": {
+      "kind": "exact_count",
+      "unit": "validators passed",
+      "value": 2
+    }
+  }
+}

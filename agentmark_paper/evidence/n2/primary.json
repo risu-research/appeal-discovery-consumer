@@ -1,0 +1,205 @@
+{
+  "claim_boundary": "N2 establishes, for this independently authored Home Assistant controller, that operation identity remains unchanged while rendered consequential action semantics change under HOME versus AWAY feedback: TV_operation=0 and TV_action=1. Upstream Better Thermostat is exact-source-pinned and Home-Assistant-loader-qualified for registry ownership provenance; its PID/TRV internals and physical-device behavior are intentionally outside this experiment.",
+  "controlled_device_ownership": {
+    "component_tree_sha256": "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0",
+    "config_entry_intentionally_disabled": true,
+    "config_entry_registration_path": "core.config_entries Store -> ConfigEntries.async_initialize",
+    "integration_internal_control_logic_executed": false,
+    "integration_setup_invoked": false,
+    "loader_qualification_before_outcome": true,
+    "mode": "upstream-qualified-persisted-disabled-config-entry-controlled-device",
+    "upstream_commit": "b86561f61e5ba1259fc63e590f4847e9ac743d7f",
+    "upstream_manifest_sha256": "710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28",
+    "upstream_repository": "KartoffelToby/better_thermostat",
+    "upstream_version": "1.9.2"
+  },
+  "decision": "PROMOTED_REPLICATED",
+  "external_controller": {
+    "commit": "57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f",
+    "path": "automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml",
+    "repository": "n3roGit/MyHomeAssistantMods",
+    "sha256": "16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443",
+    "source_edited": false
+  },
+  "home_assistant_image_ref": "ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293",
+  "independent_validations_passed": 2,
+  "measurement_contract": {
+    "event_callback_state_read": "diagnostic only; not treated as strict pre-handler state",
+    "pre_action_state": "explicit synchronous snapshot before feedback transition or replay service call"
+  },
+  "recomputed_across_replicas": {
+    "TV_action": 1.0,
+    "TV_action_each_runner": [
+      1.0,
+      1.0
+    ],
+    "TV_operation": 0.0,
+    "TV_operation_each_runner": [
+      0.0,
+      0.0
+    ],
+    "ownership_component_tree_sha256_each_runner": [
+      "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0",
+      "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0"
+    ],
+    "source_identities": [
+      {
+        "operation": "climate.set_preset_mode",
+        "target_class": "climate",
+        "variant": "{\"preset_mode\":\"home\"}"
+      },
+      {
+        "operation": "climate.set_preset_mode",
+        "target_class": "climate",
+        "variant": "{\"preset_mode\":\"home\"}"
+      }
+    ],
+    "target_identities": [
+      {
+        "operation": "climate.set_preset_mode",
+        "target_class": "climate",
+        "variant": "{\"preset_mode\":\"away\"}"
+      },
+      {
+        "operation": "climate.set_preset_mode",
+        "target_class": "climate",
+        "variant": "{\"preset_mode\":\"away\"}"
+      }
+    ]
+  },
+  "replicas": [
+    0,
+    1
+  ],
+  "replication_gates": {
+    "all_producer_gates_true": true,
+    "component_tree_replicates": true,
+    "controlled_boundary_exact": true,
+    "different_full_action_across_feedback": true,
+    "event_callback_preset_explicitly_diagnostic_only": true,
+    "external_controller_exact": true,
+    "loader_qualified_before_outcome": true,
+    "ownership_mode_exact": true,
+    "pre_action_snapshots_exact_each_runner": true,
+    "producer_tree_matches_validator": true,
+    "registration_path_exact": true,
+    "same_operation_across_feedback": true,
+    "source_identity_replicates": true,
+    "target_identity_replicates": true,
+    "tv_action_exact_one_each_runner": true,
+    "tv_operation_exact_zero_each_runner": true,
+    "two_independent_validators": true,
+    "upstream_commit_exact": true,
+    "upstream_manifest_exact": true,
+    "upstream_version_exact": true
+  },
+  "runner_validations": [
+    {
+      "observer_ordering_diagnostics": {
+        "source_event_callback_preset": "home",
+        "target_native_event_callback_presets": [
+          "away",
+          "away",
+          "away",
+          "away",
+          "away",
+          "away"
+        ],
+        "target_replay_event_callback_presets": [
+          "sleep",
+          "sleep",
+          "sleep",
+          "sleep",
+          "sleep",
+          "sleep"
+        ],
+        "used_for_promotion": false
+      },
+      "recomputed": {
+        "TV_action": 1.0,
+        "TV_operation": 0.0,
+        "control_trials": 6,
+        "ownership_component_tree_sha256": "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0",
+        "ownership_mode": "upstream-qualified-persisted-disabled-config-entry-controlled-device",
+        "pre_action_snapshots_all_exact": true,
+        "replay_trials": 6,
+        "source_identity": {
+          "operation": "climate.set_preset_mode",
+          "target_class": "climate",
+          "variant": "{\"preset_mode\":\"home\"}"
+        },
+        "target_identity": {
+          "operation": "climate.set_preset_mode",
+          "target_class": "climate",
+          "variant": "{\"preset_mode\":\"away\"}"
+        },
+        "target_trials": 6
+      },
+      "replica": 0,
+      "upstream_recomputed": {
+        "domain": "better_thermostat",
+        "manifest_sha256": "710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28",
+        "tree_sha256": "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0",
+        "version": "1.9.2"
+      }
+    },
+    {
+      "observer_ordering_diagnostics": {
+        "source_event_callback_preset": "home",
+        "target_native_event_callback_presets": [
+          "away",
+          "away",
+          "away",
+          "away",
+          "away",
+          "away"
+        ],
+        "target_replay_event_callback_presets": [
+          "sleep",
+          "sleep",
+          "sleep",
+          "sleep",
+          "sleep",
+          "sleep"
+        ],
+        "used_for_promotion": false
+      },
+      "recomputed": {
+        "TV_action": 1.0,
+        "TV_operation": 0.0,
+        "control_trials": 6,
+        "ownership_component_tree_sha256": "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0",
+        "ownership_mode": "upstream-qualified-persisted-disabled-config-entry-controlled-device",
+        "pre_action_snapshots_all_exact": true,
+        "replay_trials": 6,
+        "source_identity": {
+          "operation": "climate.set_preset_mode",
+          "target_class": "climate",
+          "variant": "{\"preset_mode\":\"home\"}"
+        },
+        "target_identity": {
+          "operation": "climate.set_preset_mode",
+          "target_class": "climate",
+          "variant": "{\"preset_mode\":\"away\"}"
+        },
+        "target_trials": 6
+      },
+      "replica": 1,
+      "upstream_recomputed": {
+        "domain": "better_thermostat",
+        "manifest_sha256": "710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28",
+        "tree_sha256": "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0",
+        "version": "1.9.2"
+      }
+    }
+  ],
+  "schema": "agentmark.natural_controller.better_thermostat.replicated.v4",
+  "trial_counts": {
+    "native_target_per_replica": 6,
+    "native_target_total": 12,
+    "no_shift_controls_per_replica": 6,
+    "no_shift_controls_total": 12,
+    "recorded_replay_per_replica": 6,
+    "recorded_replay_total": 12
+  }
+}

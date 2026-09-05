@@ -11,6 +11,7 @@ Rules:
 
 - Never transcribe headline numbers from prose, chat, or memory.
 - Canonical run/artifact identities are hard-locked in `paper_results_lib.py`; self-consistent provenance repointing fails validation.
+- A primary capsule may be stored as `primary.json.gz`; validation losslessly decompresses it and hashes the exact logical `primary.json` bytes, so transport encoding cannot change evidence identity.
 - Exact structural metrics and measured timing metrics are different types.
 - E3b/E3c workload ratios are derived from integer native-work counts.
 - N1 runner timings remain separate.

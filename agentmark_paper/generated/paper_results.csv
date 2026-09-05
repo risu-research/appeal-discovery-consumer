@@ -1,0 +1,17 @@
+evidence,metric,kind,value,unit
+e3b,R0_work,exact_count,512,broker PUBLISH
+e3b,R1_work,exact_count,512,broker PUBLISH
+e3b,R2_work,exact_count,768,broker PUBLISH
+e3b,R2_over_R1,exact_fraction,3/2,ratio
+e3c,R0_work,exact_count,256,native HA service calls
+e3c,R1_work,exact_count,256,native HA service calls
+e3c,R2_work,exact_count,384,native HA service calls
+e3c,R2_over_R1,exact_fraction,3/2,ratio
+n2,TV_operation,exact_scalar,0,TV
+n2,TV_action,exact_scalar,1,TV
+n2b,raw_feedback_TV,exact_scalar,1,TV
+n2b,quotient_feedback_TV,exact_scalar,0,TV
+n2b,TV_action,exact_scalar,0,TV
+n2b,target_replay_support_failures,empirical_fraction,0/12,trials
+n1,R1_minus_R0_replica0,measured_ms,35.24896700000001,ms
+n1,R1_minus_R0_replica1,measured_ms,35.178532166666656,ms

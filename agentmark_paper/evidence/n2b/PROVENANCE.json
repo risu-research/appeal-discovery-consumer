@@ -1,0 +1,29 @@
+{
+  "artifact_archive_sha256": "4d75b17e6bd0bd9ba41cb574f9bca022364c312c09b215b74a36a92fda5861db",
+  "artifact_id": 9971397583,
+  "artifact_name": "agentmark-n2b-decision-equivalence-v2-replicated",
+  "branch": "agentmark-n2b-decision-equivalence",
+  "canonical": true,
+  "evidence_id": "N2b",
+  "execution_commit": "9ec25a1cc2a16bff893d7ff5ffc9271bf6e059f6",
+  "primary_filename": "primary.json",
+  "primary_sha256": "93975a490a6af4e48e35152a77129430df0b0f7883015fc2ce72bd0d6fdffe75",
+  "primary_source_filename": "N2B_DECISION_EQUIVALENCE_V2_REPLICATED.json",
+  "replica_artifacts": [
+    {
+      "artifact_id": 9971395032,
+      "replica": 0,
+      "sha256": "e7282f932832ac241dfd98ea60ee6a70157d74773e9c385917e37dc2388ba6a5"
+    },
+    {
+      "artifact_id": 9971395797,
+      "replica": 1,
+      "sha256": "3be804d49d91cc4d1a9a03281495b90c6136df4ad773a51bfa8c3f2f6029649e"
+    }
+  ],
+  "role": "headline_safe_side_decision_equivalence",
+  "run_id": 33972619262,
+  "schema": "agentmark.paper_evidence_provenance.v1",
+  "source_schema": "agentmark.n2b.replicated_aggregate.v2",
+  "workflow": "AgentMark N2b Decision Equivalence v2"
+}

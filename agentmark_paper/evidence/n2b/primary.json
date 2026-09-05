@@ -1,0 +1,225 @@
+{
+  "controlled_device_ownership": {
+    "component_tree_sha256": "bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0",
+    "config_entry_intentionally_disabled": true,
+    "config_entry_registration_path": "core.config_entries Store -> ConfigEntries.async_initialize",
+    "integration_internal_control_logic_executed": false,
+    "loader_qualification": {
+      "before_outcome": true,
+      "domain": "better_thermostat",
+      "integration_setup_invoked": false,
+      "version": "1.9.2"
+    },
+    "mode": "upstream-qualified-persisted-disabled-config-entry-controlled-device",
+    "upstream_commit": "b86561f61e5ba1259fc63e590f4847e9ac743d7f",
+    "upstream_manifest_sha256": "710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28",
+    "upstream_repository": "KartoffelToby/better_thermostat",
+    "upstream_version": "1.9.2"
+  },
+  "counts": {
+    "control_replay_action_support_failures": 0,
+    "no_shift_replay": 12,
+    "source_native": 12,
+    "target_native": 12,
+    "target_replay": 12,
+    "target_replay_action_support_failures": 0
+  },
+  "decision": "PROMOTED_REPLICATED",
+  "external_controller": {
+    "commit": "57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f",
+    "path": "automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml",
+    "repository": "n3roGit/MyHomeAssistantMods",
+    "sha256": "16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443",
+    "source_edited": false
+  },
+  "frozen_protocol": {
+    "activity_entity": "",
+    "boost_entity": "",
+    "current_preset": "sleep",
+    "eco_entity": "",
+    "native_trigger_both": "presence on -> off",
+    "source_feedback_label": "AWAY_MOTION_OFF",
+    "source_feedback_vector": {
+      "activity": false,
+      "boost": false,
+      "eco": false,
+      "motion": "off",
+      "night": "off",
+      "presence": "off"
+    },
+    "target_feedback_label": "AWAY_MOTION_ON",
+    "target_feedback_vector": {
+      "activity": false,
+      "boost": false,
+      "eco": false,
+      "motion": "on",
+      "night": "off",
+      "presence": "off"
+    },
+    "trials_per_condition": 6,
+    "writeback_bounds_enable": false,
+    "writeback_enable": false
+  },
+  "home_assistant_image_ref": "ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293",
+  "measurement_contract": {
+    "feedback_entities_observed_at_presence_transition": true,
+    "feedback_entities_observed_at_service_issue": true,
+    "post_action_feedback_nonmutation_check": true,
+    "strict_pre_handler_climate_snapshot_claimed": false,
+    "v1_failure_run": 33972326066,
+    "version": "n2b-v2-event-level-feedback-witness"
+  },
+  "promotion_gates": {
+    "control_replay_action_support_failures_zero": true,
+    "control_replay_away_exact_12_of_12": true,
+    "exactly_two_replicas_0_1": true,
+    "external_controller_identical_across_replicas": true,
+    "independent_validators_pass_all": true,
+    "measurement_contract_identical_across_replicas": true,
+    "ownership_summary_identical_across_replicas": true,
+    "pair_restricted_eta_action_exact_zero_all": true,
+    "producer_promoted_all": true,
+    "protocol_identical_across_replicas": true,
+    "quotient_feedback_tv_exact_zero_all": true,
+    "raw_feedback_tv_exact_one_all": true,
+    "result_schema_exact_all": true,
+    "source_native_away_exact_12_of_12": true,
+    "target_native_away_exact_12_of_12": true,
+    "target_replay_action_support_failures_zero": true,
+    "target_replay_away_exact_12_of_12": true,
+    "theory_identical_across_replicas": true,
+    "tv_action_exact_zero_all": true,
+    "tv_operation_exact_zero_all": true,
+    "validation_replicas_0_1": true,
+    "validation_schema_exact_all": true
+  },
+  "replica_validations": [
+    {
+      "checks": {
+        "condition_cardinality_exact": true,
+        "controlled_ownership_summary_exact": true,
+        "external_controller_exact": true,
+        "ha_version_exact": true,
+        "measurement_correction_exact": true,
+        "native_action_identity_equal_across_pair": true,
+        "no_shift_replay_all_exact_supported": true,
+        "protocol_pair_exact": true,
+        "raw_feedback_vectors_distinct": true,
+        "recorded_source_action_exact": true,
+        "replica_nonnegative_integer": true,
+        "schema_exact": true,
+        "source_native_event_witness_all_exact": true,
+        "target_native_event_witness_all_exact": true,
+        "target_replay_all_exact_supported": true,
+        "theory_recomputed_exact": true,
+        "upstream_manifest_exact": true,
+        "upstream_tree_exact": true
+      },
+      "producer_consistent_with_independent_validation": true,
+      "producer_decision_reported": "PROMOTED",
+      "producer_promoted_reported": true,
+      "recomputed_theory": {
+        "TV_action": 0.0,
+        "TV_operation": 0.0,
+        "action_feedback_classes": [
+          [
+            "AWAY_MOTION_OFF",
+            "AWAY_MOTION_ON"
+          ]
+        ],
+        "feedback_A": "AWAY_MOTION_OFF",
+        "feedback_B": "AWAY_MOTION_ON",
+        "pair_restricted_eta_action": 0.0,
+        "quotient_feedback_tv": 0.0,
+        "raw_feedback_tv": 1.0,
+        "source_quotient_law": {
+          "AWAY_MOTION_OFF|AWAY_MOTION_ON": 1.0
+        },
+        "target_quotient_law": {
+          "AWAY_MOTION_OFF|AWAY_MOTION_ON": 1.0
+        },
+        "unsupported_feedback": []
+      },
+      "replica": 0,
+      "schema": "agentmark.n2b.independent_validation.v2",
+      "verdict": "PASS"
+    },
+    {
+      "checks": {
+        "condition_cardinality_exact": true,
+        "controlled_ownership_summary_exact": true,
+        "external_controller_exact": true,
+        "ha_version_exact": true,
+        "measurement_correction_exact": true,
+        "native_action_identity_equal_across_pair": true,
+        "no_shift_replay_all_exact_supported": true,
+        "protocol_pair_exact": true,
+        "raw_feedback_vectors_distinct": true,
+        "recorded_source_action_exact": true,
+        "replica_nonnegative_integer": true,
+        "schema_exact": true,
+        "source_native_event_witness_all_exact": true,
+        "target_native_event_witness_all_exact": true,
+        "target_replay_all_exact_supported": true,
+        "theory_recomputed_exact": true,
+        "upstream_manifest_exact": true,
+        "upstream_tree_exact": true
+      },
+      "producer_consistent_with_independent_validation": true,
+      "producer_decision_reported": "PROMOTED",
+      "producer_promoted_reported": true,
+      "recomputed_theory": {
+        "TV_action": 0.0,
+        "TV_operation": 0.0,
+        "action_feedback_classes": [
+          [
+            "AWAY_MOTION_OFF",
+            "AWAY_MOTION_ON"
+          ]
+        ],
+        "feedback_A": "AWAY_MOTION_OFF",
+        "feedback_B": "AWAY_MOTION_ON",
+        "pair_restricted_eta_action": 0.0,
+        "quotient_feedback_tv": 0.0,
+        "raw_feedback_tv": 1.0,
+        "source_quotient_law": {
+          "AWAY_MOTION_OFF|AWAY_MOTION_ON": 1.0
+        },
+        "target_quotient_law": {
+          "AWAY_MOTION_OFF|AWAY_MOTION_ON": 1.0
+        },
+        "unsupported_feedback": []
+      },
+      "replica": 1,
+      "schema": "agentmark.n2b.independent_validation.v2",
+      "verdict": "PASS"
+    }
+  ],
+  "replicas": [
+    0,
+    1
+  ],
+  "schema": "agentmark.n2b.replicated_aggregate.v2",
+  "theory": {
+    "TV_action": 0.0,
+    "TV_operation": 0.0,
+    "action_feedback_classes": [
+      [
+        "AWAY_MOTION_OFF",
+        "AWAY_MOTION_ON"
+      ]
+    ],
+    "feedback_A": "AWAY_MOTION_OFF",
+    "feedback_B": "AWAY_MOTION_ON",
+    "pair_restricted_eta_action": 0.0,
+    "quotient_feedback_tv": 0.0,
+    "raw_feedback_tv": 1.0,
+    "source_quotient_law": {
+      "AWAY_MOTION_OFF|AWAY_MOTION_ON": 1.0
+    },
+    "target_quotient_law": {
+      "AWAY_MOTION_OFF|AWAY_MOTION_ON": 1.0
+    },
+    "unsupported_feedback": []
+  }
+}

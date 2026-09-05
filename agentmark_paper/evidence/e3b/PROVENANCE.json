@@ -1,0 +1,18 @@
+{
+  "artifact_archive_sha256": "829e05748ae38c76f880ab57538112a980c1da3d3ebedd4b84c1e6409093eb95",
+  "artifact_id": 9960088059,
+  "artifact_name": "agentmark-e3b-decisive-v2",
+  "branch": "agentmark-e3b-lab",
+  "canonical": true,
+  "evidence_id": "E3b",
+  "execution_commit": "5f5eb578f2d47de8e8ac53c1dacee917c49cd9dd",
+  "notes": "Safety-boundary sweep artifact 9960095929 is falsification/exploratory evidence and is not a headline source.",
+  "primary_filename": "primary.json",
+  "primary_sha256": "46d0ef0c82cf1fd40c3746cffb667d101d32a5431e7b52f99a9fa7fecf323b12",
+  "primary_source_filename": "e3b_r0_r1_r2_certificate.json",
+  "role": "headline_positive_witness",
+  "run_id": 33935626964,
+  "schema": "agentmark.paper_evidence_provenance.v1",
+  "source_schema": "agentmark.e3b.r0_r1_r2_certificate.v2",
+  "workflow": "AgentMark E3b Mosquitto Promotion"
+}

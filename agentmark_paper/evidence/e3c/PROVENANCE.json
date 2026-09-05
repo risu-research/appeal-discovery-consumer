@@ -1,0 +1,29 @@
+{
+  "artifact_archive_sha256": "7ef5140a6dcdaee508154d49071aa15733da95b7507ead7d8d63afc963a12cb3",
+  "artifact_id": 9962430737,
+  "artifact_name": "agentmark-e3c-home-assistant-replicated",
+  "branch": "agentmark-e3c-home-assistant",
+  "canonical": true,
+  "evidence_id": "E3c",
+  "execution_commit": "02028046d3f3d4fc32ed44b15c4b986e9df3545a",
+  "primary_filename": "primary.json",
+  "primary_sha256": "9e1e91d4e7733880da8236b3a4afb3647f8aa9582fe8f7d6d2a8ec44f038653b",
+  "primary_source_filename": "e3c_home_assistant_replicated.json",
+  "replica_artifacts": [
+    {
+      "artifact_id": 9962428621,
+      "replica": 0,
+      "sha256": "9c12212d1239a68235763e9c0e7a295e16d34fef653ab19f4329854b92a61262"
+    },
+    {
+      "artifact_id": 9962428209,
+      "replica": 1,
+      "sha256": "ebc0b0a6fa306608776b32905c1744cdb1456640f1f69e824c18c1dffe2c762d"
+    }
+  ],
+  "role": "headline_ecological_replication",
+  "run_id": 33942887473,
+  "schema": "agentmark.paper_evidence_provenance.v1",
+  "source_schema": "agentmark.e3c.home_assistant.replicated_aggregate.v1",
+  "workflow": "AgentMark E3c Home Assistant Ecological Replication"
+}

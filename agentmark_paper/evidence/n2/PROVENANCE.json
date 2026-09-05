@@ -1,0 +1,29 @@
+{
+  "artifact_archive_sha256": "76bd2850156040139aabd935ccab44f01fb27344770c2f04a055fed81ee901b7",
+  "artifact_id": 9969439579,
+  "artifact_name": "agentmark-n2-better-thermostat-v4-replicated",
+  "branch": "agentmark-theory-lock",
+  "canonical": true,
+  "evidence_id": "N2",
+  "execution_commit": "4264c43d013178c8babedf772b1c06c5ddbe73cb",
+  "primary_filename": "primary.json",
+  "primary_sha256": "df389a937832374008e459afd2a0454e632675a713b0a3b2b7d1b9258894d446",
+  "primary_source_filename": "N2_BETTER_THERMOSTAT_REPLICATED.json",
+  "replica_artifacts": [
+    {
+      "artifact_id": 9969436636,
+      "replica": 0,
+      "sha256": "765bc094b51173341ddd1af7539b46e6714d92f66c0ccb30267f6ada813f388e"
+    },
+    {
+      "artifact_id": 9969435125,
+      "replica": 1,
+      "sha256": "632eaae611e2bc1d96340eaa6ff19f4ab980aebffe65e0d8ed30e7f2256dd046"
+    }
+  ],
+  "role": "headline_action_identity_counterexample",
+  "run_id": 33965918153,
+  "schema": "agentmark.paper_evidence_provenance.v1",
+  "source_schema": "agentmark.natural_controller.better_thermostat.replicated.v4",
+  "workflow": "AgentMark N2 Better Thermostat Action Identity"
+}

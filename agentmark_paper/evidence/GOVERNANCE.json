@@ -1,0 +1,31 @@
+{
+  "authoritative_rule": "Only bytes in canonical evidence capsules plus pinned immutable Actions provenance may feed paper-result generation.",
+  "empirical_stop_active": true,
+  "empirical_stop_source": {
+    "git_blob_sha": "4566b5f4847a4385d1de39f47abcbe56d92494b7",
+    "path": "agentmark_paper/N2B_RESULT_AND_EMPIRICAL_STOP_LOCK.md",
+    "source_branch_head": "1a38808a2c83fb6cf68091beb0a244eec3dab9ec"
+  },
+  "excluded_evidence": [
+    {
+      "canonical": false,
+      "conclusion": "failure",
+      "execution_commit": "e2bb6c8e90295c448a4679ae4a342d791542c5ce",
+      "id": "N2b-v1",
+      "reason": "superseded invalid measurement contract; failed before a valid N2b result",
+      "run_id": 33972326066,
+      "workflow": "AgentMark N2b Natural Decision Equivalence"
+    },
+    {
+      "artifact_archive_sha256": "214a25bc666336d86d0e59f2031713b6d79d3cdd9704b8e6f9b75da03bfef257",
+      "artifact_id": 9960095929,
+      "artifact_name": "agentmark-e3b-safety-boundary",
+      "canonical_headline": false,
+      "id": "E3b-safety-boundary",
+      "reason": "falsification/exploratory boundary evidence; not a headline result source",
+      "run_id": 33935626964
+    }
+  ],
+  "schema": "agentmark.paper_results_governance.v1",
+  "stale_narrative_hashes_are_non_authoritative": true
+}

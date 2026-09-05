@@ -1,0 +1,38 @@
+{
+  "artifact_archive_sha256": "14dfde9ff11865a548984ec4858429258d2d4fc1b7584c41d96a251530eb3f27",
+  "artifact_id": 9963663630,
+  "artifact_name": "agentmark-n1-official-motion-light-replicated",
+  "branch": "agentmark-theory-lock",
+  "canonical": true,
+  "evidence_id": "N1",
+  "execution_commit": "5b2ba2aa35bf0bd00715b6b9475b44d9695c3c8f",
+  "noncanonical_history": [
+    {
+      "conclusion": "failure",
+      "execution_commit": "657db9b5bf048b47529c5f4c7adbe1569ca6ab27",
+      "reason": "initial workflow execution failed; no canonical result",
+      "run_id": 33945478968,
+      "workflow": "AgentMark N1 Official HA Motion-Light"
+    }
+  ],
+  "primary_filename": "primary.json",
+  "primary_sha256": "4812816bd830b5e71d89843f8510c44f93c37a89b054ae8ef7a9358e90ec00f7",
+  "primary_source_filename": "N1_MOTION_LIGHT_REPLICATED.json",
+  "replica_artifacts": [
+    {
+      "artifact_id": 9963661146,
+      "replica": 0,
+      "sha256": "b444792e46d8fa76b7a6829fa6de526948ddcc61d17710e5b0bfdb48b27042d4"
+    },
+    {
+      "artifact_id": 9963660995,
+      "replica": 1,
+      "sha256": "1e6fe88ddc380329897ab9441c1974ce0174bfd35198e3ceadddfa37b8999fc1"
+    }
+  ],
+  "role": "headline_external_official_controller",
+  "run_id": 33946985750,
+  "schema": "agentmark.paper_evidence_provenance.v1",
+  "source_schema": "agentmark.natural_controller.motion_light.replicated.v1",
+  "workflow": "AgentMark N1 Official HA Motion-Light"
+}
