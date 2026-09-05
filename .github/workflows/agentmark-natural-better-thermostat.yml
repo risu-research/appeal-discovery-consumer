@@ -180,6 +180,7 @@ jobs:
         shell: bash
         env:
           REPLICA: ${{ matrix.replica }}
+          PYTHONPATH: ${{ github.workspace }}/agentmark_e3b_lab:${{ github.workspace }}
         run: |
           set -euo pipefail
           python agentmark_natural_controllers/better_thermostat/validate_initial_snapshot.py \
