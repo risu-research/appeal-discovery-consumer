@@ -16,6 +16,8 @@ from homeassistant import config_entries, loader
 from homeassistant.components import automation
 from homeassistant.const import EVENT_CALL_SERVICE, EVENT_STATE_CHANGED, __version__ as HA_VERSION
 from homeassistant.core import CoreState, Event, HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import trigger as trigger_helper
 from homeassistant.setup import async_setup_component
 
@@ -229,6 +231,8 @@ async def make_hass(
     loader.async_setup(hass)
     hass.config_entries = config_entries.ConfigEntries(hass, {})
     await hass.config_entries.async_initialize()
+    dr.async_setup(hass)
+    await asyncio.gather(dr.async_load(hass), er.async_load(hass))
     await trigger_helper.async_setup(hass)
     hass.set_state(CoreState.running)
 
