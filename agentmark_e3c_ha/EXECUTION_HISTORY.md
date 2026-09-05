@@ -61,3 +61,7 @@ Only implementation synchronization is corrected:
 - Home Assistant's `async_block_till_done()` is the event-completeness barrier before accounting.
 
 Attempt 1 is retained permanently and must not be cited as a valid E3c promotion run.
+
+### Correction commit
+
+The synchronization-only correction was atomically committed as `1aa7a7e6425ea4fec3d6b479df83ea938d1e17a1`, directly parented on the invalid attempt's frozen execution commit. The preregistered scientific parameters and promotion thresholds were not changed.
