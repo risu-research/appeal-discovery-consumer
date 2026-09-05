@@ -1,0 +1,218 @@
+                    modes[mode] = {
+                        "summary": summarize_rows(rows),
+                        "ha_events": event_slice(lab, run_id),
+                        "rows": rows,
+                    }
+                decisive_trials.append({"trial": trial, "modes": modes})
+
+            # Orthogonal control 1: no system feedback shift.
+            no_shift = {}
+            for mode in ("R0", "R1", "R2"):
+                run_id = f"control_noshift_{mode.lower()}"
+                rows = await run_mode(
+                    hass,
+                    mode,
+                    run_id,
+                    source,
+                    target_delay_ms=args.source_delay_ms,
+                    verify_ms=args.verify_ms,
+                    wave_size=args.wave_size,
+                    wave_period_ms=args.wave_period_ms,
+                    policy_sensitive=True,
+                )
+                no_shift[mode] = {"summary": summarize_rows(rows), "ha_events": event_slice(lab, run_id), "rows": rows}
+
+            # Orthogonal control 2: feedback changes, policy is insensitive.
+            insensitive = {}
+            for mode in ("R0", "R1", "R2"):
+                run_id = f"control_insensitive_{mode.lower()}"
+                rows = await run_mode(
+                    hass,
+                    mode,
+                    run_id,
+                    source,
+                    target_delay_ms=args.target_delay_ms,
+                    verify_ms=args.verify_ms,
+                    wave_size=args.wave_size,
+                    wave_period_ms=args.wave_period_ms,
+                    policy_sensitive=False,
+                )
+                insensitive[mode] = {"summary": summarize_rows(rows), "ha_events": event_slice(lab, run_id), "rows": rows}
+
+            # Aggregate decisive rows by mode across independent trial labels.
+            aggregate_rows = {
+                mode: [row for trial in decisive_trials for row in trial["modes"][mode]["rows"]]
+                for mode in ("R0", "R1", "R2")
+            }
+            aggregate = {
+                mode: {
+                    "summary": summarize_rows(rows),
+                    "certificate": certificate_for(sensitive, source * args.trials, rows),
+                    "recorded_act2_support": trace_support(sensitive, rows, "ACT2"),
+                }
+                for mode, rows in aggregate_rows.items()
+            }
+
+            insensitive_rows = insensitive["R1"]["rows"]
+            insensitive_certificate = certificate_for(insensitive_kernel(), source, insensitive_rows)
+
+            # Hard, predeclared validity/promote gates.
+            per_trial_gates = []
+            for trial in decisive_trials:
+                trial_gate = {"trial": trial["trial"]}
+                for mode, expected_calls_per_task in (("R0", 2), ("R1", 2), ("R2", 3)):
+                    m = trial["modes"][mode]
+                    ev = m["ha_events"]
+                    trial_gate[f"{mode}_call_service_conservation"] = ev["call_service_count"] == expected_calls_per_task * args.tasks
+                    trial_gate[f"{mode}_context_lineage"] = bool(ev["context_lineage_all_match"])
+                trial_gate["R0_support_violation_all"] = trial["modes"]["R0"]["summary"]["support_violation_rate"] == 1.0
+                trial_gate["R1_support_violation_all"] = trial["modes"]["R1"]["summary"]["support_violation_rate"] == 1.0
+                trial_gate["R2_support_violation_none"] = trial["modes"]["R2"]["summary"]["support_violation_rate"] == 0.0
+                trial_gate["R2_verify_all"] = trial["modes"]["R2"]["summary"]["verify_fraction"] == 1.0
+                trial_gate["target_miss_all"] = all(
+                    trial["modes"][mode]["summary"]["feedback_miss_rate"] == 1.0
+                    for mode in ("R0", "R1", "R2")
+                )
+                trial_gate["pass"] = all(v for k, v in trial_gate.items() if k not in {"trial", "pass"})
+                per_trial_gates.append(trial_gate)
+
+            no_shift_gate = all(
+                no_shift[mode]["summary"]["support_violation_rate"] == 0.0
+                and no_shift[mode]["summary"]["feedback_miss_rate"] == 0.0
+                and no_shift[mode]["ha_events"]["call_service_count"] == 2 * args.tasks
+                and no_shift[mode]["ha_events"]["context_lineage_all_match"]
+                for mode in ("R0", "R1", "R2")
+            )
+            insensitive_gate = all(
+                insensitive[mode]["summary"]["support_violation_rate"] == 0.0
+                and insensitive[mode]["ha_events"]["call_service_count"] == 2 * args.tasks
+                and insensitive[mode]["ha_events"]["context_lineage_all_match"]
+                for mode in ("R0", "R1", "R2")
+            ) and insensitive_certificate["certified_safe_at_epsilon"]
+
+            r1_shift = aggregate["R1"]["summary"]["act2_issue_shift_vs_source_mean_ms"]
+            promotion = {
+                "source_valid": bool(source_summary["all_visible_by_deadline"]),
+                "all_decisive_trials_valid": all(g["pass"] for g in per_trial_gates),
+                "r1_timing_feedback_material": r1_shift >= max(25.0, (args.target_delay_ms - args.source_delay_ms) * 0.5),
+                "r0_support_failure": aggregate["R0"]["summary"]["support_violation_rate"] == 1.0,
+                "r1_support_failure": aggregate["R1"]["summary"]["support_violation_rate"] == 1.0,
+                "r2_support_preserved": aggregate["R2"]["summary"]["support_violation_rate"] == 0.0,
+                "r2_work_amplification_exact": all(
+                    trial["modes"]["R2"]["ha_events"]["call_service_count"]
+                    == 1.5 * trial["modes"]["R1"]["ha_events"]["call_service_count"]
+                    for trial in decisive_trials
+                ),
+                "replay_certificate_unsafe": not aggregate["R1"]["certificate"]["certified_safe_at_epsilon"],
+                "no_shift_negative_control": no_shift_gate,
+                "feedback_insensitive_negative_control": insensitive_gate,
+            }
+            promotion["promoted"] = all(promotion.values())
+
+            # Trim gigantic per-state context details from the human-facing result while
+            # preserving raw event logs separately below.
+            compact_trials = []
+            for trial in decisive_trials:
+                compact_modes = {}
+                for mode, m in trial["modes"].items():
+                    ev = dict(m["ha_events"])
+                    ev.pop("state_context_details", None)
+                    compact_modes[mode] = {"summary": m["summary"], "ha_events": ev}
+                compact_trials.append({"trial": trial["trial"], "modes": compact_modes})
+
+            result = {
+                "schema": "agentmark.e3c.home_assistant.ecological.v1",
+                "replica": args.replica,
+                "decision": "PROMOTED" if promotion["promoted"] else "NOT_PROMOTED",
+                "interpretation": (
+                    "E3c runs the AgentMark R0/R1/R2 replay ladder on Home Assistant Core's actual "
+                    "ServiceRegistry, EventBus, StateMachine, state_changed events, and Context propagation. "
+                    "The virtual device delay is controlled, but middleware semantics and accounting are Home Assistant native."
+                ),
+                "environment": {
+                    "home_assistant_core_version": HA_VERSION,
+                    "python": sys.version,
+                    "platform": platform.platform(),
+                },
+                "frozen_protocol": {
+                    "tasks": args.tasks,
+                    "trials": args.trials,
+                    "wave_size": args.wave_size,
+                    "wave_period_ms": args.wave_period_ms,
+                    "source_delay_ms": args.source_delay_ms,
+                    "target_delay_ms": args.target_delay_ms,
+                    "verify_deadline_ms": args.verify_ms,
+                    "epsilon": 0.05,
+                    "confidence": 0.95,
+                    "decision_operation_when_visible": "ACT2",
+                    "decision_operation_when_miss": "VERIFY then ACT2",
+                    "negative_controls": ["no_feedback_shift", "feedback_insensitive_policy"],
+                },
+                "source": source_summary,
+                "source_trace": [t.__dict__ | {"think_after_act1_ms": t.think_after_act1_ms} for t in source],
+                "decisive_trials": compact_trials,
+                "aggregate": aggregate,
+                "controls": {
+                    "no_feedback_shift": {mode: {"summary": x["summary"], "ha_events": {k:v for k,v in x["ha_events"].items() if k != "state_context_details"}} for mode, x in no_shift.items()},
+                    "feedback_insensitive": {mode: {"summary": x["summary"], "ha_events": {k:v for k,v in x["ha_events"].items() if k != "state_context_details"}} for mode, x in insensitive.items()},
+                    "feedback_insensitive_certificate": insensitive_certificate,
+                },
+                "validity_gates": per_trial_gates,
+                "promotion_gates": promotion,
+                "native_event_totals": {
+                    "agentmark_call_service_events": len(lab.call_events),
+                    "agentmark_state_changed_events": len(lab.state_events),
+                },
+                "raw_replay_rows": {
+                    "decisive": {
+                        str(trial["trial"]): {mode: trial["modes"][mode]["rows"] for mode in ("R0", "R1", "R2")}
+                        for trial in decisive_trials
+                    },
+                    "controls": {
+                        "no_feedback_shift": {mode: no_shift[mode]["rows"] for mode in ("R0", "R1", "R2")},
+                        "feedback_insensitive": {mode: insensitive[mode]["rows"] for mode in ("R0", "R1", "R2")},
+                    },
+                },
+                "raw_native_events": {
+                    "call_service": lab.call_events,
+                    "state_changed": lab.state_events,
+                },
+            }
+            return result
+        finally:
+            lab.close()
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="AgentMark E3c Home Assistant ecological-validity gate")
+    p.add_argument("--tasks", type=int, default=128)
+    p.add_argument("--trials", type=int, default=6)
+    p.add_argument("--wave-size", type=int, default=32)
+    p.add_argument("--wave-period-ms", type=float, default=300.0)
+    p.add_argument("--source-delay-ms", type=float, default=35.0)
+    p.add_argument("--target-delay-ms", type=float, default=180.0)
+    p.add_argument("--verify-ms", type=float, default=100.0)
+    p.add_argument("--replica", type=int, default=0)
+    p.add_argument("--out", required=True)
+    return p.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    result = asyncio.run(experiment(args))
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps({
+        "decision": result["decision"],
+        "environment": result["environment"],
+        "source": result["source"],
+        "aggregate": {k: v["summary"] for k, v in result["aggregate"].items()},
+        "promotion_gates": result["promotion_gates"],
+    }, indent=2, sort_keys=True))
+    if result["decision"] != "PROMOTED":
+        raise SystemExit(2)
+
+
+if __name__ == "__main__":
+    main()
