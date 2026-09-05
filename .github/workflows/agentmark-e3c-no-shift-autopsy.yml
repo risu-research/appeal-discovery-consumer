@@ -1,0 +1,82 @@
+name: AgentMark E3c No-Shift Causal Autopsy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agentmark-e3c-home-assistant]
+    paths:
+      - 'agentmark_e3c_autopsy/**'
+      - '.github/workflows/agentmark-e3c-no-shift-autopsy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  autopsy:
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [0, 1, 2, 3]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize frozen E3c base and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p autopsy_results/provenance
+          cat agentmark_e3c_ha/home_assistant_ecological.part1.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part2.pyfrag \
+              agentmark_e3c_ha/home_assistant_ecological.part3.pyfrag \
+              > autopsy_results/home_assistant_ecological.py
+          python -m py_compile \
+              autopsy_results/home_assistant_ecological.py \
+              agentmark_e3c_autopsy/no_shift_autopsy.py
+          printf '%s\n' "$GITHUB_SHA" > autopsy_results/provenance/GITHUB_SHA.txt
+          printf '%s\n' '${{ matrix.replica }}' > autopsy_results/provenance/REPLICA.txt
+          printf '%s\n' 'ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293' > autopsy_results/provenance/HOME_ASSISTANT_IMAGE_REF.txt
+          sha256sum \
+              autopsy_results/home_assistant_ecological.py \
+              agentmark_e3c_autopsy/no_shift_autopsy.py \
+              agentmark_e3c_ha/PREREGISTRATION.md \
+              > autopsy_results/provenance/SOURCE_SHA256.txt
+
+      - name: Pull exact Home Assistant image
+        run: docker pull ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293
+
+      - name: Run differential observer autopsy
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            -e PYTHONPATH=/repo/agentmark_e3b_lab \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/autopsy_results:/results" \
+            --entrypoint python3 \
+            ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293 \
+            /repo/agentmark_e3c_autopsy/no_shift_autopsy.py \
+              --base-script /results/home_assistant_ecological.py \
+              --replica '${{ matrix.replica }}' \
+              --tasks 128 \
+              --trials 6 \
+              --wave-size 32 \
+              --wave-period-ms 300 \
+              --source-delay-ms 35 \
+              --target-delay-ms 180 \
+              --verify-ms 100 \
+              --heartbeat-ms 5 \
+              --heartbeat-report-ms 8 \
+              --out '/results/autopsy-${{ matrix.replica }}.json'
+          sha256sum autopsy_results/autopsy-${{ matrix.replica }}.json \
+              > autopsy_results/provenance/AUTOPSY_SHA256.txt
+
+      - name: Upload causal autopsy
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentmark-e3c-no-shift-autopsy-r${{ matrix.replica }}
+          path: autopsy_results
+          if-no-files-found: error
+          retention-days: 90
