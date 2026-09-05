@@ -41,9 +41,31 @@ HOME_VARIANT = '{"preset_mode":"home"}'
 AWAY_VARIANT = '{"preset_mode":"away"}'
 TRIALS = 6
 
+BETTER_THERMOSTAT_DOMAIN = "better_thermostat"
+BETTER_THERMOSTAT_COMMIT = "b86561f61e5ba1259fc63e590f4847e9ac743d7f"
+BETTER_THERMOSTAT_VERSION = "1.9.2"
+BETTER_THERMOSTAT_MANIFEST_SHA256 = "710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28"
+OWNERSHIP_MODE = "upstream-domain-pinned-disabled-config-entry-controlled-device"
+
 
 def now_ns() -> int:
     return time.perf_counter_ns()
+
+
+def deterministic_tree_sha256(root: Path) -> str:
+    """Hash a source tree by relative path and bytes, independent of mtimes."""
+    digest = hashlib.sha256()
+    files = sorted(path for path in root.rglob("*") if path.is_file())
+    if not files:
+        raise AssertionError(f"empty ownership component tree: {root}")
+    for path in files:
+        rel = path.relative_to(root).as_posix().encode("utf-8")
+        payload = path.read_bytes()
+        digest.update(len(rel).to_bytes(8, "big"))
+        digest.update(rel)
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+    return digest.hexdigest()
 
 
 def action_kernel() -> ReactiveKernel:
@@ -215,46 +237,85 @@ async def _make_config_entry(hass: HomeAssistant) -> config_entries.ConfigEntry:
     entry = config_entries.ConfigEntry(
         data={},
         discovery_keys=MappingProxyType({}),
-        domain="better_thermostat",
+        disabled_by=config_entries.ConfigEntryDisabler.USER,
+        domain=BETTER_THERMOSTAT_DOMAIN,
         minor_version=1,
         options={},
         source=config_entries.SOURCE_USER,
         subentries_data=None,
-        title="AgentMark Better Thermostat",
-        unique_id="agentmark-better-thermostat",
-        version=1,
+        title="AgentMark Controlled Better Thermostat Boundary",
+        unique_id="agentmark-better-thermostat-boundary",
+        version=18,
     )
     await hass.config_entries.async_add(entry)
+    if hass.config_entries.async_get_entry(entry.entry_id) is not entry:
+        raise AssertionError("Better Thermostat ownership ConfigEntry was not registered")
+    if entry.disabled_by is not config_entries.ConfigEntryDisabler.USER:
+        raise AssertionError("ownership ConfigEntry must remain intentionally disabled")
+    if entry.state is config_entries.ConfigEntryState.LOADED:
+        raise AssertionError("registry-only ownership ConfigEntry unexpectedly loaded integration")
     return entry
 
 
 async def make_hass(
     *,
     blueprint_source: Path,
+    ownership_component_source: Path,
     native_automation: bool,
     initial_presence: str,
 ) -> tuple[HomeAssistant, ActionLab, tempfile.TemporaryDirectory[str], dict[str, Any]]:
     temp = tempfile.TemporaryDirectory(prefix="agentmark-natural-bt-")
+    component_source = ownership_component_source.resolve()
+    component_manifest = component_source / "manifest.json"
+    manifest_payload = component_manifest.read_bytes()
+    manifest_sha = hashlib.sha256(manifest_payload).hexdigest()
+    if manifest_sha != BETTER_THERMOSTAT_MANIFEST_SHA256:
+        raise AssertionError(
+            f"Better Thermostat manifest hash mismatch: {manifest_sha} != {BETTER_THERMOSTAT_MANIFEST_SHA256}"
+        )
+    manifest = json.loads(manifest_payload)
+    if manifest.get("domain") != BETTER_THERMOSTAT_DOMAIN:
+        raise AssertionError(f"unexpected Better Thermostat manifest domain: {manifest.get('domain')}")
+    if manifest.get("version") != BETTER_THERMOSTAT_VERSION:
+        raise AssertionError(f"unexpected Better Thermostat manifest version: {manifest.get('version')}")
+    component_tree_sha = deterministic_tree_sha256(component_source)
+
+    custom_components = Path(temp.name) / "custom_components"
+    custom_components.mkdir(parents=True, exist_ok=True)
+    (custom_components / "__init__.py").write_text("", encoding="utf-8")
+    shutil.copytree(component_source, custom_components / BETTER_THERMOSTAT_DOMAIN)
+
     hass = HomeAssistant(temp.name)
     loader.async_setup(hass)
+    integration = await loader.async_get_integration(hass, BETTER_THERMOSTAT_DOMAIN)
+    if integration.domain != BETTER_THERMOSTAT_DOMAIN:
+        raise AssertionError(f"HA loader resolved wrong integration domain: {integration.domain}")
+    if integration.manifest.get("version") != BETTER_THERMOSTAT_VERSION:
+        raise AssertionError(
+            f"HA loader resolved wrong Better Thermostat version: {integration.manifest.get('version')}"
+        )
+
     hass.config_entries = config_entries.ConfigEntries(hass, {})
     await hass.config_entries.async_initialize()
+    dr.async_setup(hass)
+    await asyncio.gather(dr.async_load(hass), er.async_load(hass))
     await trigger_helper.async_setup(hass)
     hass.set_state(CoreState.running)
 
     entry = await _make_config_entry(hass)
-    await asyncio.gather(dr.async_load(hass), er.async_load(hass))
     device_registry = dr.async_get(hass)
     entity_registry = er.async_get(hass)
 
     device = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
-        identifiers={("better_thermostat", "agentmark-device")},
-        name="AgentMark Better Thermostat",
+        identifiers={(BETTER_THERMOSTAT_DOMAIN, "agentmark-device")},
+        name="AgentMark Controlled Better Thermostat",
+        manufacturer="AgentMark controlled boundary",
+        model="Deterministic virtual thermostat",
     )
     entity = entity_registry.async_get_or_create(
         "climate",
-        "better_thermostat",
+        BETTER_THERMOSTAT_DOMAIN,
         "agentmark-climate",
         suggested_object_id="agentmark_thermostat",
         config_entry=entry,
@@ -265,6 +326,14 @@ async def make_hass(
         raise AssertionError(
             f"unexpected native climate entity id: {entity.entity_id} != {CLIMATE_ENTITY}"
         )
+    if entity.platform != BETTER_THERMOSTAT_DOMAIN:
+        raise AssertionError(
+            f"unexpected climate entity platform: {entity.platform} != {BETTER_THERMOSTAT_DOMAIN}"
+        )
+    if entity.device_id != device.id:
+        raise AssertionError("native entity registry did not attach climate entity to device")
+    if entity.config_entry_id != entry.entry_id:
+        raise AssertionError("native entity registry did not attach climate entity to ownership ConfigEntry")
 
     hass.states.async_set(
         CLIMATE_ENTITY,
@@ -317,15 +386,30 @@ async def make_hass(
         await hass.async_block_till_done()
 
     registry_evidence = {
+        "ownership_mode": OWNERSHIP_MODE,
+        "upstream_component_repository": "KartoffelToby/better_thermostat",
+        "upstream_component_commit": BETTER_THERMOSTAT_COMMIT,
+        "upstream_component_version": BETTER_THERMOSTAT_VERSION,
+        "upstream_manifest_sha256": manifest_sha,
+        "upstream_component_tree_sha256": component_tree_sha,
+        "ha_loader_resolved_domain": integration.domain,
+        "ha_loader_resolved_version": integration.manifest.get("version"),
         "config_entry_id": entry.entry_id,
         "config_entry_domain": entry.domain,
+        "config_entry_disabled_by": None if entry.disabled_by is None else entry.disabled_by.value,
+        "config_entry_state": entry.state.value,
+        "config_entry_registered": hass.config_entries.async_get_entry(entry.entry_id) is entry,
         "device_id": device.id,
+        "device_config_entry_id": device.config_entry_id,
         "device_identifiers": sorted([list(item) for item in device.identifiers]),
         "entity_registry_id": entity.id,
         "entity_id": entity.entity_id,
         "entity_platform": entity.platform,
+        "entity_config_entry_id": entity.config_entry_id,
         "entity_device_id": entity.device_id,
         "native_device_entity_link": entity.device_id == device.id,
+        "native_entry_device_link": device.config_entry_id == entry.entry_id,
+        "native_entry_entity_link": entity.config_entry_id == entry.entry_id,
     }
     return hass, lab, temp, registry_evidence
 
@@ -377,6 +461,7 @@ def summarize(
 async def run_native(
     *,
     blueprint_source: Path,
+    ownership_component_source: Path,
     feedback: str,
     label: str,
 ) -> dict[str, Any]:
@@ -389,6 +474,7 @@ async def run_native(
 
     hass, lab, temp, registry = await make_hass(
         blueprint_source=blueprint_source,
+        ownership_component_source=ownership_component_source,
         native_automation=True,
         initial_presence=initial_presence,
     )
@@ -409,6 +495,7 @@ async def run_native(
 async def run_replay(
     *,
     blueprint_source: Path,
+    ownership_component_source: Path,
     source_service_data: dict[str, Any],
     target_feedback: str,
     label: str,
@@ -416,6 +503,7 @@ async def run_replay(
     presence = "on" if target_feedback == "HOME" else "off"
     hass, lab, temp, registry = await make_hass(
         blueprint_source=blueprint_source,
+        ownership_component_source=ownership_component_source,
         native_automation=False,
         initial_presence=presence,
     )
@@ -464,6 +552,28 @@ def no_extra_actions(row: dict[str, Any]) -> bool:
     return row["call_counts"] == {"climate.set_preset_mode": 1}
 
 
+def ownership_ok(row: dict[str, Any]) -> bool:
+    registry = row["registry"]
+    return (
+        registry["ownership_mode"] == OWNERSHIP_MODE
+        and registry["upstream_component_commit"] == BETTER_THERMOSTAT_COMMIT
+        and registry["upstream_component_version"] == BETTER_THERMOSTAT_VERSION
+        and registry["upstream_manifest_sha256"] == BETTER_THERMOSTAT_MANIFEST_SHA256
+        and registry["ha_loader_resolved_domain"] == BETTER_THERMOSTAT_DOMAIN
+        and registry["ha_loader_resolved_version"] == BETTER_THERMOSTAT_VERSION
+        and registry["config_entry_domain"] == BETTER_THERMOSTAT_DOMAIN
+        and registry["config_entry_disabled_by"] == "user"
+        and registry["config_entry_state"] != "loaded"
+        and registry["config_entry_registered"]
+        and registry["device_identifiers"] == [[BETTER_THERMOSTAT_DOMAIN, "agentmark-device"]]
+        and registry["entity_id"] == CLIMATE_ENTITY
+        and registry["entity_platform"] == BETTER_THERMOSTAT_DOMAIN
+        and registry["native_device_entity_link"]
+        and registry["native_entry_device_link"]
+        and registry["native_entry_entity_link"]
+    )
+
+
 def source_service_data(source: dict[str, Any]) -> dict[str, Any]:
     events = [
         event
@@ -477,6 +587,7 @@ def source_service_data(source: dict[str, Any]) -> dict[str, Any]:
 
 async def experiment(args: argparse.Namespace) -> dict[str, Any]:
     blueprint_source = Path(args.blueprint)
+    ownership_component_source = Path(args.ownership_component)
     blueprint_sha = hashlib.sha256(blueprint_source.read_bytes()).hexdigest()
     if blueprint_sha != EXPECTED_BLUEPRINT_SHA256:
         raise AssertionError(
@@ -485,6 +596,7 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
 
     source = await run_native(
         blueprint_source=blueprint_source,
+        ownership_component_source=ownership_component_source,
         feedback="HOME",
         label="source_native_home",
     )
@@ -497,6 +609,7 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
         target_native.append(
             await run_native(
                 blueprint_source=blueprint_source,
+                ownership_component_source=ownership_component_source,
                 feedback="AWAY",
                 label=f"target_native_away_t{trial}",
             )
@@ -504,6 +617,7 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
         target_replay.append(
             await run_replay(
                 blueprint_source=blueprint_source,
+                ownership_component_source=ownership_component_source,
                 source_service_data=recorded_data,
                 target_feedback="AWAY",
                 label=f"target_replay_home_t{trial}",
@@ -513,11 +627,13 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "native": await run_native(
                     blueprint_source=blueprint_source,
+                    ownership_component_source=ownership_component_source,
                     feedback="HOME",
                     label=f"control_native_home_t{trial}",
                 ),
                 "replay": await run_replay(
                     blueprint_source=blueprint_source,
+                    ownership_component_source=ownership_component_source,
                     source_service_data=recorded_data,
                     target_feedback="HOME",
                     label=f"control_replay_home_t{trial}",
@@ -545,20 +661,20 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
         source["climate_call_count"] == 1
         and no_extra_actions(source)
         and exact_identity(source, HOME_VARIANT)
-        and source["registry"]["native_device_entity_link"]
-        and source["registry"]["entity_id"] == CLIMATE_ENTITY
+        and ownership_ok(source)
     )
     target_native_ok = all(
         row["climate_call_count"] == 1
         and no_extra_actions(row)
         and exact_identity(row, AWAY_VARIANT)
-        and row["registry"]["native_device_entity_link"]
+        and ownership_ok(row)
         for row in target_native
     )
     target_replay_ok = all(
         row["climate_call_count"] == 1
         and no_extra_actions(row)
         and exact_identity(row, HOME_VARIANT)
+        and ownership_ok(row)
         and not row["support"]["operation"]["support_failure"]
         and row["support"]["operation"]["target_probability"] == 1.0
         and row["support"]["action"]["support_failure"]
@@ -570,15 +686,25 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
         and exact_identity(pair["replay"], HOME_VARIANT)
         and no_extra_actions(pair["native"])
         and no_extra_actions(pair["replay"])
+        and ownership_ok(pair["native"])
+        and ownership_ok(pair["replay"])
         and not pair["replay"]["support"]["operation"]["support_failure"]
         and not pair["replay"]["support"]["action"]["support_failure"]
         and pair["replay"]["support"]["action"]["target_probability"] == 1.0
         for pair in controls
     )
 
+    ownership_rows = [source, *target_native, *target_replay]
+    ownership_rows.extend(pair[mode] for pair in controls for mode in ("native", "replay"))
+    ownership_tree_hashes = {
+        row["registry"]["upstream_component_tree_sha256"] for row in ownership_rows
+    }
+
     gates = {
         "external_source_hash_exact": blueprint_sha == EXPECTED_BLUEPRINT_SHA256,
         "ha_version_exact": HA_VERSION == "2026.9.0",
+        "upstream_better_thermostat_manifest_exact": all(ownership_ok(row) for row in ownership_rows),
+        "upstream_better_thermostat_tree_stable": len(ownership_tree_hashes) == 1,
         "source_home_exact": source_ok,
         "target_native_away_exact_all": target_native_ok,
         "target_replay_home_exact_all": target_replay_ok,
@@ -592,22 +718,13 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
         ),
         "tv_operation_exact_zero": tv_operation == 0,
         "tv_action_exact_one": tv_action == 1,
-        "native_registry_link_all": (
-            source["registry"]["native_device_entity_link"]
-            and all(row["registry"]["native_device_entity_link"] for row in target_native)
-            and all(row["registry"]["native_device_entity_link"] for row in target_replay)
-            and all(
-                pair[mode]["registry"]["native_device_entity_link"]
-                for pair in controls
-                for mode in ("native", "replay")
-            )
-        ),
+        "native_registry_link_all": all(ownership_ok(row) for row in ownership_rows),
         "no_feedback_shift_control_all": controls_ok,
     }
     gates["promoted"] = all(gates.values())
 
     result = {
-        "schema": "agentmark.natural_controller.better_thermostat_action_identity.v1",
+        "schema": "agentmark.natural_controller.better_thermostat_action_identity.v2",
         "replica": args.replica,
         "decision": "PROMOTED" if gates["promoted"] else "NOT_PROMOTED",
         "environment": {"home_assistant_core_version": HA_VERSION},
@@ -617,6 +734,17 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
             "path": "automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml",
             "sha256": blueprint_sha,
             "source_edited": False,
+        },
+        "controlled_device_ownership": {
+            "mode": OWNERSHIP_MODE,
+            "upstream_repository": "KartoffelToby/better_thermostat",
+            "upstream_commit": BETTER_THERMOSTAT_COMMIT,
+            "upstream_version": BETTER_THERMOSTAT_VERSION,
+            "upstream_manifest_sha256": BETTER_THERMOSTAT_MANIFEST_SHA256,
+            "component_tree_sha256": next(iter(ownership_tree_hashes)) if len(ownership_tree_hashes) == 1 else None,
+            "config_entry_intentionally_disabled": True,
+            "integration_internal_control_logic_executed": False,
+            "claim": "The upstream Better Thermostat domain is loader-resolved and owns the native registry records; the ConfigEntry is intentionally disabled so the experiment-controlled virtual device boundary, not Better Thermostat PID/TRV internals, determines service effects.",
         },
         "frozen_adapter": {
             "operation": "domain.service",
@@ -653,6 +781,7 @@ async def experiment(args: argparse.Namespace) -> dict[str, Any]:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--blueprint", required=True)
+    p.add_argument("--ownership-component", required=True)
     p.add_argument("--replica", type=int, required=True)
     p.add_argument("--trials", type=int, default=TRIALS)
     p.add_argument("--out", required=True)
@@ -671,6 +800,7 @@ def main() -> None:
                 "decision": result["decision"],
                 "replica": result["replica"],
                 "theory": result["theory"],
+                "ownership": result["controlled_device_ownership"],
                 "promotion_gates": result["promotion_gates"],
             },
             indent=2,
