@@ -61,6 +61,8 @@ For every decisive trial, exact conservation is required:
 - R1: `128 * 2 = 256` service-call events;
 - R2: `128 * 3 = 384` service-call events.
 
+Each mode must also produce exactly `128 * 2 = 256` experiment-owned `state_changed` events (one ACT1 visibility state and one ACT2 commit state per task). This closes the loophole where lineage could look perfect merely because missing state events were never counted.
+
 Therefore the decisive semantic workload ratio must be exactly:
 
 `W_R2 / W_R1 = 1.5`.
@@ -80,7 +82,7 @@ E3c is promoted only if **all** of the following hold in both independent runner
 7. R2 VERIFY fraction = 100%;
 8. native HA service-call conservation is exact in every trial;
 9. R2/R1 native workload ratio is exactly 1.5 in every trial;
-10. HA Context lineage matches 100% for causally attributable ACT1/ACT2 state changes;
+10. native HA state-change conservation is exactly 256 experiment-owned state changes per mode/trial and HA Context lineage matches 100% for all 256 causally attributable ACT1/ACT2 state changes;
 11. the feedback-sensitive Replay Safety Certificate is not safe at epsilon=0.05, confidence=0.95;
 12. no-feedback-shift negative control produces zero support violation and no VERIFY for all modes;
 13. feedback-insensitive negative control produces zero support violation, no VERIFY, equal R0/R1/R2 workload, and a safe certificate;
@@ -95,7 +97,7 @@ After the first E3c run begins, do not:
 
 - move the 100 ms deadline;
 - change 35/180 ms delays to rescue a result;
-- relax exact call-service conservation;
+- relax exact call-service or state-change conservation;
 - ignore a failed independent replica;
 - replace Context lineage with client-side guessed attribution;
 - redefine R1 to allow semantic operation changes;
