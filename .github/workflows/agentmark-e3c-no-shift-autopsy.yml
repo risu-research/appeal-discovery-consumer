@@ -33,20 +33,20 @@ jobs:
               > autopsy_results/home_assistant_ecological.py
           python -m py_compile \
               autopsy_results/home_assistant_ecological.py \
-              agentmark_e3c_autopsy/no_shift_autopsy.py
+              agentmark_e3c_autopsy/no_shift_autopsy_v2.py
           printf '%s\n' "$GITHUB_SHA" > autopsy_results/provenance/GITHUB_SHA.txt
           printf '%s\n' '${{ matrix.replica }}' > autopsy_results/provenance/REPLICA.txt
           printf '%s\n' 'ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293' > autopsy_results/provenance/HOME_ASSISTANT_IMAGE_REF.txt
           sha256sum \
               autopsy_results/home_assistant_ecological.py \
-              agentmark_e3c_autopsy/no_shift_autopsy.py \
+              agentmark_e3c_autopsy/no_shift_autopsy_v2.py \
               agentmark_e3c_ha/PREREGISTRATION.md \
               > autopsy_results/provenance/SOURCE_SHA256.txt
 
       - name: Pull exact Home Assistant image
         run: docker pull ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293
 
-      - name: Run differential observer autopsy
+      - name: Run minimally perturbative indexed-observer autopsy
         shell: bash
         run: |
           set -euo pipefail
@@ -56,7 +56,7 @@ jobs:
             -v "$PWD/autopsy_results:/results" \
             --entrypoint python3 \
             ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293 \
-            /repo/agentmark_e3c_autopsy/no_shift_autopsy.py \
+            /repo/agentmark_e3c_autopsy/no_shift_autopsy_v2.py \
               --base-script /results/home_assistant_ecological.py \
               --replica '${{ matrix.replica }}' \
               --tasks 128 \
@@ -66,17 +66,15 @@ jobs:
               --source-delay-ms 35 \
               --target-delay-ms 180 \
               --verify-ms 100 \
-              --heartbeat-ms 5 \
-              --heartbeat-report-ms 8 \
-              --out '/results/autopsy-${{ matrix.replica }}.json'
-          sha256sum autopsy_results/autopsy-${{ matrix.replica }}.json \
+              --out '/results/autopsy-v2-${{ matrix.replica }}.json'
+          sha256sum autopsy_results/autopsy-v2-${{ matrix.replica }}.json \
               > autopsy_results/provenance/AUTOPSY_SHA256.txt
 
-      - name: Upload causal autopsy
+      - name: Upload causal autopsy v2
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agentmark-e3c-no-shift-autopsy-r${{ matrix.replica }}
+          name: agentmark-e3c-no-shift-autopsy-v2-r${{ matrix.replica }}
           path: autopsy_results
           if-no-files-found: error
           retention-days: 90
