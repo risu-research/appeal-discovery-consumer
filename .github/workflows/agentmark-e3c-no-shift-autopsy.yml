@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Materialize frozen E3c base and provenance
+      - name: Materialize frozen E3c base and v3 diagnostic source
         shell: bash
         run: |
           set -euo pipefail
@@ -31,22 +31,47 @@ jobs:
               agentmark_e3c_ha/home_assistant_ecological.part2.pyfrag \
               agentmark_e3c_ha/home_assistant_ecological.part3.pyfrag \
               > autopsy_results/home_assistant_ecological.py
+          cp agentmark_e3c_autopsy/no_shift_autopsy_v2.py autopsy_results/no_shift_autopsy_v3.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('autopsy_results/no_shift_autopsy_v3.py')
+          s = p.read_text()
+          old = '''            candidates = obs_by_entity.get(entity_id, [])
+            if len(candidates) != 1:
+                raise AssertionError(f"expected one observation for {entity_id}, got {len(candidates)}")
+            o = candidates[0]
+'''
+          new = '''            candidates = obs_by_entity.get(entity_id, [])
+            if not candidates:
+                raise AssertionError(f"expected at least one observation for {entity_id}")
+            # R2 may perform a second wait through VERIFY after a decision MISS.
+            # The scientific decision monitor is uniquely the earliest absolute
+            # deadline for this entity.
+            o = min(candidates, key=lambda x: int(x["deadline_ns"]))
+'''
+          if s.count(old) != 1:
+              raise SystemExit('v3 association patch precondition failed')
+          p.write_text(s.replace(old, new, 1))
+          PY
           python -m py_compile \
               autopsy_results/home_assistant_ecological.py \
-              agentmark_e3c_autopsy/no_shift_autopsy_v2.py
+              autopsy_results/no_shift_autopsy_v3.py
           printf '%s\n' "$GITHUB_SHA" > autopsy_results/provenance/GITHUB_SHA.txt
           printf '%s\n' '${{ matrix.replica }}' > autopsy_results/provenance/REPLICA.txt
           printf '%s\n' 'ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293' > autopsy_results/provenance/HOME_ASSISTANT_IMAGE_REF.txt
+          cat > autopsy_results/provenance/V3_ASSOCIATION_RULE.txt <<'EOF'
+          If R2 creates more than one wait for the same entity because VERIFY follows a decision MISS, select the observation with the earliest absolute deadline. This identifies the frozen 100 ms decision monitor without using its outcome.
+          EOF
           sha256sum \
               autopsy_results/home_assistant_ecological.py \
-              agentmark_e3c_autopsy/no_shift_autopsy_v2.py \
+              autopsy_results/no_shift_autopsy_v3.py \
               agentmark_e3c_ha/PREREGISTRATION.md \
               > autopsy_results/provenance/SOURCE_SHA256.txt
 
       - name: Pull exact Home Assistant image
         run: docker pull ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293
 
-      - name: Run minimally perturbative indexed-observer autopsy
+      - name: Run minimally perturbative indexed-observer autopsy v3
         shell: bash
         run: |
           set -euo pipefail
@@ -56,7 +81,7 @@ jobs:
             -v "$PWD/autopsy_results:/results" \
             --entrypoint python3 \
             ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293 \
-            /repo/agentmark_e3c_autopsy/no_shift_autopsy_v2.py \
+            /results/no_shift_autopsy_v3.py \
               --base-script /results/home_assistant_ecological.py \
               --replica '${{ matrix.replica }}' \
               --tasks 128 \
@@ -66,15 +91,15 @@ jobs:
               --source-delay-ms 35 \
               --target-delay-ms 180 \
               --verify-ms 100 \
-              --out '/results/autopsy-v2-${{ matrix.replica }}.json'
-          sha256sum autopsy_results/autopsy-v2-${{ matrix.replica }}.json \
+              --out '/results/autopsy-v3-${{ matrix.replica }}.json'
+          sha256sum autopsy_results/autopsy-v3-${{ matrix.replica }}.json \
               > autopsy_results/provenance/AUTOPSY_SHA256.txt
 
-      - name: Upload causal autopsy v2
+      - name: Upload causal autopsy v3
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agentmark-e3c-no-shift-autopsy-v2-r${{ matrix.replica }}
+          name: agentmark-e3c-no-shift-autopsy-v3-r${{ matrix.replica }}
           path: autopsy_results
           if-no-files-found: error
           retention-days: 90
