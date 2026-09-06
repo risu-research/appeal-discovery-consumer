@@ -1,0 +1,88 @@
+name: ReplayMark E3b Downstream Queue Pilot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [replaymark-e3b-downstream]
+    paths:
+      - 'replaymark_e3b_downstream/pilot/**'
+      - '.github/workflows/replaymark-e3b-downstream-pilot.yml'
+
+jobs:
+  queue-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        queue_limit: [256, 384, 512, 640, 768, 896, 1024]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize fixed Mosquitto queue configuration
+        shell: bash
+        run: |
+          mkdir -p replaymark_e3b_downstream/pilot/runtime replaymark_e3b_downstream/results
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          q = int(os.environ['QUEUE_LIMIT'])
+          text = f'''listener 1883 0.0.0.0
+          allow_anonymous true
+          persistence false
+          sys_interval 1
+          max_queued_messages {q}
+          max_queued_bytes 0
+          max_inflight_messages 20
+          queue_qos0_messages false
+          log_type error
+          log_type warning
+          log_type notice
+          '''
+          Path('replaymark_e3b_downstream/pilot/runtime/mosquitto.conf').write_text(text)
+          PY
+        env:
+          QUEUE_LIMIT: ${{ matrix.queue_limit }}
+
+      - name: Build isolated pilot image
+        working-directory: replaymark_e3b_downstream/pilot
+        run: docker compose build device runner
+
+      - name: Start fresh Mosquitto 2.1.2 and device
+        working-directory: replaymark_e3b_downstream/pilot
+        run: docker compose up -d mosquitto device
+
+      - name: Execute exploratory preregistered queue point
+        working-directory: replaymark_e3b_downstream/pilot
+        run: >-
+          docker compose run --rm runner
+          --broker mosquitto
+          --queue-limit ${{ matrix.queue_limit }}
+          --tasks 128
+          --wave-size 32
+          --wave-period-ms 300
+          --verify-ms 100
+          --target-delay-ms 150
+          --gap-ms 20
+          --timeout-ms 1200
+          --drain-quiet-s 0.75
+          --drain-timeout-s 20
+          --out /results/pilot_q${{ matrix.queue_limit }}.json
+
+      - name: Show broker warnings
+        if: always()
+        working-directory: replaymark_e3b_downstream/pilot
+        run: docker compose logs mosquitto || true
+
+      - name: Upload exploratory point
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-e3b-downstream-pilot-q${{ matrix.queue_limit }}
+          path: replaymark_e3b_downstream/results/pilot_q${{ matrix.queue_limit }}.json
+          if-no-files-found: warn
+
+      - name: Tear down isolated broker
+        if: always()
+        working-directory: replaymark_e3b_downstream/pilot
+        run: docker compose down -v --remove-orphans
