@@ -79,6 +79,10 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
     # registries, config entries, triggers, storage, and core configuration via
     # the same core machinery that normal HA startup uses, while still keeping
     # the experiment's integration set minimal and deterministic.
+    # MQTT setup in pinned HA reloads configuration.yaml through the normal
+    # configuration loader. Materialize the minimal on-disk config expected by
+    # a real HA instance; this contains no experiment/controller semantics.
+    (config_dir / "configuration.yaml").write_text("{}\n")
     hass = HomeAssistant(str(config_dir))
     loader.async_setup(hass)
     if await bootstrap.async_from_config_dict({}, hass) is None:
@@ -94,9 +98,14 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
         minor_version=mqtt.CONFIG_ENTRY_MINOR_VERSION,
         unique_id=f"replaymark-mqtt-{namespace}",
     )
+    # HA 2026.9 ConfigEntries.async_add() is itself add+setup. Do not perform
+    # a second setup call; require the normal lifecycle to reach LOADED.
     await hass.config_entries.async_add(mqtt_entry)
-    if not await hass.config_entries.async_setup(mqtt_entry.entry_id):
-        raise RuntimeError("MQTT config entry setup returned false")
+    if mqtt_entry.state is not config_entries.ConfigEntryState.LOADED:
+        raise RuntimeError(
+            f"MQTT config entry did not load: state={mqtt_entry.state.value} "
+            f"reason={getattr(mqtt_entry, 'reason', None)!r}"
+        )
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     await hass.async_block_till_done()
 
@@ -168,8 +177,11 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
         unique_id=f"replaymark-bt-{namespace}",
     )
     await hass.config_entries.async_add(bt_entry)
-    if not await hass.config_entries.async_setup(bt_entry.entry_id):
-        raise RuntimeError("Better Thermostat config entry setup returned false")
+    if bt_entry.state is not config_entries.ConfigEntryState.LOADED:
+        raise RuntimeError(
+            f"Better Thermostat config entry did not load: state={bt_entry.state.value} "
+            f"reason={getattr(bt_entry, 'reason', None)!r}"
+        )
     await hass.async_block_till_done()
 
     bt = await wait_until(
