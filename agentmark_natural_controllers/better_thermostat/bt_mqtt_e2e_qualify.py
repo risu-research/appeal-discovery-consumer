@@ -87,6 +87,19 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
     loader.async_setup(hass)
     if await bootstrap.async_from_config_dict({}, hass) is None:
         raise RuntimeError("Home Assistant core bootstrap returned false")
+
+    # Qualify Better Thermostat's top-level integration and its hard HA
+    # dependencies before any BT config entry exists. This uses HA's normal
+    # component setup path, but cleanly separates component/dependency startup
+    # from later entry setup so NOT_LOADED cannot hide which layer failed.
+    if not await async_setup_component(hass, BT_DOMAIN, {}):
+        raise RuntimeError("Better Thermostat component/dependency setup failed")
+    missing_components = {BT_DOMAIN, "climate", "recorder"} - hass.config.components
+    if missing_components:
+        raise RuntimeError(
+            f"Better Thermostat hard dependencies not loaded: {sorted(missing_components)}"
+        )
+
     hass.set_state(CoreState.running)
 
     # Actual MQTT integration connected to the external Mosquitto process.
