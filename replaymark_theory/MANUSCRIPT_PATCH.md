@@ -1,67 +1,97 @@
-# ReplayMark manuscript patch — support sufficiency + stochastic scope
+# ReplayMark manuscript patch — support envelope, stochastic scope, and R*
 
-Status: **MANUSCRIPT-READY CANDIDATE**
+Status: **MANUSCRIPT-READY PREFERRED THEORY FORM**
 
-This patch is designed to fit the existing formalism with minimal page cost. It should be edited only for notation/style consistency with the final LaTeX source.
+This patch supersedes the earlier observation-only version. It is designed to add intellectual closure without turning ReplayMark into a new system paper or consuming another experiment.
 
-## A. Compact proposition for the formalism section
+## A. Preferred compact formalism insertion
 
-### Observation sufficiency
+### Evidence-conditioned support envelope
 
-Let `eta:Y->O` be an observation abstraction. We call `eta` **support-sufficient** for claim `C` when, at fixed target state `s`, any two observations merged by `eta` induce the same projected support:
+Let `e` denote the target evidence retained by the evaluator and let `Omega(e)` be the nonempty set of admitted target conditions `(s,y)` compatible with that evidence. Define
 
-`eta(y)=eta(y') => S_C(s,y)=S_C(s,y')`.
+`S_C^-(e) = intersection_{(s,y) in Omega(e)} S_C(s,y)`
 
-**Proposition (exact support observability).** There exists an exact validity test `Vhat_C(s,eta(y),z)` using only the retained observation `eta(y)` such that `Vhat_C(s,eta(y),z)=1{z in S_C(s,y)}` for every admitted target condition and projected action `z` iff `eta` is support-sufficient. Sufficiency follows by defining the support on each abstraction class; necessity follows because if two merged observations have different supports, an action in their symmetric difference must receive different validity labels from identical evaluator inputs.
+and
 
-A stronger notion is **decision sufficiency**, `eta(y)=eta(y') => mu_C(.|s,y)=mu_C(.|s,y')`. Decision sufficiency implies support sufficiency, but not conversely: two target distributions may have the same support and different probabilities.
+`S_C^+(e) = union_{(s,y) in Omega(e)} S_C(s,y)`.
 
-### Suggested bridge sentence
+`S^-` is the set of projected actions supported in every compatible target world; `S^+` contains those supported in at least one.
 
-Thus the information a valid replay must preserve is claim-relative: raw-feedback equality can be unnecessarily strong, while an abstraction that merges observations with different projected supports is provably too coarse for exact support adjudication.
+**Proposition (exact evidence-conditioned adjudication).** For projected replay action `z`, evidence `e` certifies validity iff `z in S_C^-(e)`, certifies invalidity iff `z notin S_C^+(e)`, and is necessarily unresolved otherwise. In the unresolved case, one target world compatible with the same evidence supports `z` and another excludes it, so no evaluator seeing only `(e,z)` can soundly assign a single binary validity label.
+
+Hence `e` is sufficient to decide support validity for every projected action iff `S_C^-(e)=S_C^+(e)`, equivalently all target worlds compatible with `e` induce the same projected support.
+
+If stronger evidence `e'` eliminates compatible worlds, `Omega(e') subseteq Omega(e)`, then `S^-(e) subseteq S^-(e')` and `S^+(e') subseteq S^+(e)`: stronger evidence can only shrink the unresolved band.
+
+### One-sentence interpretation
+
+ReplayMark therefore does not require exact feedback identity; it requires only enough claim-relative target information to collapse uncertainty in the controller property the benchmark claim actually needs.
 
 ---
 
-## B. Stochastic-controller scope paragraph
+## B. Constructive corollary: selective replay R*
 
-Support validity is an admissibility criterion, not a complete stochastic-fidelity criterion. Let `nu_C` be the replay's projected-action distribution at a fixed target condition, let `mu_C` be the target distribution, and let `S=supp(mu_C)`. If `alpha=nu_C(S^c)` is replay mass outside target support, then
+**Corollary (maximal certified reuse).** Given evidence `e`, a replay system can soundly reuse recorded projected action `z` for support claim `C` iff `z in S_C^-(e)`. This is maximally permissive among policies using only `(e,z)`: any policy that reuses outside `S^-` is invalid in at least one target world compatible with the same evidence. If `z notin S^+`, regeneration is required to continue with a target-supported action; if `z in S^+ \ S^-`, the current evidence cannot justify reuse, so the system must obtain stronger evidence, regenerate, or report unresolved.
+
+If naming helps exposition, call this induced rule `R*`. Do **not** present R* as a globally optimal or empirically evaluated replay system. The theorem is the contribution; the label is optional.
+
+### Deterministic specialization
+
+For deterministic controllers, R* reuses exactly when every target world still compatible with the evidence produces the same consequential decision as the recorded action. This makes N2/N2b the two natural boundaries: N2 shows that a coarse claim can merge consequentially distinct decisions, whereas N2b shows that raw feedback differences can be safely ignored when all compatible worlds remain in one consequential decision class.
+
+---
+
+## C. Stochastic-controller scope paragraph
+
+Support validity is an admissibility criterion, not a complete stochastic-fidelity criterion. Let `nu_C` be the replay projected-action distribution, `mu_C` the target distribution, `S=supp(mu_C)`, and `alpha=nu_C(S^c)`. Then
 
 `TV(nu_C,mu_C) >= alpha`,
 
-because the event `S^c` has target mass zero. Hence any positive support violation certifies distributional mismatch. The converse is false: with target `mu_C=(1-epsilon,epsilon)` and replay `nu_C=(0,1)`, every replayed action is support-valid but `TV(nu_C,mu_C)=1-epsilon`, arbitrarily close to one. We therefore use support validity as a minimal semantic gate; claims about stochastic distributional fidelity require a stronger comparison of projected decision laws.
-
----
-
-## C. One-sentence empirical synthesis using existing cases
-
-N2 and N2b expose both sides of this criterion: N2 shows that an abstraction sufficient for an operation-level claim can become insufficient under a finer consequential projection, whereas N2b shows that different raw feedback need not matter when it lies inside the same projected decision-equivalence class.
+because `S^c` has target mass zero. Thus positive support violation certifies distributional mismatch. The converse is false: with target `mu_C=(1-epsilon,epsilon)` and replay `nu_C=(0,1)`, every replayed action is support-valid while `TV(nu_C,mu_C)=1-epsilon`, arbitrarily close to one. We therefore use support validity as a minimal semantic gate. Claims about stochastic distributional fidelity require the projected decision law itself to be identified and preserved; support-level R* does not claim otherwise.
 
 ---
 
 ## D. Contribution-list candidate
 
-- **Claim-relative sufficiency.** We characterize exactly when a retained observation abstraction is sufficient to adjudicate support validity and distinguish this minimal admissibility condition from full stochastic decision fidelity.
+- **Claim-relative information boundary.** We characterize exactly what target evidence is sufficient to adjudicate replay support validity, distinguish this admissibility floor from full stochastic fidelity, and show that the resulting support envelope induces the maximally permissive sound selective-reuse rule under the available evidence.
 
-Use this contribution bullet only if the proposition remains in the final paper body; otherwise leave it as discussion material rather than inflating the contribution list.
+Use this bullet only if the proposition/corollary remains in the final body. Do not inflate the contribution list with a separate R* bullet unless R* becomes an implemented and evaluated system, which is not currently recommended.
 
 ---
 
 ## E. Reviewer attack preemption
 
-Potential attack: "ReplayMark seems to require replaying all feedback exactly."
+Potential attack: "ReplayMark seems to require exact feedback replay."
 
-Answer: No. Proposition 1 identifies the exact condition under which an observation abstraction is enough. N2b is the constructive boundary showing raw differences can be safely quotiented when they preserve the relevant decision class.
+Answer: No. The envelope criterion is strictly claim-relative. Exact raw feedback is unnecessary whenever all target worlds compatible with the retained evidence induce the same relevant support/decision class. N2b demonstrates that boundary empirically.
+
+Potential attack: "If evidence is incomplete, aren't your validity labels guesses?"
+
+Answer: No. ReplayMark explicitly has a three-valued boundary: certified valid, certified invalid, or unresolved. The unresolved region is not a confidence heuristic; it is the exact set on which identical evaluator evidence is compatible with both labels.
+
+Potential attack: "Why is R* anything more than a heuristic?"
+
+Answer: Its reuse set is theorem-induced. A support-sound policy using only the current evidence cannot reuse outside `S^-`; R* reuses everywhere inside `S^-`. It is therefore maximally permissive for the stated support-validity objective without requiring an arbitrary similarity threshold.
+
+Potential attack: "Why not always regenerate unresolved actions?"
+
+Answer: That is safe but not universally cost-optimal. Stronger evidence may resolve the ambiguity more cheaply. ReplayMark therefore states the correctness boundary and deliberately leaves evidence-acquisition/regeneration cost optimization to a system with an explicit cost model.
 
 Potential attack: "Positive support is too weak for a stochastic controller."
 
-Answer: Correct, and the paper should say so explicitly. Support validity is intentionally the admissibility floor. The TV lower bound makes support failure decisive while the two-action counterexample proves that support success is not claimed to establish probability fidelity.
-
-Potential attack: "Then why not use TV everywhere?"
-
-Answer: TV requires the target projected decision distribution itself to be identifiable or estimable. ReplayMark's support criterion is useful exactly because some claims need only rule out actions the target controller would not generate, and deterministic/structural controller semantics can establish such exclusions without estimating a full stochastic law.
+Answer: Correct, and the paper says so. Support success is only admissibility; the TV counterexample shows that full probability fidelity is strictly stronger.
 
 ---
 
 ## F. Page-budget recommendation
 
-Keep the main-paper insertion under about 180--230 words plus one displayed inequality if possible. Do not add a new experiment. If space is tight, retain the exact-observability proposition and the stochastic counterexample; move the refinement corollary to prose or omit it because the existing projection-refinement result already carries related intuition.
+Preferred main-body footprint:
+
+- support-envelope proposition + sufficiency sentence: about 120--150 words;
+- R* constructive corollary: about 80--100 words;
+- stochastic-scope inequality + counterexample: about 80--100 words.
+
+Target total: roughly 0.30--0.45 technical page after notation reuse.
+
+If space is tight, keep the proposition, the R* corollary, and one stochastic-scope sentence/counterexample. Do not add a new experiment. Do not spend space presenting R* as a standalone system architecture.
