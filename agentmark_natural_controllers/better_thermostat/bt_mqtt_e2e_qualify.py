@@ -23,6 +23,7 @@ from homeassistant.components import automation, mqtt
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.core import CoreState, Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import recorder as recorder_helper
 from homeassistant.setup import async_setup_component
 
 HA_VERSION_EXPECTED = "2026.9.0"
@@ -87,6 +88,12 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
     loader.async_setup(hass)
     if await bootstrap.async_from_config_dict({}, hass) is None:
         raise RuntimeError("Home Assistant core bootstrap returned false")
+
+    # Production HA bootstrap pre-initializes recorder before setting up the
+    # recorder integration whenever recorder is in the startup domain set.
+    # The minimal core bootstrap above intentionally omitted recorder, so
+    # restore that exact core precondition before qualifying BT's hard deps.
+    recorder_helper.async_initialize_recorder(hass)
 
     # Qualify Better Thermostat's manifest-declared hard dependencies one by
     # one through HA's own setup path. This makes a dependency failure explicit
