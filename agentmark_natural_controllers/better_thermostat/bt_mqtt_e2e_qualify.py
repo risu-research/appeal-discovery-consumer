@@ -348,35 +348,56 @@ async def wait_stable_preset(hass: HomeAssistant, bt_entity: str, bt: Any, prese
 
 
 async def install_external_automation(hass: HomeAssistant, config_dir: Path, blueprint: Path, bt_device_id: str):
+    """Install the frozen blueprint through Home Assistant's native reload path.
+
+    Core bootstrap has already loaded the automation component, so a second
+    async_setup_component call would return successfully without processing new
+    automation configuration. Persist the frozen blueprint instance into the
+    live HA config and use the registered automation.reload service, which
+    re-reads and validates configuration.yaml before materializing entities.
+    """
     destination = config_dir / "blueprints" / "automation" / "agentmark" / "better_thermostat_lean.yaml"
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(blueprint, destination)
-    ok = await async_setup_component(
-        hass,
-        automation.DOMAIN,
-        {
-            "automation": {
-                "use_blueprint": {
-                    "path": BLUEPRINT_REL,
-                    "input": {
-                        "climate_device": bt_device_id,
-                        "presence_group": PRESENCE,
-                        "motion_group": MOTION,
-                        "night_mode_entity": NIGHT,
-                        "enable_switch": ENABLE,
-                        "writeback_enable": False,
-                        "writeback_bounds_enable": False,
-                        "boost_entity": "",
-                        "eco_entity": "",
-                        "activity_entity": "",
-                    },
-                }
+    config = {
+        "automation": {
+            "use_blueprint": {
+                "path": BLUEPRINT_REL,
+                "input": {
+                    "climate_device": bt_device_id,
+                    "presence_group": PRESENCE,
+                    "motion_group": MOTION,
+                    "night_mode_entity": NIGHT,
+                    "enable_switch": ENABLE,
+                    "writeback_enable": False,
+                    "writeback_bounds_enable": False,
+                    "boost_entity": "",
+                    "eco_entity": "",
+                    "activity_entity": "",
+                },
             }
-        },
+        }
+    }
+    (config_dir / "configuration.yaml").write_text(
+        json.dumps(config, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
     )
-    if not ok:
-        raise RuntimeError("external Better Thermostat automation setup returned false")
+    await hass.services.async_call(automation.DOMAIN, "reload", {}, blocking=True)
     await hass.async_block_till_done()
+    entities = automation.automations_with_blueprint(hass, BLUEPRINT_REL)
+    if len(entities) != 1:
+        raise RuntimeError(
+            "official automation.reload did not materialize exactly one frozen "
+            f"blueprint automation: {entities!r}"
+        )
+    entity_id = entities[0]
+    state = hass.states.get(entity_id)
+    if state is None or state.state != "on":
+        raise RuntimeError(
+            f"frozen blueprint automation not enabled after reload: {entity_id} "
+            f"state={None if state is None else state.state!r}"
+        )
+    return entity_id
 
 
 async def apply_event(hass: HomeAssistant, event: str):
@@ -405,8 +426,9 @@ async def execute(mode: str, *, blueprint: Path, bt_source: Path, broker: str, n
     await call_preset(hass, stack["bt_entity"], "sleep")
     await wait_stable_preset(hass, stack["bt_entity"], bt, "sleep")
 
+    automation_entity = None
     if mode == "target-native":
-        await install_external_automation(hass, config_dir, blueprint, stack["bt_device_id"])
+        automation_entity = await install_external_automation(hass, config_dir, blueprint, stack["bt_device_id"])
         if bt_preset(hass, stack["bt_entity"]) != "sleep":
             raise RuntimeError("automation install disturbed initial preset")
 
@@ -472,6 +494,7 @@ async def execute(mode: str, *, blueprint: Path, bt_source: Path, broker: str, n
             "temp_topic": stack["temp_topic"],
             "mode_topic": stack["mode_topic"],
             "mqtt_entry_state": str(stack["mqtt_entry"].state.value),
+            "external_automation_entity": automation_entity,
             "forbidden_custom_action_to_mqtt_bridge": False,
         },
         "frozen_events": list(EVENTS),
