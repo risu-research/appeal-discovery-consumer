@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic source-model selector for the frozen BT→MQTT capstone.
 
-This script executes Section 3 of BT_MQTT_E2E_CAPSTONE_PROTOCOL.md.  It has no
+This script executes Section 3 of BT_MQTT_E2E_CAPSTONE_PROTOCOL.md. It has no
 Home Assistant/MQTT dependency and observes no runtime outcome.
 """
 from __future__ import annotations
@@ -37,12 +37,7 @@ def state_key(state: tuple[bool, bool, bool, str]) -> tuple[int, int, int, int]:
 
 def state_obj(state: tuple[bool, bool, bool, str]) -> dict[str, object]:
     p, m, n, preset = state
-    return {
-        "presence": p,
-        "motion": m,
-        "night": n,
-        "current_preset": preset,
-    }
+    return {"presence": p, "motion": m, "night": n, "current_preset": preset}
 
 
 def event_seq_key(seq: tuple[str, ...]) -> tuple[int, ...]:
@@ -85,8 +80,7 @@ def action_count(actions: list[str]) -> int:
 def quiescent_states() -> list[tuple[bool, bool, bool, str]]:
     out = []
     for p, m, n in itertools.product((False, True), repeat=3):
-        target = desired(p, m, n)
-        out.append((p, m, n, target))
+        out.append((p, m, n, desired(p, m, n)))
     return sorted(out, key=state_key)
 
 
@@ -96,14 +90,15 @@ def eligible_pairs():
         source, target = sorted((left, right), key=state_key)
         if source[3] != target[3]:
             continue
-        feedback_hamming = sum(a != b for a, b in zip(source[:3], target[:3]))
-        if feedback_hamming != 1:
+        if sum(a != b for a, b in zip(source[:3], target[:3])) != 1:
             continue
         pairs.append((source, target))
     return sorted(set(pairs), key=lambda pair: (state_key(pair[0]), state_key(pair[1])))
 
 
-def candidate_record(source, target, seq, source_actions, target_actions, source_final, target_final):
+def candidate_record(
+    source, target, seq, source_actions, target_actions, source_final, target_final
+):
     sr = action_count(source_actions)
     tn = action_count(target_actions)
     return {
@@ -208,9 +203,12 @@ def main() -> int:
 
     p = primary
     s = secondary
-    report = f"""# Better Thermostat → MQTT capstone selector result\n\n"
+    report = "# Better Thermostat → MQTT capstone selector result\n\n"
     report += f"- Schema: `{SCHEMA}`\n"
-    report += f"- 32-state scope; quiescent states: **{len(quiescent_states())}**; eligible pairs: **{len(eligible_pairs())}**\n"
+    report += (
+        f"- 32-state scope; quiescent states: **{len(quiescent_states())}**; "
+        f"eligible pairs: **{len(eligible_pairs())}**\n"
+    )
     report += f"- Primary shortest reset-free count-separating cycle length: **{p['length']}**\n"
     report += f"- Primary source actions: `{p['source_actions']}` → count **{p['source_action_count']}**\n"
     report += f"- Primary target-native actions: `{p['target_actions']}` → count **{p['target_action_count']}**\n"
@@ -219,12 +217,14 @@ def main() -> int:
     report += f"- Primary eligible-cycle counts by length: `{p['eligible_candidate_counts_by_length']}`\n\n"
     report += f"## Selected source state\n\n`{p['source_state']}`\n\n"
     report += f"## Selected target state\n\n`{p['target_state']}`\n\n"
-    report += f"## Secondary shortest count-separating prefix\n\n"
+    report += "## Secondary shortest count-separating prefix\n\n"
     report += f"- length **{s['length']}**, events `{s['events']}`\n"
     report += f"- source `{s['source_actions']}` ({s['source_action_count']})\n"
     report += f"- target `{s['target_actions']}` ({s['target_action_count']})\n\n"
     report += f"Result JSON SHA-256: `{digest}`\n"
-    (args.output_dir / "BT_MQTT_E2E_SELECTOR_REPORT.md").write_text(report, encoding="utf-8")
+    (args.output_dir / "BT_MQTT_E2E_SELECTOR_REPORT.md").write_text(
+        report, encoding="utf-8"
+    )
 
     print("BT_MQTT_E2E_SELECTOR: PASS")
     print(
