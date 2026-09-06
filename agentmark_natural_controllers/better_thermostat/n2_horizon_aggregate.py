@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 REPORT_SCHEMA = "replaymark.better_thermostat.horizon_runtime.v1"
-VALIDATION_SCHEMA = "replaymark.better_thermostat.horizon_runtime.validation.v1"
-AGG_SCHEMA = "replaymark.better_thermostat.horizon_runtime.aggregate.v1"
+VALIDATION_SCHEMA = "replaymark.better_thermostat.horizon_runtime.validation.v2"
+AGG_SCHEMA = "replaymark.better_thermostat.horizon_runtime.aggregate.v2"
 
 
 def load(path: str) -> dict[str, Any]:
