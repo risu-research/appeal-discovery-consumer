@@ -52,11 +52,21 @@ because `S^c` has target mass zero. Thus positive support violation certifies di
 
 ---
 
-## D. Contribution-list candidate
+## D. Contribution integration — preserve the frozen three-contribution structure
 
-- **Claim-relative information boundary.** We characterize exactly what target evidence is sufficient to adjudicate replay support validity, distinguish this admissibility floor from full stochastic fidelity, and show that the resulting support envelope induces the maximally permissive sound selective-reuse rule under the available evidence.
+Do **not** add an R* contribution or a fourth contribution. The existing three-contribution lock is the right structure.
 
-Use this bullet only if the proposition/corollary remains in the final body. Do not inflate the contribution list with a separate R* bullet unless R* becomes an implemented and evaluated system, which is not currently recommended.
+Fold this theory into the existing contributions as follows:
+
+- **C1 remains the conceptual contribution:** controller-conditioned, claim-relative replay validity. The support envelope sharpens exactly what target information is sufficient for that validity judgment.
+- **C2 remains the operational contribution:** executable replay-validity audit. R* is a constructive corollary of C2's fail-closed audit contract: certified-valid actions may be reused; certified-invalid actions must be replaced; unresolved actions require refinement/regeneration/fail-closed handling.
+- **C3 remains the empirical contribution:** the existing two-sided pervasive-systems evidence plus the promoted downstream/default-capacity engineering consequence.
+
+If a single phrase is needed in C2, use something like:
+
+> "The same evidence-conditioned criterion induces a maximally permissive sound selective-reuse rule without requiring raw-feedback identity."
+
+That is enough. Do not advertise R* as an independently implemented system.
 
 ---
 
