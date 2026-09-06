@@ -215,7 +215,7 @@ jobs:
           cp agentmark_natural_controllers/better_thermostat/BT_MQTT_E2E_CAPSTONE_PROTOCOL.md qual/
           cp agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify.py qual/
           cp agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py qual/
-          find qual -type f ! -name CHECKSUMS.sha256 -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > qual/CHECKSUMS.sha256
+          (cd qual && find . -type f ! -name CHECKSUMS.sha256 -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > CHECKSUMS.sha256)
           (cd qual && sha256sum -c CHECKSUMS.sha256)
 
       - name: Upload qualification capsule
