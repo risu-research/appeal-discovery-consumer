@@ -37,6 +37,7 @@ jobs:
             'selector_execution_head=55f55ab39a93dc7284e9b4e194f6bcc974085783' \
             'selector_result_sha256=07213a0d56e5f2d32b9eb3c2b2e6b20cb0aab31290f801f579905ea490161598' \
             'validator_policy=unchanged_from_pre_heat_qualification' \
+            'validator_git_blob=10db9a34b46ca2f45990ec210135be500b765a99' \
             > qual/provenance/AUTHORITY.txt
           test "$(git rev-parse a3008b0ebd0eb29a8fb913b8a1355c63c4a8d6c9)" = 'a3008b0ebd0eb29a8fb913b8a1355c63c4a8d6c9'
 
@@ -48,8 +49,8 @@ jobs:
             agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify_heat.py \
             agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py
           find agentmark_natural_controllers -type d -name __pycache__ -prune -exec rm -rf {} +
-          test "$(git rev-parse 29219bb55a34bfed01e10932c8629cb47b43a659:agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py)" = \
-            "$(git rev-parse HEAD:agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py)"
+          test "$(git hash-object agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py)" = \
+            '10db9a34b46ca2f45990ec210135be500b765a99'
 
       - name: Fetch exact external controller and Better Thermostat component
         run: |
