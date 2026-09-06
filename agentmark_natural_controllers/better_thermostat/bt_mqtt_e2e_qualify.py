@@ -128,7 +128,10 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
         "retain": False,
         "optimistic": True,
     }
-    await mqtt.async_publish(hass, discovery_topic, json.dumps(discovery, sort_keys=True), 1, False)
+    # Retain only this setup-time discovery record. HA 2026.9 installs its
+    # discovery subscriptions asynchronously; broker retention removes the
+    # subscribe-before-publish race without altering the measured command topic.
+    await mqtt.async_publish(hass, discovery_topic, json.dumps(discovery, sort_keys=True), 1, True)
     await hass.async_block_till_done()
 
     entity_registry = er.async_get(hass)
