@@ -1,0 +1,87 @@
+name: ReplayMark BT MQTT E2E Selector
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-bt-mqtt-e2e-capstone
+    paths:
+      - 'agentmark_natural_controllers/better_thermostat/BT_MQTT_E2E_CAPSTONE_PROTOCOL.md'
+      - 'agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_select_cycle.py'
+      - 'agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_selection.py'
+      - '.github/workflows/replaymark-bt-mqtt-e2e-selector.yml'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONHASHSEED: '0'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  selector:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact selector head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Record authority
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD | tee SELECTOR_EXECUTION_HEAD.txt
+          printf '%s\n' \
+            'protocol_freeze=851960e59aa3a68fb90ef199f1dbcfefe5fcd3c0' \
+            'branch_base=9220089e4d4c99b0e85844838f33796ac538da1b' \
+            'controller_commit=57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f' \
+            'controller_sha256=16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443' \
+            > SELECTOR_AUTHORITY.txt
+
+      - name: Verify exact external controller bytes
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/n3roGit/MyHomeAssistantMods/57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f/automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml' \
+            -o /tmp/BetterThermostat_RoomHeatControl_Lean.yaml
+          echo '16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443  /tmp/BetterThermostat_RoomHeatControl_Lean.yaml' | sha256sum -c -
+
+      - name: Compile selector and independent validator
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_select_cycle.py \
+            agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_selection.py
+
+      - name: Execute frozen deterministic selector
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/bt_mqtt_selector
+          mkdir -p /tmp/bt_mqtt_selector
+          python agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_select_cycle.py \
+            --output-dir /tmp/bt_mqtt_selector
+          cat /tmp/bt_mqtt_selector/BT_MQTT_E2E_SELECTOR_REPORT.md
+
+      - name: Independent selection validation
+        run: |
+          set -euo pipefail
+          python agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_selection.py \
+            /tmp/bt_mqtt_selector/BT_MQTT_E2E_SELECTOR_RESULTS.json
+
+      - name: Stage selector evidence
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bt_mqtt_selector_artifact
+          cp agentmark_natural_controllers/better_thermostat/BT_MQTT_E2E_CAPSTONE_PROTOCOL.md /tmp/bt_mqtt_selector_artifact/
+          cp agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_select_cycle.py /tmp/bt_mqtt_selector_artifact/
+          cp agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_selection.py /tmp/bt_mqtt_selector_artifact/
+          cp /tmp/bt_mqtt_selector/* /tmp/bt_mqtt_selector_artifact/
+          cp SELECTOR_EXECUTION_HEAD.txt SELECTOR_AUTHORITY.txt /tmp/bt_mqtt_selector_artifact/
+          cp /tmp/BetterThermostat_RoomHeatControl_Lean.yaml /tmp/bt_mqtt_selector_artifact/
+          (cd /tmp/bt_mqtt_selector_artifact && sha256sum * | sort > CHECKSUMS.sha256)
+
+      - name: Upload selector evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: replaymark-bt-mqtt-e2e-selector
+          path: /tmp/bt_mqtt_selector_artifact
+          if-no-files-found: error
+          retention-days: 90
