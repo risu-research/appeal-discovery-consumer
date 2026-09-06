@@ -1,0 +1,42 @@
+{
+  "schema": "replaymark.claim_predictive_state.full_gate.compact.v1",
+  "e3b": {
+    "raw": 6,
+    "local_classes": 4,
+    "q_counts": [3, 3, 3, 3],
+    "stable_h": 0,
+    "stable_q": 3,
+    "pair_relation": {"FF": 11, "FT": 2, "TF": 0, "TT": 2}
+  },
+  "better_thermostat": {
+    "raw": 32,
+    "all_declared_preset_raw": 56,
+    "local_classes": 16,
+    "q_counts": [5, 14, 16, 16, 16],
+    "stable_h": 2,
+    "stable_q": 16,
+    "stable_key": "presence,motion,night,at_target",
+    "pair_relation": {"FF": 444, "FT": 24, "TF": 28, "TT": 0},
+    "h0_equal_pairs": 115,
+    "h0_stable_pairs": 24,
+    "h0_split_depth": {"1": 81, "2": 10},
+    "local_split_depth": {"1": 24, "2": 4},
+    "n2b_witness": {
+      "suffix": ["presence_toggle"],
+      "a": ["SET_HOME"],
+      "b": ["SET_COMFORT"]
+    },
+    "depth2_witness": {
+      "suffix": ["presence_toggle", "night_toggle"],
+      "a": ["NO_ACTION", "SET_HOME"],
+      "b": ["NO_ACTION", "SET_COMFORT"]
+    }
+  },
+  "local_execution_hashes": {
+    "full_producer_sha256": "54a7bf19b8f475fc979acd9c47625f2d5bb7adaf31659c98e0eb646b58bf3c52",
+    "full_result_sha256": "61dd4e0ddfc5ac203510459787e980579bcca3214d65635f9b0398c494055745",
+    "independent_validator_sha256": "ee9ca97eaaa1a5b7509f499b0db3589266a7aa5a38145d28e406a31350b0a69a",
+    "compact_producer_sha256": "47064821aa184ce08b328fb26a6a5eba6f87709dc7c13fe5f79d13472401f8aa",
+    "compact_result_sha256": "af6056e717d22022725ed14883b5e3c989436399fa71d6afcc23afd8fb141aee"
+  }
+}
