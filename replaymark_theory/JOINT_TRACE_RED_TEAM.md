@@ -93,11 +93,11 @@ For whole-trace realizability, this is not enough. The witness action must also 
 
 A naive fix is to require pairwise effect congruence for all actions merged by `phi_C`, but that is stronger than necessary. We can derive a sharper support-level condition.
 
-Let `K(.|x,a)` be the target-condition transition kernel after concrete action `a`. For a projected class `z`, define the target-supported successor envelope
+Let `K(.|x,a)` be a transition-support model over a **future-sufficient target execution condition** `x` after concrete action `a`. For a projected class `z`, define the target-supported successor envelope
 
 `Post_T^C(x,z) := union_{b in supp(pi_T(.|x)), phi_C(b)=z} supp(K(.|x,b))`.
 
-For an injected source action `a`, the replay successor support is
+For an injected source action `a`, define
 
 `Post_R(x,a) := supp(K(.|x,a))`
 
@@ -134,7 +134,7 @@ then there exists a target-native concrete action sequence `b_1,...,b_T` such th
 - `phi_C(b_t)=phi_C(a^S_t)`, and
 - `x_{t+1} in supp(K(.|x_t,b_t))`.
 
-Hence the observed projected replay trace is in target-native trace support.
+Hence the observed projected replay trace has a target-native witness along the same target-condition path.
 
 ### Proof sketch
 
@@ -150,28 +150,93 @@ holds before execution at every admitted step, then **every** replay successor s
 
 This gives a clean distinction:
 
-- **post-hoc trace certification** needs the observed successor to have a coherent target witness;
+- **post-hoc path certification** needs the observed successor to have a coherent target witness;
 - **pre-execution safe reuse** needs all possible injected-action successors to remain within the target-supported successor envelope.
 
 ---
 
-## 5. Necessity attack: why some continuation obligation cannot be removed
+## 5. Second-pass attack on Proposition A: what `x` and `K` must mean
 
-The two-step counterexample in Section 2 violates continuation closure at `x0`:
+The theorem above is only sound if `x` is future-sufficient for both controller choice and continuation semantics.
 
-- injected `a` reaches `xA`;
-- the only target-supported same-projection witness `b` reaches `xB`;
-- therefore `xA notin Post_T^C(x0,z)`.
+### Attack 5.1 — hidden history
 
-Both local support checks still pass, but whole-trace realizability fails.
+If two executions share the same visible `(s,y)` but differ in hidden history that affects later transitions, a kernel written only as `K(.|s,y,a)` can merge incompatible futures. The theorem can then manufacture a witness by switching hidden histories between steps.
 
-Thus any theorem claiming that pointwise projected support alone composes into target-native trace support is false.
+**Repair:** either (i) define `x` as an augmented execution state/history sufficient for future controller and transition support, or (ii) state the theorem directly over admitted histories rather than assume a Markov state.
 
-The exact *minimal* global condition is language-level witness coherence, but continuation closure is the sharp one-step condition that makes the existing stepwise audit compositional by induction.
+### Attack 5.2 — timing is part of the transition semantics
+
+ReplayMark is specifically about reactive timing. A transition model that omits issue time, elapsed time, pending timers, or target feedback evolution can again merge incompatible continuations.
+
+**Repair:** timing/history variables must be included in `x` or in the transition relation whenever they affect future support. The trace theorem must not silently assume that action labels alone determine successor support.
+
+### Attack 5.3 — exogenous randomness / feedback coupling
+
+Marginal transition-support overlap can be misleading if the same successor is reachable under replay and target witness only under mutually incompatible exogenous realizations. If that exogenous variable has future effects, it belongs in the future-sufficient execution condition. Otherwise the witness can swap worlds mid-trace.
+
+**Repair:** the propagated condition must retain every exogenous fact needed to keep future worlds coherent. Equivalently, use a transition relation over complete admitted histories.
+
+### Attack 5.4 — continuous spaces
+
+In continuous state spaces an exact successor typically has probability zero. The finite/discrete “positive probability” shorthand cannot be carried over literally.
+
+**Repair:** keep this theorem explicitly finite/discrete for the present paper, or use topological support / admitted-transition relations. The current empirical protocols are finite/discrete, so there is no need to buy measure-theoretic complexity for a PerCom submission.
 
 ---
 
-## 6. Language-level formulation: exact but too tautological to lead the paper
+## 6. Stronger salvage: path-conditioned coherent-witness validity
+
+The phrase “joint trace support” is itself too broad for ReplayMark. The benchmark is not asking whether the source projected trace occurs somewhere in the target distribution. It asks whether it is compatible with the **target conditions actually being evaluated**.
+
+That suggests a sharper trace-level object.
+
+Let the observed/declared target execution-condition path be `x_1,...,x_{T+1}`. For source action `a^S_t`, define the coherent witness set
+
+`W_t^C := { b : b in supp(pi_T(.|x_t)), phi_C(b)=phi_C(a^S_t), and x_{t+1} in supp(K(.|x_t,b)) }`.
+
+### Definition: path-conditioned trace validity
+
+The replayed projected trace is **path-conditionally target-realizable** when
+
+`W_t^C != empty` for every `t`.
+
+### Proposition B (coherent-witness criterion)
+
+For a future-sufficient finite/discrete target condition path, `W_t^C != empty` for every step iff there exists a target-native concrete witness sequence `b_1,...,b_T` that:
+
+1. is target-supported at every observed condition `x_t`;
+2. matches every replayed action under `phi_C`; and
+3. traverses the same observed condition path `x_1 -> ... -> x_{T+1}`.
+
+The proof is immediate but the criterion is operationally useful: local support supplies an action witness; trace validity additionally requires that the witness explain the next condition. Because every witness is forced to land at the same `x_{t+1}`, the witnesses concatenate rather than fragment.
+
+### Why this is better than generic joint support
+
+- It preserves ReplayMark's target-condition-relative semantics.
+- It identifies the exact missing obligation: **support witnesses must compose through the observed successor conditions**.
+- It cleanly separates stepwise supplied-state auditing from model/observed-prefix trace certification.
+- It avoids claiming that an action sequence is valid merely because it occurs under some unrelated target trajectory.
+
+This is the strongest surviving conceptual core so far.
+
+---
+
+## 7. Necessity attack: why some continuation obligation cannot be removed
+
+The two-step counterexample in Section 2 violates coherent-witness validity at `x0`:
+
+- injected `a` reaches `xA`;
+- the only target-supported same-projection witness `b` reaches `xB`;
+- hence no `b` belongs to `W_1^C` for observed successor `xA`.
+
+Both local support checks still pass, but path-conditioned trace validity fails.
+
+Thus any theorem claiming that pointwise projected support alone composes into a target-native trace certificate is false.
+
+---
+
+## 8. Language-level formulation: exact but too tautological to lead the paper
 
 For a target world `w`, let `L_C(w)` be the prefix-closed language of projected target-native traces. Under incomplete evidence `e` with compatible worlds `Omega(e)`, define
 
@@ -187,11 +252,11 @@ Then a projected prefix `p` is:
 
 This is exact and is the trace-language analogue of the current `S^- / S^+` support envelope.
 
-However, as a headline theorem it is again mostly an intersection/union fact. Its value is as a semantic target for the continuation-closure algorithm, not as the quantum jump itself.
+However, as a headline theorem it is again mostly an intersection/union fact. Its value is as a semantic target for a coherent-witness/path-propagation algorithm, not as the quantum jump itself.
 
 ---
 
-## 7. Prefix-conditioned R*: the naive maximality claim also needs narrowing
+## 9. Prefix-conditioned R*: the naive maximality claim also needs narrowing
 
 Given a certified prefix `p`, define the guaranteed native next-action set
 
@@ -209,9 +274,13 @@ It is **not** globally reuse-maximizing over a horizon without a cost/objective 
 
 The current paper already avoids global cost-optimality for one-step `R*`; the trace extension must preserve that discipline.
 
+### Attack on evidence stationarity
+
+Executing a reused action can itself change which worlds remain compatible with later observations. `Omega(e)` is therefore not a static set over the whole trace. Any online trace rule must update compatible histories after each action/observation pair rather than reuse a time-zero envelope.
+
 ---
 
-## 8. Quantifier attack under uncertain evidence
+## 10. Quantifier attack under uncertain evidence
 
 For trace-level certification the relevant validity statement is
 
@@ -225,7 +294,7 @@ This is exactly where model-prefix propagation earns its keep. The trace extensi
 
 ---
 
-## 9. Projection attack: benchmark equivalence may be too coarse for future composition
+## 11. Projection attack: benchmark equivalence may be too coarse for future composition
 
 A consequential projection `phi_C` can be perfectly adequate for a one-step benchmark claim while merging actions with different future effects. The Section 2 counterexample exploits exactly this.
 
@@ -235,54 +304,67 @@ Therefore a whole-trace claim requires one of three things:
 2. explicit transition evidence showing that the *specific observed successor* has a same-class target-native witness; or
 3. a forward-simulation relation that tracks replay and target-native states even when they are not identical.
 
-Option (3) is the most general but moves directly into classical simulation/bisimulation territory. That is mathematically respectable but likely too expensive for the current PerCom paper unless the simpler continuation-closure result proves insufficient.
+Option (3) is the most general but moves directly into classical simulation/bisimulation territory. That is mathematically respectable but likely too expensive for the current PerCom paper unless the simpler coherent-witness result proves insufficient.
+
+### Optional deeper refinement: continuation-aware projection
+
+For a condition `x` and concrete action `a`, define its future support signature as the set of target-projected suffixes reachable after executing `a`. A refinement of `phi_C` that also distinguishes unequal future support signatures is continuation-stable. One-sided inclusion of future signatures is enough for replay-to-target trace containment; equality gives an equivalence.
+
+This is essentially a replay-specific face of classical simulation/right-congruence ideas. It is elegant but probably too formal for the current nine-page paper unless it can replace, rather than add to, existing theory.
 
 ---
 
-## 10. Novelty red team against formal-methods prior art
+## 12. Novelty red team against formal-methods prior art
 
 Generic trace containment, simulation, bisimulation, and congruence of behavioral equivalences are established formal-methods concepts. Therefore ReplayMark should **not** claim novelty for discovering that whole-trace consistency needs transition coherence.
 
 The replay-specific opportunity is narrower:
 
-> characterize exactly when ReplayMark's claim-relative one-step support certificate composes into a target-native trace certificate, and show that the missing obligation is continuation closure of the injected source action relative to target-supported same-projection witnesses.
+> characterize exactly when ReplayMark's claim-relative one-step support certificate composes into a target-condition-aligned trace certificate, and show that the missing obligation is coherent continuation of the target-supported same-projection witnesses.
 
 That link is specific to the paper's source-action / target-controller / benchmark-projection relation. It can be positioned as a compositionality boundary built on established simulation ideas, not a new theory of transition systems.
 
 ---
 
-## 11. Fit with the current paper
+## 13. Fit with the current paper
 
 ### What survives strongly
 
 - The current stepwise validity definition remains correct for the claim it makes.
 - The existing support envelope remains correct for pointwise evidence uncertainty.
 - The prior warning that supplied-state checks are stepwise is vindicated, not overturned.
-- Model-prefix certification becomes the natural place where continuation witnesses can be propagated.
+- Model-prefix certification becomes the natural place where coherent transition witnesses can be propagated.
 
 ### What must not be claimed
 
-- “Every locally valid replay trace is target-native realizable.” False without continuation closure.
+- “Every locally valid replay trace is target-native realizable.” False without witness coherence.
 - “Joint support is a new theorem because marginals do not compose.” Too elementary and partly attacks the wrong object.
 - “Prefix R* globally maximizes reuse.” False without horizon/cost assumptions.
 - “The current experiments already validate arbitrary whole-trace compositionality.” They do not.
+- “A `(s,y)` pair is automatically sufficient state for the trace theorem.” Not unless all history/timing/exogenous facts relevant to future support are encoded or modeled.
 
 ---
 
-## 12. Current red-team verdict
+## 14. Current red-team verdict
 
 ### Naive joint-trace proposal
 
 **KILLED as stated.** It is mathematically correct at the marginal-support level but too elementary, and it does not expose the real compositional gap in ReplayMark.
 
-### Salvaged direction
+### First salvage: continuation closure
 
-**PROMISING:** `local support + continuation closure -> target-native trace realizability`.
+**SURVIVES, but only with an explicit future-sufficient execution state/history.** It provides a usable pre-execution sufficient condition for preserving target-native projected-prefix realizability.
 
-The key new phrase is **witness coherence**: a target-supported action that justifies reuse at one step must also be able to justify the successor condition on which later reuse decisions are based.
+### Strongest salvage: coherent-witness/path-conditioned trace validity
 
-This is a materially stronger and more precise result than the original `AB/BA` marginal counterexample. It survives exact-state conditioning and directly explains when the existing stepwise criterion composes.
+**PROMISING AND SHARPER.** The key concept is **witness coherence**: a target-supported action that justifies reuse at one step must also be able to justify the successor condition on which later reuse decisions are based.
+
+This survives exact current-state conditioning, avoids the straw-man marginal argument, and directly explains when the existing stepwise criterion composes along the target conditions actually being benchmarked.
+
+### Is this a Best-Paper quantum jump yet?
+
+**Not yet proven.** The conceptual result is materially stronger than the naive proposal, but its mathematical core sits close to established simulation/trace-conformance ideas. Its value would have to come from a very compact replay-specific theorem that makes the current paper feel more inevitable, not more encyclopedic.
 
 ### Manuscript status
 
-**DO NOT INTEGRATE YET.** Before any manuscript change, this result needs one more proof/definition pass around (i) feedback/environment state sufficiency, (ii) stochastic transition support, and (iii) whether `K` should range over full target condition or a claim-relevant state abstraction. The paper should only adopt it if it can be stated in <~0.25 page without turning ReplayMark into a generic transition-system paper.
+**DO NOT INTEGRATE YET.** Before any manuscript change, the surviving result needs one final proof/novelty pass and a page-cost test. It should enter only if it can replace existing caveat/prose and fit in roughly 0.20–0.30 page without requiring a new experiment or a generic transition-system section.
