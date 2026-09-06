@@ -1,0 +1,83 @@
+{
+  "boundary_checks": {
+    "native_n166_lossless": true,
+    "native_n167_loses_two_per_trial": true,
+    "r1_n250_lossless": true,
+    "r1_n251_loses_four_per_trial": true,
+    "r2_n166_lossless": true,
+    "r2_n167_loses_two_per_trial": true
+  },
+  "broker_image_digest": "eclipse-mosquitto@sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797",
+  "broker_version_sys": "mosquitto version 2.1.2",
+  "confirmation_pass": true,
+  "coverage": {
+    "batch_sizes": [166, 167, 250, 251],
+    "conditions_per_trial": 3,
+    "measured_condition_executions": 144,
+    "replicas": ["A", "B"],
+    "task_executions": 30024,
+    "trials_per_replica_batch": 6
+  },
+  "documented_default_max_queued_messages": 1000,
+  "downstream_conclusion": {
+    "n250_r1_classification": "LOSSLESS",
+    "n250_r2_classification": "LOSSY",
+    "n250_target_native_classification": "LOSSY",
+    "native_loss_fraction_at_r1_selected_n250": 0.3333333333333333,
+    "r1_maximum_lossless_batch_tasks": 250,
+    "r1_overstates_safe_batch_by_tasks": 84,
+    "r2_maximum_lossless_batch_tasks": 166,
+    "target_native_maximum_lossless_batch_tasks": 166
+  },
+  "errors": [],
+  "git_sha": "23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d",
+  "input_sha256": {
+    "default_flip_A_n166.json": "95efd183636689345bc87ef5397a9f0811bb58555e191cd0a9aa97238cbf5f31",
+    "default_flip_A_n167.json": "38038f7632ab1fa851154b10d7c5e405ab0f72940ad3514c0c9943d861a59ed6",
+    "default_flip_A_n250.json": "32e2ce95ac8f6a627869173ee6044085f3eaa1f19770e88321b1ba09fc71d728",
+    "default_flip_A_n251.json": "162e2b6fe31dfb65c8991cfaba63bb912cda7173e93677a58170ea6721ffa3aa",
+    "default_flip_B_n166.json": "0f1f4b2da034c95c2749780c354fa31e3817ae8760ce12a4e5927111afe9dc51",
+    "default_flip_B_n167.json": "621cfce30a869500a0ff870943b26d98c129ba65d02471cf1dea85d16678af11",
+    "default_flip_B_n250.json": "f44dace5c592ed113245ddf01f9305650d0988e22aaa1c883c89586a85368835",
+    "default_flip_B_n251.json": "72c7b9a9e1f71f937b878a4fbdc263332378d9e20996150ba00a48e060716653",
+    "mosquitto_default_queue_A_n166.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "mosquitto_default_queue_A_n167.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "mosquitto_default_queue_A_n250.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "mosquitto_default_queue_A_n251.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "mosquitto_default_queue_B_n166.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "mosquitto_default_queue_B_n167.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "mosquitto_default_queue_B_n250.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "mosquitto_default_queue_B_n251.conf": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858"
+  },
+  "per_batch": {
+    "166": {
+      "R1_TIMING": {"cells": 12, "delivered": 7968, "generated": 7968, "loss": 0},
+      "R2_SEMANTIC": {"cells": 12, "delivered": 11952, "generated": 11952, "loss": 0},
+      "TARGET_NATIVE": {"cells": 12, "delivered": 11952, "generated": 11952, "loss": 0}
+    },
+    "167": {
+      "R1_TIMING": {"cells": 12, "delivered": 8016, "generated": 8016, "loss": 0},
+      "R2_SEMANTIC": {"cells": 12, "delivered": 12000, "generated": 12024, "loss": 24},
+      "TARGET_NATIVE": {"cells": 12, "delivered": 12000, "generated": 12024, "loss": 24}
+    },
+    "250": {
+      "R1_TIMING": {"cells": 12, "delivered": 12000, "generated": 12000, "loss": 0},
+      "R2_SEMANTIC": {"cells": 12, "delivered": 12000, "generated": 18000, "loss": 6000},
+      "TARGET_NATIVE": {"cells": 12, "delivered": 12000, "generated": 18000, "loss": 6000}
+    },
+    "251": {
+      "R1_TIMING": {"cells": 12, "delivered": 12000, "generated": 12048, "loss": 48},
+      "R2_SEMANTIC": {"cells": 12, "delivered": 12000, "generated": 18072, "loss": 6072},
+      "TARGET_NATIVE": {"cells": 12, "delivered": 12000, "generated": 18072, "loss": 6072}
+    }
+  },
+  "primary_checks": {
+    "native_n250_loses_exactly_6000": true,
+    "native_n250_loss_fraction_one_third": true,
+    "r1_n250_lossless_all": true,
+    "r2_n250_loses_exactly_6000": true
+  },
+  "protocol": "replaymark_e3b_default_flip/DEFAULT_FLIP_PROTOCOL.md",
+  "schema": "replaymark.e3b.documented_default_capacity_flip.certificate.v1",
+  "status": "CONFIRMATORY_CERTIFICATE"
+}
