@@ -1,0 +1,136 @@
+name: ReplayMark E3b Downstream Confirmatory
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [replaymark-e3b-downstream]
+    paths:
+      - 'replaymark_e3b_downstream/confirmatory/**'
+      - '.github/workflows/replaymark-e3b-downstream-confirmatory.yml'
+
+jobs:
+  confirmatory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [A, B]
+        queue_limit: [511, 512, 767, 768]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize frozen Mosquitto configuration
+        shell: bash
+        run: |
+          mkdir -p replaymark_e3b_downstream/confirmatory/runtime replaymark_e3b_downstream/results_confirmatory
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          q = int(os.environ['QUEUE_LIMIT'])
+          text = f'''listener 1883 0.0.0.0
+          allow_anonymous true
+          persistence false
+          sys_interval 1
+          max_queued_messages {q}
+          max_queued_bytes 0
+          max_inflight_messages 20
+          queue_qos0_messages false
+          log_type error
+          log_type warning
+          log_type notice
+          '''
+          Path('replaymark_e3b_downstream/confirmatory/runtime/mosquitto.conf').write_text(text)
+          PY
+        env:
+          QUEUE_LIMIT: ${{ matrix.queue_limit }}
+
+      - name: Resolve and record Mosquitto image digest
+        shell: bash
+        run: |
+          docker pull eclipse-mosquitto:2.1.2-alpine
+          BROKER_DIGEST="$(docker image inspect eclipse-mosquitto:2.1.2-alpine --format '{{index .RepoDigests 0}}')"
+          test -n "$BROKER_DIGEST"
+          echo "BROKER_DIGEST=$BROKER_DIGEST" >> "$GITHUB_ENV"
+          echo "$BROKER_DIGEST"
+
+      - name: Build frozen confirmatory image
+        working-directory: replaymark_e3b_downstream/confirmatory
+        run: docker compose build device runner
+
+      - name: Start fresh Mosquitto and device
+        working-directory: replaymark_e3b_downstream/confirmatory
+        run: docker compose up -d mosquitto device
+
+      - name: Execute six frozen trials
+        working-directory: replaymark_e3b_downstream/confirmatory
+        run: >-
+          docker compose run --rm runner
+          --broker mosquitto
+          --queue-limit ${{ matrix.queue_limit }}
+          --replica ${{ matrix.replica }}
+          --trials 6
+          --tasks 128
+          --wave-size 32
+          --wave-period-ms 300
+          --verify-ms 100
+          --target-delay-ms 150
+          --gap-ms 20
+          --timeout-ms 1200
+          --drain-quiet-s 0.75
+          --drain-timeout-s 20
+          --broker-image-digest "$BROKER_DIGEST"
+          --git-sha "$GITHUB_SHA"
+          --out /results/confirmatory_${{ matrix.replica }}_q${{ matrix.queue_limit }}.json
+
+      - name: Preserve broker log
+        if: always()
+        working-directory: replaymark_e3b_downstream/confirmatory
+        shell: bash
+        run: |
+          docker compose logs --no-color mosquitto > ../results_confirmatory/broker_${{ matrix.replica }}_q${{ matrix.queue_limit }}.log || true
+
+      - name: Upload raw confirmatory evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-e3b-confirmatory-${{ matrix.replica }}-q${{ matrix.queue_limit }}
+          path: |
+            replaymark_e3b_downstream/results_confirmatory/confirmatory_${{ matrix.replica }}_q${{ matrix.queue_limit }}.json
+            replaymark_e3b_downstream/results_confirmatory/broker_${{ matrix.replica }}_q${{ matrix.queue_limit }}.log
+          if-no-files-found: warn
+
+      - name: Tear down isolated broker
+        if: always()
+        working-directory: replaymark_e3b_downstream/confirmatory
+        run: docker compose down -v --remove-orphans
+
+  validate:
+    needs: confirmatory
+    if: always() && needs.confirmatory.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all raw confirmatory evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: replaymark-e3b-confirmatory-*
+          path: confirmatory_inputs
+          merge-multiple: true
+
+      - name: Independent frozen-protocol validation
+        run: |
+          mkdir -p replaymark_e3b_downstream/results_confirmatory
+          python replaymark_e3b_downstream/confirmatory/validate_confirmatory.py \
+            --input-dir confirmatory_inputs \
+            --out replaymark_e3b_downstream/results_confirmatory/confirmatory_certificate.json
+
+      - name: Upload confirmation certificate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-e3b-confirmatory-certificate
+          path: replaymark_e3b_downstream/results_confirmatory/confirmatory_certificate.json
+          if-no-files-found: warn
