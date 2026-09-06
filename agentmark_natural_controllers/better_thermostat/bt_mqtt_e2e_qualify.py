@@ -331,20 +331,19 @@ async def call_preset(hass: HomeAssistant, bt_entity: str, preset: str):
     )
 
 
-async def wait_stable_preset(hass: HomeAssistant, bt_entity: str, child: str, preset: str):
-    expected_temp = TARGET_TEMPS[preset]
+async def wait_stable_preset(hass: HomeAssistant, bt_entity: str, bt: Any, preset: str):
+    """Wait for BT's semantic preset state and its queued control cycle only.
+
+    The producer deliberately does not require a child temperature write here:
+    whether BT emits such a write is the Phase-B scientific outcome and is
+    adjudicated independently from the raw service/MQTT evidence.
+    """
     await wait_until(
         lambda: bt_preset(hass, bt_entity) == preset,
         timeout=10.0,
         label=f"BT preset did not become {preset}",
     )
-    await wait_until(
-        lambda: child_temperature(hass, child) is not None
-        and abs(float(child_temperature(hass, child)) - expected_temp) < 1e-9,
-        timeout=15.0,
-        label=f"MQTT child target temp did not become {expected_temp}",
-    )
-    await asyncio.sleep(0.2)
+    await asyncio.wait_for(bt.control_queue_task.join(), timeout=20.0)
     await hass.async_block_till_done()
 
 
@@ -396,12 +395,15 @@ async def execute(mode: str, *, blueprint: Path, bt_source: Path, broker: str, n
     config_dir = Path(temp.name)
     stack = await setup_hass(config_dir=config_dir, bt_source=bt_source, broker=broker, namespace=namespace)
     hass: HomeAssistant = stack["hass"]
+    bt = stack["bt"]
     observer = Observer(hass, stack["bt_entity"], stack["child_entity"])
     observer.install()
 
-    # Establish the selected quiescent initial preset outside measurement.
+    # Establish only the selector-defined quiescent controller state outside
+    # measurement. Child-command propagation is not a setup precondition; it is
+    # the outcome Phase B exists to measure.
     await call_preset(hass, stack["bt_entity"], "sleep")
-    await wait_stable_preset(hass, stack["bt_entity"], stack["child_entity"], "sleep")
+    await wait_stable_preset(hass, stack["bt_entity"], bt, "sleep")
 
     if mode == "target-native":
         await install_external_automation(hass, config_dir, blueprint, stack["bt_device_id"])
@@ -417,34 +419,19 @@ async def execute(mode: str, *, blueprint: Path, bt_source: Path, broker: str, n
 
     expected_presets = TARGET_ACTIONS if mode == "target-native" else REPLAY_ACTIONS
     for event, historical in zip(EVENTS, expected_presets):
-        before_preset = bt_preset(hass, stack["bt_entity"])
-        before_temp_calls = sum(
-            1 for e in observer.service_events
-            if e["service"] == "set_temperature" and stack["child_entity"] in e["targets"]
-        )
         await apply_event(hass, event)
         if mode == "replay" and historical is not None:
             await call_preset(hass, stack["bt_entity"], historical)
-        expected = historical
-        if expected is not None:
-            await wait_stable_preset(hass, stack["bt_entity"], stack["child_entity"], expected)
-            await wait_until(
-                lambda: sum(
-                    1 for e in observer.service_events
-                    if e["service"] == "set_temperature" and stack["child_entity"] in e["targets"]
-                ) >= before_temp_calls + 1,
-                timeout=10.0,
-                label=f"no child temperature service after {event}/{expected}",
-            )
+        if historical is not None:
+            # Wait for the semantic controller action and the untouched BT
+            # control cycle to finish, but never require a successful child
+            # write. The independent validator owns the 1:1/0:0 verdict.
+            await wait_stable_preset(hass, stack["bt_entity"], bt, historical)
         else:
+            # Historical NO_ACTION: give any unintended asynchronous activity a
+            # bounded opportunity to become visible in the raw observer stream.
             await asyncio.sleep(0.5)
             await hass.async_block_till_done()
-            after_calls = sum(
-                1 for e in observer.service_events
-                if e["service"] == "set_temperature" and stack["child_entity"] in e["targets"]
-            )
-            if after_calls != before_temp_calls or bt_preset(hass, stack["bt_entity"]) != before_preset:
-                raise RuntimeError(f"historical NO_ACTION was not quiet at {event}")
 
     await asyncio.sleep(0.5)
     await hass.async_block_till_done()
