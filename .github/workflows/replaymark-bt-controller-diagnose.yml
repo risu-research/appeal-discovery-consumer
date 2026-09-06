@@ -1,0 +1,126 @@
+name: ReplayMark BT Controller Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [replaymark-bt-mqtt-e2e-capstone]
+    paths:
+      - 'agentmark_natural_controllers/better_thermostat/bt_mqtt_controller_diagnose.py'
+      - '.github/workflows/replaymark-bt-controller-diagnose.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Compile diagnostic
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_natural_controllers/better_thermostat/bt_mqtt_controller_diagnose.py \
+            agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify.py
+
+      - name: Fetch frozen controller and Better Thermostat
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic/upstream_bt diagnostic/provenance
+          git rev-parse HEAD > diagnostic/provenance/EXECUTION_HEAD.txt
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/n3roGit/MyHomeAssistantMods/57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f/automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml' \
+            -o diagnostic/better_thermostat_lean.yaml
+          echo '16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443  diagnostic/better_thermostat_lean.yaml' | sha256sum -c -
+          git init -q diagnostic/bt_checkout
+          git -C diagnostic/bt_checkout remote add origin https://github.com/KartoffelToby/better_thermostat.git
+          git -C diagnostic/bt_checkout fetch --depth=1 origin b86561f61e5ba1259fc63e590f4847e9ac743d7f
+          git -C diagnostic/bt_checkout checkout --detach FETCH_HEAD
+          test "$(git -C diagnostic/bt_checkout rev-parse HEAD)" = 'b86561f61e5ba1259fc63e590f4847e9ac743d7f'
+          cp -a diagnostic/bt_checkout/custom_components/better_thermostat/. diagnostic/upstream_bt/
+          rm -rf diagnostic/bt_checkout
+
+      - name: Pull pinned runtime images
+        run: |
+          set -euo pipefail
+          docker pull 'ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293'
+          docker pull 'eclipse-mosquitto:2.1.2-alpine'
+
+      - name: Start real Mosquitto
+        run: |
+          set -euo pipefail
+          cat > diagnostic/mosquitto.conf <<'EOF'
+          listener 1883
+          allow_anonymous true
+          persistence false
+          sys_interval 1
+          log_type all
+          EOF
+          docker network create replaymark-bt-controller-diag
+          docker run -d --name mosquitto-diag \
+            --network replaymark-bt-controller-diag \
+            -v "$PWD/diagnostic/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            eclipse-mosquitto:2.1.2-alpine
+          for i in $(seq 1 30); do
+            if docker exec mosquitto-diag mosquitto_sub -h 127.0.0.1 -t '$SYS/broker/version' -C 1 -W 2 > diagnostic/provenance/MOSQUITTO_VERSION.txt 2>/dev/null; then break; fi
+            sleep 1
+          done
+          grep -F 'mosquitto version 2.1.2' diagnostic/provenance/MOSQUITTO_VERSION.txt
+
+      - name: Execute outcome-blind controller diagnostic
+        run: |
+          set -euo pipefail
+          HA='ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293'
+          docker run -d --name ha-diag \
+            --network replaymark-bt-controller-diag \
+            -e PYTHONPATH=/repo \
+            -e PYTHONDONTWRITEBYTECODE=1 \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/diagnostic:/diagnostic" \
+            --entrypoint python3 \
+            "$HA" \
+            /repo/agentmark_natural_controllers/better_thermostat/bt_mqtt_controller_diagnose.py \
+              --blueprint /diagnostic/better_thermostat_lean.yaml \
+              --bt-source /diagnostic/upstream_bt \
+              --broker mosquitto-diag \
+              --out /diagnostic/CONTROLLER_DIAGNOSTIC.json
+          for i in $(seq 1 240); do
+            if test -f diagnostic/CONTROLLER_DIAGNOSTIC.json; then break; fi
+            if test "$(docker inspect -f '{{.State.Running}}' ha-diag)" != true; then
+              docker logs ha-diag | tee diagnostic/HA_DIAGNOSTIC.log
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test -f diagnostic/CONTROLLER_DIAGNOSTIC.json || { docker logs ha-diag | tee diagnostic/HA_DIAGNOSTIC.log; exit 1; }
+          docker logs ha-diag | tee diagnostic/HA_DIAGNOSTIC.log
+          docker logs mosquitto-diag > diagnostic/provenance/MOSQUITTO_LOG.txt 2>&1 || true
+          cat diagnostic/CONTROLLER_DIAGNOSTIC.json
+          docker rm -f ha-diag >/dev/null 2>&1 || true
+
+      - name: Seal diagnostic capsule
+        if: always()
+        run: |
+          set -euo pipefail
+          docker logs mosquitto-diag > diagnostic/provenance/MOSQUITTO_LOG.txt 2>&1 || true
+          cp agentmark_natural_controllers/better_thermostat/bt_mqtt_controller_diagnose.py diagnostic/
+          (cd diagnostic && find . -type f ! -name CHECKSUMS.sha256 -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > CHECKSUMS.sha256)
+          (cd diagnostic && sha256sum -c CHECKSUMS.sha256)
+
+      - name: Upload diagnostic capsule
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: replaymark-bt-controller-diagnostic
+          path: diagnostic
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f ha-diag mosquitto-diag >/dev/null 2>&1 || true
+          docker network rm replaymark-bt-controller-diag >/dev/null 2>&1 || true
