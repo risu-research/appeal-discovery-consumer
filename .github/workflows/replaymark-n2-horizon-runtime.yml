@@ -6,6 +6,7 @@ on:
     branches: [replaymark-n2-horizon-runtime]
     paths:
       - 'agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_PREREGISTRATION.md'
+      - 'agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_MEASUREMENT_CORRECTION.md'
       - 'agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py'
       - 'agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py'
       - 'agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py'
@@ -43,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compile frozen producer and independent validator
+      - name: Compile frozen producer and corrected independent validator
         shell: bash
         run: |
           set -euo pipefail
@@ -122,6 +123,7 @@ jobs:
           printf '%s\n' "$REPLICA" > horizon_results/provenance/REPLICA.txt
           sha256sum \
             agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_PREREGISTRATION.md \
+            agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_MEASUREMENT_CORRECTION.md \
             agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py \
             agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py \
             agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py \
@@ -141,7 +143,7 @@ jobs:
           docker pull "$IMAGE_REF"
           docker image inspect "$IMAGE_REF" > horizon_results/provenance/HOME_ASSISTANT_IMAGE_INSPECT.json
 
-      - name: Run preregistered depth-1 and depth-2 native protocol
+      - name: Run unchanged preregistered depth-1 and depth-2 native protocol
         shell: bash
         env:
           IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
@@ -161,7 +163,7 @@ jobs:
               --trials 6 \
               --out "/results/replica-${REPLICA}.json"
 
-      - name: Independently reconstruct all witness sequences
+      - name: Independently reconstruct witness paths from native state transitions
         shell: bash
         env:
           REPLICA: ${{ matrix.replica }}
@@ -218,6 +220,7 @@ jobs:
             --out aggregate/N2_HORIZON_RUNTIME_REPLICATED.json
 
           cp agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_PREREGISTRATION.md aggregate/
+          cp agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_MEASUREMENT_CORRECTION.md aggregate/
           cp agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py aggregate/producer.py
           cp agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py aggregate/independent_validator.py
           cp agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py aggregate/aggregate_replicas.py
