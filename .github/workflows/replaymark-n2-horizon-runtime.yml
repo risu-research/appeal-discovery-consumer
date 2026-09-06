@@ -1,0 +1,239 @@
+name: ReplayMark N2 Horizon Runtime Realization
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [replaymark-n2-horizon-runtime]
+    paths:
+      - 'agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_PREREGISTRATION.md'
+      - 'agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py'
+      - 'agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py'
+      - 'agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py'
+      - '.github/workflows/replaymark-n2-horizon-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-image:
+    runs-on: ubuntu-24.04
+    outputs:
+      image_ref: ${{ steps.pin.outputs.image_ref }}
+    steps:
+      - name: Resolve and enforce exact Home Assistant image
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293'
+          tag='ghcr.io/home-assistant/home-assistant:2026.9.0'
+          docker pull "$tag"
+          ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$tag")"
+          test "$ref" = "$expected"
+          echo "image_ref=$ref" >> "$GITHUB_OUTPUT"
+
+  horizon-runtime:
+    needs: resolve-image
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [0, 1]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile frozen producer and independent validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py \
+            agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py \
+            agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py \
+            agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py \
+            agentmark_natural_controllers/better_thermostat/n2b_experiment.py \
+            agentmark_natural_controllers/action_identity.py
+          find agentmark_natural_controllers -type d -name '__pycache__' -prune -exec rm -rf {} +
+
+      - name: Fetch exact external controller and qualified ownership component
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          mkdir -p horizon_results/provenance
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import urllib.request
+          url = 'https://raw.githubusercontent.com/n3roGit/MyHomeAssistantMods/57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f/automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml'
+          expected = '16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443'
+          req = urllib.request.Request(url, headers={'User-Agent':'ReplayMark-N2-Horizon/1'})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              payload = response.read()
+          actual = hashlib.sha256(payload).hexdigest()
+          assert actual == expected, (actual, expected)
+          Path('horizon_results/better_thermostat_lean.yaml').write_bytes(payload)
+          Path('horizon_results/provenance/EXTERNAL_SOURCE_URL.txt').write_text(url + '\n')
+          Path('horizon_results/provenance/EXTERNAL_SOURCE_SHA256.txt').write_text(actual + '\n')
+          PY
+
+          bt_commit='b86561f61e5ba1259fc63e590f4847e9ac743d7f'
+          bt_repo='https://github.com/KartoffelToby/better_thermostat.git'
+          git init -q horizon_results/bt_checkout
+          git -C horizon_results/bt_checkout remote add origin "$bt_repo"
+          git -C horizon_results/bt_checkout fetch --depth=1 origin "$bt_commit"
+          git -C horizon_results/bt_checkout checkout --detach FETCH_HEAD
+          test "$(git -C horizon_results/bt_checkout rev-parse HEAD)" = "$bt_commit"
+          mkdir -p horizon_results/upstream_better_thermostat_component
+          cp -a horizon_results/bt_checkout/custom_components/better_thermostat/. \
+            horizon_results/upstream_better_thermostat_component/
+          rm -rf horizon_results/bt_checkout
+
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('horizon_results/upstream_better_thermostat_component')
+          payload = (root / 'manifest.json').read_bytes()
+          manifest_sha = hashlib.sha256(payload).hexdigest()
+          assert manifest_sha == '710144c3d972501cc38b5a28e013a13a4c90e356039ffaff0b94327c7829bb28'
+          manifest = json.loads(payload)
+          assert manifest['domain'] == 'better_thermostat'
+          assert manifest['version'] == '1.9.2'
+          digest = hashlib.sha256()
+          for path in sorted(p for p in root.rglob('*') if p.is_file()):
+              rel = path.relative_to(root).as_posix().encode()
+              body = path.read_bytes()
+              digest.update(len(rel).to_bytes(8, 'big')); digest.update(rel)
+              digest.update(len(body).to_bytes(8, 'big')); digest.update(body)
+          tree = digest.hexdigest()
+          assert tree == 'bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0'
+          Path('horizon_results/provenance/BETTER_THERMOSTAT_UPSTREAM_MANIFEST_SHA256.txt').write_text(manifest_sha + '\n')
+          Path('horizon_results/provenance/BETTER_THERMOSTAT_UPSTREAM_COMPONENT_TREE_SHA256.txt').write_text(tree + '\n')
+          PY
+
+          printf '%s\n' "$bt_repo" > horizon_results/provenance/BETTER_THERMOSTAT_UPSTREAM_REPOSITORY.txt
+          printf '%s\n' "$bt_commit" > horizon_results/provenance/BETTER_THERMOSTAT_UPSTREAM_COMMIT.txt
+          printf '%s\n' '1.9.2' > horizon_results/provenance/BETTER_THERMOSTAT_UPSTREAM_VERSION.txt
+          printf '%s\n' "$IMAGE_REF" > horizon_results/provenance/HOME_ASSISTANT_IMAGE_REF.txt
+          printf '%s\n' "$GITHUB_SHA" > horizon_results/provenance/GITHUB_SHA.txt
+          printf '%s\n' "$REPLICA" > horizon_results/provenance/REPLICA.txt
+          sha256sum \
+            agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_PREREGISTRATION.md \
+            agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py \
+            agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py \
+            agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py \
+            agentmark_natural_controllers/better_thermostat/experiment_persisted_ownership.py \
+            agentmark_natural_controllers/better_thermostat/n2b_experiment.py \
+            agentmark_natural_controllers/action_identity.py \
+            horizon_results/better_thermostat_lean.yaml \
+            horizon_results/upstream_better_thermostat_component/manifest.json \
+            > horizon_results/provenance/SOURCE_SHA256.txt
+
+      - name: Pull immutable Home Assistant image
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE_REF"
+          docker image inspect "$IMAGE_REF" > horizon_results/provenance/HOME_ASSISTANT_IMAGE_INSPECT.json
+
+      - name: Run preregistered depth-1 and depth-2 native protocol
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.resolve-image.outputs.image_ref }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            -e PYTHONPATH=/repo/agentmark_e3b_lab:/repo \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/horizon_results:/results" \
+            --entrypoint python3 \
+            "$IMAGE_REF" \
+            /repo/agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py \
+              --blueprint /results/better_thermostat_lean.yaml \
+              --ownership-component /results/upstream_better_thermostat_component \
+              --replica "$REPLICA" \
+              --trials 6 \
+              --out "/results/replica-${REPLICA}.json"
+
+      - name: Independently reconstruct all witness sequences
+        shell: bash
+        env:
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          set -euo pipefail
+          python agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py \
+            "horizon_results/replica-${REPLICA}.json" \
+            --out "horizon_results/validation-${REPLICA}.json"
+          (
+            cd horizon_results
+            manifest="manifest-${REPLICA}.sha256"
+            find . -type f ! -name "$manifest" -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum > "$manifest"
+            test -s "$manifest"
+            sha256sum -c "$manifest"
+          )
+
+      - name: Upload sealed replica capsule
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-n2-horizon-runtime-r${{ matrix.replica }}
+          path: horizon_results
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: [resolve-image, horizon-runtime]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: replaymark-n2-horizon-runtime-r*
+          path: replicas
+
+      - name: Verify both capsules and close aggregate gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          for replica in 0 1; do
+            d="replicas/replaymark-n2-horizon-runtime-r${replica}"
+            test -d "$d"
+            (cd "$d" && sha256sum -c "manifest-${replica}.sha256")
+          done
+          mkdir -p aggregate
+          printf '%s\n' '${{ needs.resolve-image.outputs.image_ref }}' > aggregate/HOME_ASSISTANT_IMAGE_REF.txt
+          mapfile -t reports < <(find replicas -type f -name 'replica-*.json' | sort)
+          mapfile -t vals < <(find replicas -type f -name 'validation-*.json' | sort)
+          test "${#reports[@]}" -eq 2
+          test "${#vals[@]}" -eq 2
+          python agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py \
+            "${reports[@]}" --validations "${vals[@]}" \
+            --image-ref-file aggregate/HOME_ASSISTANT_IMAGE_REF.txt \
+            --out aggregate/N2_HORIZON_RUNTIME_REPLICATED.json
+
+          cp agentmark_natural_controllers/better_thermostat/N2_HORIZON_RUNTIME_PREREGISTRATION.md aggregate/
+          cp agentmark_natural_controllers/better_thermostat/n2_horizon_runtime.py aggregate/producer.py
+          cp agentmark_natural_controllers/better_thermostat/n2_horizon_validate.py aggregate/independent_validator.py
+          cp agentmark_natural_controllers/better_thermostat/n2_horizon_aggregate.py aggregate/aggregate_replicas.py
+          printf '%s\n' "$GITHUB_SHA" > aggregate/REPLAYMARK_GITHUB_SHA.txt
+          cp -a replicas aggregate/RAW_REPLICAS
+          (
+            cd aggregate
+            find . -type f ! -name 'CHECKSUMS.sha256' -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum > CHECKSUMS.sha256
+            test -s CHECKSUMS.sha256
+            sha256sum -c CHECKSUMS.sha256
+          )
+
+      - name: Upload promoted aggregate capsule
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-n2-horizon-runtime-promoted
+          path: aggregate
+          if-no-files-found: error
+          retention-days: 90
