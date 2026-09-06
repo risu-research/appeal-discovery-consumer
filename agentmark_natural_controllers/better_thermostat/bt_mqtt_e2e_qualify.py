@@ -18,11 +18,11 @@ import time
 from types import MappingProxyType
 from typing import Any
 
-from homeassistant import config_entries, loader
+from homeassistant import bootstrap, config_entries, loader
 from homeassistant.components import automation, mqtt
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_STATE_CHANGED
 from homeassistant.core import CoreState, Event, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_registry as er, trigger as trigger_helper
+from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 
 HA_VERSION_EXPECTED = "2026.9.0"
@@ -74,13 +74,15 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
     custom_dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(bt_source, custom_dst)
 
+    # Use the pinned Home Assistant release's own bootstrap path rather than a
+    # hand-assembled partial HomeAssistant object. This initializes auth,
+    # registries, config entries, triggers, storage, and core configuration via
+    # the same core machinery that normal HA startup uses, while still keeping
+    # the experiment's integration set minimal and deterministic.
     hass = HomeAssistant(str(config_dir))
     loader.async_setup(hass)
-    hass.config_entries = config_entries.ConfigEntries(hass, {})
-    await hass.config_entries.async_initialize()
-    dr.async_setup(hass)
-    await asyncio.gather(dr.async_load(hass), er.async_load(hass))
-    await trigger_helper.async_setup(hass)
+    if await bootstrap.async_from_config_dict({}, hass) is None:
+        raise RuntimeError("Home Assistant core bootstrap returned false")
     hass.set_state(CoreState.running)
 
     # Actual MQTT integration connected to the external Mosquitto process.
