@@ -1,0 +1,286 @@
+name: ReplayMark External Transfer Standalone Capsule v4
+
+on:
+  push:
+    branches:
+      - replaymark-external-transfer-artifact-hardening
+    paths:
+      - 'replaymark_theory/external_transfer/**'
+      - '.github/workflows/replaymark-external-transfer-standalone-v4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  PYTHONHASHSEED: '0'
+  PYTHONDONTWRITEBYTECODE: '1'
+  LC_ALL: C.UTF-8
+
+jobs:
+  capsule-v4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact hardening head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Record authority and runtime environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD | tee /tmp/HARDENING_HEAD.txt
+          {
+            echo "runner_os=${RUNNER_OS:-unknown}"
+            echo "runner_arch=${RUNNER_ARCH:-unknown}"
+            echo "image_os=${ImageOS:-unknown}"
+            echo "image_version=${ImageVersion:-unknown}"
+            python --version
+          } > /tmp/RUNNER_ENVIRONMENT.txt
+
+      - name: Fetch exact pinned upstream snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          INPUT=/tmp/replaymark_external_inputs
+          mkdir -p "$INPUT"
+          NVIDIA_COMMIT=26092ade9de608a71695bfc5800c956b8658ee98
+          AIPERF_COMMIT=13ae4f6b6b5363007ad52ee2470c3b49c9403b34
+
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/tensorrt_llm/scaffolding/trace_replay/replay.py" \
+            -o "$INPUT/nvidia_replay.py"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/examples/scaffolding/trace_replay/trace_example/matplotlib__matplotlib-23412/matplotlib__matplotlib-23412.trace.json" \
+            -o "$INPUT/nvidia_trace.json"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/examples/scaffolding/trace_replay/README.md" \
+            -o "$INPUT/nvidia_README.md"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/docs/source/blogs/tech_blog/blog27_Evaluating_Agentic_Serving_with_Trace_Replay_and_Job_Level_Metrics.md" \
+            -o "$INPUT/nvidia_blog.md"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/LICENSE" \
+            -o "$INPUT/nvidia_LICENSE"
+
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/docs/tutorials/weka-trace.md" \
+            -o "$INPUT/aiperf_weka_trace.md"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/docs/tutorials/agentx-mvp.md" \
+            -o "$INPUT/aiperf_agentx_mvp.md"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/src/aiperf/dataset/loader/weka_trace.py" \
+            -o "$INPUT/aiperf_weka_trace.py"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/src/aiperf/timing/branch_orchestrator.py" \
+            -o "$INPUT/aiperf_branch_orchestrator.py"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/LICENSE" \
+            -o "$INPUT/aiperf_LICENSE"
+
+      - name: Recover exact original run artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/original_evidence
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9983484671/zip" \
+            -o /tmp/original_replaymark_external_transfer.zip
+          echo "44a5adf0ee21f5b4397ab0c1633bea1aeb195787058986a53b6488c3695a7969  /tmp/original_replaymark_external_transfer.zip" | sha256sum -c -
+          unzip -q /tmp/original_replaymark_external_transfer.zip -d /tmp/original_evidence
+
+      - name: Reproduce frozen scientific outputs byte-for-byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/reproduced_original
+          python replaymark_theory/external_transfer/audit_external_retention_transfer.py \
+            --input-dir /tmp/replaymark_external_inputs \
+            --output-dir /tmp/reproduced_original
+          cmp /tmp/original_evidence/EXTERNAL_RETENTION_TRANSFER_RESULTS.json /tmp/reproduced_original/EXTERNAL_RETENTION_TRANSFER_RESULTS.json
+          cmp /tmp/original_evidence/EXTERNAL_RETENTION_TRANSFER_REPORT.md /tmp/reproduced_original/EXTERNAL_RETENTION_TRANSFER_REPORT.md
+
+      - name: Run deterministic hardened verifier v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hardened_v2
+          python replaymark_theory/external_transfer/audit_external_retention_transfer_hardened_v2.py \
+            --input-dir /tmp/replaymark_external_inputs \
+            --output-dir /tmp/hardened_v2
+          cat /tmp/hardened_v2/HARDENED_EXTERNAL_TRANSFER_REPORT_V2.md
+
+      - name: Assemble closed-world offline capsule
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/replaymark_external_transfer_capsule_v4
+          rm -rf "$ROOT"
+          mkdir -p \
+            "$ROOT/00_READ_FIRST" \
+            "$ROOT/01_FROZEN_SCIENCE" \
+            "$ROOT/02_POST_RESULT_HARDENING" \
+            "$ROOT/03_ORIGINAL_RUN_EVIDENCE" \
+            "$ROOT/04_REPRODUCED_ORIGINAL" \
+            "$ROOT/05_HARDENED_RESULTS" \
+            "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/NVIDIA_TensorRT-LLM" \
+            "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/AIPerf" \
+            "$ROOT/07_MANIFESTS" \
+            "$ROOT/08_REPRODUCE/inputs"
+
+          cp replaymark_theory/external_transfer/EXTERNAL_RETENTION_TRANSFER_PROTOCOL.md "$ROOT/01_FROZEN_SCIENCE/"
+          cp replaymark_theory/external_transfer/audit_external_retention_transfer.py "$ROOT/01_FROZEN_SCIENCE/"
+          cp .github/workflows/replaymark-external-retention-transfer.yml "$ROOT/01_FROZEN_SCIENCE/"
+
+          cp replaymark_theory/external_transfer/EXTERNAL_TRANSFER_ARTIFACT_HARDENING.md "$ROOT/02_POST_RESULT_HARDENING/"
+          cp replaymark_theory/external_transfer/audit_external_retention_transfer_hardened.py "$ROOT/02_POST_RESULT_HARDENING/"
+          cp replaymark_theory/external_transfer/audit_external_retention_transfer_hardened_v2.py "$ROOT/02_POST_RESULT_HARDENING/"
+          cp .github/workflows/replaymark-external-transfer-artifact-hardening.yml "$ROOT/02_POST_RESULT_HARDENING/"
+          cp .github/workflows/replaymark-external-transfer-standalone-v3.yml "$ROOT/02_POST_RESULT_HARDENING/"
+          cp .github/workflows/replaymark-external-transfer-standalone-v4.yml "$ROOT/02_POST_RESULT_HARDENING/"
+
+          cp /tmp/original_replaymark_external_transfer.zip "$ROOT/03_ORIGINAL_RUN_EVIDENCE/ORIGINAL_GITHUB_ACTIONS_ARTIFACT.zip"
+          cp /tmp/original_evidence/* "$ROOT/03_ORIGINAL_RUN_EVIDENCE/"
+          cp /tmp/reproduced_original/* "$ROOT/04_REPRODUCED_ORIGINAL/"
+          cp /tmp/hardened_v2/* "$ROOT/05_HARDENED_RESULTS/"
+
+          cp /tmp/replaymark_external_inputs/nvidia_replay.py "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/NVIDIA_TensorRT-LLM/replay.py"
+          cp /tmp/replaymark_external_inputs/nvidia_trace.json "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/NVIDIA_TensorRT-LLM/matplotlib__matplotlib-23412.trace.json"
+          cp /tmp/replaymark_external_inputs/nvidia_README.md "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/NVIDIA_TensorRT-LLM/README.md"
+          cp /tmp/replaymark_external_inputs/nvidia_blog.md "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/NVIDIA_TensorRT-LLM/agentic_trace_replay_blog.md"
+          cp /tmp/replaymark_external_inputs/nvidia_LICENSE "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/NVIDIA_TensorRT-LLM/LICENSE"
+
+          cp /tmp/replaymark_external_inputs/aiperf_weka_trace.md "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/AIPerf/weka-trace.md"
+          cp /tmp/replaymark_external_inputs/aiperf_agentx_mvp.md "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/AIPerf/agentx-mvp.md"
+          cp /tmp/replaymark_external_inputs/aiperf_weka_trace.py "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/AIPerf/weka_trace.py"
+          cp /tmp/replaymark_external_inputs/aiperf_branch_orchestrator.py "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/AIPerf/branch_orchestrator.py"
+          cp /tmp/replaymark_external_inputs/aiperf_LICENSE "$ROOT/06_PINNED_UPSTREAM_SNAPSHOTS/AIPerf/LICENSE"
+
+          cp /tmp/hardened_v2/UPSTREAM_MANIFEST_V2.json "$ROOT/07_MANIFESTS/UPSTREAM_MANIFEST_V2.json"
+          cp /tmp/HARDENING_HEAD.txt "$ROOT/07_MANIFESTS/HARDENING_HEAD.txt"
+          cp /tmp/RUNNER_ENVIRONMENT.txt "$ROOT/07_MANIFESTS/RUNNER_ENVIRONMENT.txt"
+          printf '%s\n' \
+            'scientific_execution_head=96edce97f4b79641dcf4b1975e18218f39e37c97' \
+            'frozen_protocol_commit=c7e60c5e03712e7a30ac1e53bccfa2025bfb6fa1' \
+            'frozen_auditor_commit=920b759c660a711d94f7aa92bd8059acba8965dc' \
+            'original_run_id=34014534101' \
+            'original_artifact_id=9983484671' \
+            'original_artifact_sha256=44a5adf0ee21f5b4397ab0c1633bea1aeb195787058986a53b6488c3695a7969' \
+            'actions_checkout_commit=11d5960a326750d5838078e36cf38b85af677262' \
+            'actions_upload_artifact_commit=ea165f8d65b6e75b540449e92b4886f43607fa02' \
+            > "$ROOT/07_MANIFESTS/AUTHORITY.txt"
+
+          cp /tmp/replaymark_external_inputs/* "$ROOT/08_REPRODUCE/inputs/"
+          cp replaymark_theory/external_transfer/verify_external_transfer_capsule_v2.py "$ROOT/08_REPRODUCE/verify_capsule.py"
+
+          cat > "$ROOT/00_READ_FIRST/README.md" <<'EOF'
+          # ReplayMark External Retention-Transfer — Standalone Capsule v4
+
+          This capsule is self-contained and network-free after extraction. It preserves the original frozen G3 source-transfer evidence and adds post-result artifact hardening without changing the scientific claim.
+
+          ## One-command verification
+
+          From the extracted capsule root:
+
+          ```bash
+          python 08_REPRODUCE/verify_capsule.py
+          ```
+
+          The verifier treats `07_MANIFESTS/CHECKSUMS.sha256` as a **closed-world inventory**: missing files, extra/unlisted files, symlinks, duplicate manifest entries, checksum mismatches, or post-verification bytecode drift fail closed. It then re-runs the frozen scientific auditor on exact bundled inputs, byte-compares both original outputs, re-runs deterministic hardening v2, and byte-compares its canonical outputs.
+
+          No network access or third-party Python package is required for verification.
+
+          ## Read order
+          1. `01_FROZEN_SCIENCE/EXTERNAL_RETENTION_TRANSFER_PROTOCOL.md`
+          2. `03_ORIGINAL_RUN_EVIDENCE/EXTERNAL_RETENTION_TRANSFER_REPORT.md`
+          3. `02_POST_RESULT_HARDENING/EXTERNAL_TRANSFER_ARTIFACT_HARDENING.md`
+          4. `05_HARDENED_RESULTS/HARDENED_EXTERNAL_TRANSFER_REPORT_V2.md`
+          5. `07_MANIFESTS/UPSTREAM_MANIFEST_V2.json`
+          6. `07_MANIFESTS/CHECKSUMS.sha256`
+
+          ## Scientific boundary
+          The original source-transfer result is G3 PASS only. G4 external invalidity and G5 downstream flip remain NOT SATISFIED. Post-result hardening confirms reproducibility and verifier coverage; it does not upgrade those claims.
+          EOF
+
+          # There must be no interpreter by-products before the canonical manifest.
+          if find "$ROOT" -type d -name '__pycache__' -o -type f -name '*.pyc' | grep -q .; then
+            echo 'unexpected Python bytecode before manifest' >&2
+            exit 1
+          fi
+
+          (
+            cd "$ROOT"
+            find . -type f ! -path './07_MANIFESTS/CHECKSUMS.sha256' -print0 \
+              | sort -z \
+              | xargs -0 sha256sum \
+              > 07_MANIFESTS/CHECKSUMS.sha256
+          )
+
+      - name: Verify closed-world capsule without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/replaymark_external_transfer_capsule_v4
+          cd "$ROOT"
+          BEFORE=$(find . -type f | sort | sha256sum | awk '{print $1}')
+          python 08_REPRODUCE/verify_capsule.py
+          AFTER=$(find . -type f | sort | sha256sum | awk '{print $1}')
+          test "$BEFORE" = "$AFTER"
+          if find . -type d -name '__pycache__' -o -type f -name '*.pyc' | grep -q .; then
+            echo 'verification mutated capsule with Python bytecode' >&2
+            exit 1
+          fi
+
+      - name: Build deterministic ZIP twice and prove byte identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
+          root = Path('/tmp/replaymark_external_transfer_capsule_v4')
+          def build(out):
+              with ZipFile(out, 'w', compression=ZIP_DEFLATED, compresslevel=9) as zf:
+                  for p in sorted(x for x in root.rglob('*') if x.is_file()):
+                      rel = p.relative_to(root).as_posix()
+                      info = ZipInfo(rel, date_time=(1980, 1, 1, 0, 0, 0))
+                      info.compress_type = ZIP_DEFLATED
+                      info.external_attr = 0o100644 << 16
+                      zf.writestr(info, p.read_bytes(), compress_type=ZIP_DEFLATED, compresslevel=9)
+          build('/tmp/replaymark-external-retention-transfer-standalone-v4-a.zip')
+          build('/tmp/replaymark-external-retention-transfer-standalone-v4-b.zip')
+          PY
+          cmp /tmp/replaymark-external-retention-transfer-standalone-v4-a.zip /tmp/replaymark-external-retention-transfer-standalone-v4-b.zip
+          mv /tmp/replaymark-external-retention-transfer-standalone-v4-a.zip /tmp/replaymark-external-retention-transfer-standalone-v4.zip
+          rm /tmp/replaymark-external-retention-transfer-standalone-v4-b.zip
+          sha256sum /tmp/replaymark-external-retention-transfer-standalone-v4.zip | tee /tmp/STANDALONE_V4_SHA256.txt
+
+      - name: Fresh-extraction verification and exact inventory check
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/v4_verify_extract
+          mkdir -p /tmp/v4_verify_extract
+          unzip -q /tmp/replaymark-external-retention-transfer-standalone-v4.zip -d /tmp/v4_verify_extract
+          cd /tmp/v4_verify_extract
+          python 08_REPRODUCE/verify_capsule.py
+          if find . -type d -name '__pycache__' -o -type f -name '*.pyc' | grep -q .; then
+            echo 'fresh verification generated bytecode' >&2
+            exit 1
+          fi
+
+      - name: Upload standalone capsule v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: replaymark-external-retention-transfer-standalone-v4
+          path: |
+            /tmp/replaymark-external-retention-transfer-standalone-v4.zip
+            /tmp/STANDALONE_V4_SHA256.txt
+          if-no-files-found: error
+          retention-days: 90
