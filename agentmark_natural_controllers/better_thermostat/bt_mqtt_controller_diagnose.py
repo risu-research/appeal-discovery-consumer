@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Outcome-blind diagnostic for the frozen Better-Thermostat controller cycle.
 
-This is diagnostic-only evidence. It imports the Phase-B stack constructor but
-never supplies downstream actions or adapts the frozen controller prediction.
-It drives the four frozen continuation events through the unchanged external
-automation, waits a fixed bounded interval after each event, and records what
-Home Assistant / Better Thermostat actually did.
+Diagnostic-only evidence. The controller continuation and expected actions are
+unchanged. The only additional setup is the carrier-enablement precondition
+frozen in BT_MQTT_E2E_CARRIER_PRECONDITION_ADDENDUM.md before this run.
 """
 from __future__ import annotations
 
@@ -29,6 +27,9 @@ from agentmark_natural_controllers.better_thermostat.bt_mqtt_e2e_qualify import 
     setup_hass,
 )
 
+PARENT_PROTOCOL = "851960e59aa3a68fb90ef199f1dbcfefe5fcd3c0"
+CARRIER_ADDENDUM_FREEZE = "a3008b0ebd0eb29a8fb913b8a1355c63c4a8d6c9"
+
 
 async def snapshot(hass: HomeAssistant, stack: dict, label: str) -> dict:
     bt_state = hass.states.get(stack["bt_entity"])
@@ -45,7 +46,6 @@ async def snapshot(hass: HomeAssistant, stack: dict, label: str) -> dict:
         )
     return {
         "label": label,
-        "components": sorted(hass.config.components),
         "automation_component_loaded": automation.DOMAIN in hass.config.components,
         "automation_entities": automations,
         "bt_entity": stack["bt_entity"],
@@ -58,21 +58,30 @@ async def snapshot(hass: HomeAssistant, stack: dict, label: str) -> dict:
     }
 
 
+async def activate_bt_carrier(hass: HomeAssistant, stack: dict) -> None:
+    """Apply the preregistered, world-independent carrier enablement."""
+    await hass.services.async_call(
+        "climate",
+        "set_hvac_mode",
+        {"entity_id": stack["bt_entity"], "hvac_mode": "heat"},
+        blocking=True,
+    )
+    await asyncio.wait_for(stack["bt"].control_queue_task.join(), timeout=20.0)
+    await hass.async_block_till_done()
+    state = hass.states.get(stack["bt_entity"])
+    if state is None or state.state != "heat":
+        raise RuntimeError(
+            "preregistered BT carrier activation did not establish HEAT: "
+            f"{None if state is None else state.state!r}"
+        )
+
+
 async def install_external_automation_via_reload(
     hass: HomeAssistant,
     config_dir: Path,
     blueprint: Path,
     bt_device_id: str,
 ) -> str:
-    """Install the frozen blueprint through Home Assistant's public reload path.
-
-    Core bootstrap has already loaded the automation component. Calling
-    async_setup_component again is therefore a no-op and does not process new
-    automation config. A normal HA installation persists the automation config
-    and invokes the registered automation.reload service, which re-reads and
-    validates configuration.yaml and materializes automation entities. This
-    diagnostic exercises exactly that path without touching controller logic.
-    """
     destination = (
         config_dir
         / "blueprints"
@@ -82,7 +91,6 @@ async def install_external_automation_via_reload(
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(blueprint, destination)
-
     config = {
         "automation": {
             "use_blueprint": {
@@ -103,18 +111,10 @@ async def install_external_automation_via_reload(
         }
     }
     (config_dir / "configuration.yaml").write_text(
-        json.dumps(config, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
+        json.dumps(config, sort_keys=True, indent=2) + "\n", encoding="utf-8"
     )
-
-    await hass.services.async_call(
-        automation.DOMAIN,
-        "reload",
-        {},
-        blocking=True,
-    )
+    await hass.services.async_call(automation.DOMAIN, "reload", {}, blocking=True)
     await hass.async_block_till_done()
-
     entities = automation.automations_with_blueprint(hass, BLUEPRINT_REL)
     if len(entities) != 1:
         raise RuntimeError(
@@ -145,22 +145,22 @@ async def main_async(args) -> dict:
     observer = Observer(hass, stack["bt_entity"], stack["child_entity"])
     observer.install()
 
-    # Frozen target-world quiescent initial controller state only.
+    pre_activation = await snapshot(hass, stack, "pre_carrier_activation")
+    await activate_bt_carrier(hass, stack)
+
+    # Establish the same frozen target-world quiescent initial preset after the
+    # neutral carrier enablement. All setup effects are cleared before events.
     await call_preset(hass, stack["bt_entity"], "sleep")
     await asyncio.wait_for(bt.control_queue_task.join(), timeout=20.0)
     await hass.async_block_till_done()
+    post_activation = await snapshot(hass, stack, "post_carrier_activation_and_sleep")
 
     before_install = await snapshot(hass, stack, "before_automation_install")
     automation_entity = await install_external_automation_via_reload(
-        hass,
-        config_dir,
-        args.blueprint,
-        stack["bt_device_id"],
+        hass, config_dir, args.blueprint, stack["bt_device_id"]
     )
     after_install = await snapshot(hass, stack, "after_automation_install")
 
-    # Diagnostic window starts only after setup. Do not assert any expected
-    # preset or MQTT outcome. The exact same frozen events are driven once.
     observer.clear()
     steps = []
     for index, event in enumerate(EVENTS):
@@ -168,11 +168,10 @@ async def main_async(args) -> dict:
         before_services = len(observer.service_events)
         before_states = len(observer.state_events)
         await apply_event(hass, event)
-        # Fixed observation interval, chosen independently of outcome.
+        # Fixed observation interval, independent of the observed outcome.
         for _ in range(20):
             await asyncio.sleep(0.05)
         await hass.async_block_till_done()
-        # Drain only BT work that was naturally queued by the live stack.
         await asyncio.wait_for(bt.control_queue_task.join(), timeout=20.0)
         await hass.async_block_till_done()
         after = await snapshot(hass, stack, f"after_{index}_{event}")
@@ -187,17 +186,27 @@ async def main_async(args) -> dict:
             }
         )
 
+    child_temp_calls = [
+        e
+        for e in observer.service_events
+        if e["service"] == "set_temperature" and stack["child_entity"] in e["targets"]
+    ]
     result = {
-        "schema": "replaymark.bt_mqtt_controller_diagnostic.v2",
+        "schema": "replaymark.bt_mqtt_controller_diagnostic.v3",
         "diagnostic_only": True,
         "installation_path": "configuration.yaml -> automation.reload",
+        "carrier_activation": "actual Better Thermostat climate.set_hvac_mode(heat)",
+        "parent_protocol": PARENT_PROTOCOL,
+        "carrier_addendum_freeze": CARRIER_ADDENDUM_FREEZE,
         "automation_entity": automation_entity,
-        "frozen_protocol": "851960e59aa3a68fb90ef199f1dbcfefe5fcd3c0",
         "frozen_events": list(EVENTS),
+        "pre_activation": pre_activation,
+        "post_activation": post_activation,
         "before_install": before_install,
         "after_install": after_install,
         "steps": steps,
         "all_climate_service_events": observer.service_events,
+        "child_temperature_service_events": child_temp_calls,
         "all_observed_state_events": observer.state_events,
         "final_preset": bt_preset(hass, stack["bt_entity"]),
     }
@@ -211,9 +220,12 @@ async def main_async(args) -> dict:
         json.dumps(
             {
                 "automation_entity": automation_entity,
-                "automation_entities": after_install["automation_entities"],
+                "pre_bt_state": pre_activation["bt_state"],
+                "post_bt_state": post_activation["bt_state"],
                 "step_presets": [s["after"]["bt_preset"] for s in steps],
-                "climate_service_count": len(observer.service_events),
+                "child_temp_sequence": [
+                    e["service_data"].get("temperature") for e in child_temp_calls
+                ],
             },
             sort_keys=True,
             default=str,
