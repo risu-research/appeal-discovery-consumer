@@ -144,12 +144,20 @@ jobs:
             sh -c "mosquitto_sub -h mosquitto -t 'replaymark/e2e/native/temperature/set' -q 1 -F '%q|%t|%p' > /out/MQTT_OBSERVER.log"
           sleep 1
           touch qual/native/START
-          code="$(docker wait ha-native)"
-          docker logs ha-native | tee qual/native/HA_CONTAINER.log
-          test "$code" = 0
+          for i in $(seq 1 180); do
+            if test -f qual/native/DONE; then break; fi
+            if test "$(docker inspect -f '{{.State.Running}}' ha-native)" != true; then
+              docker logs ha-native
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test -f qual/native/DONE || { docker logs ha-native; exit 1; }
+          test -f qual/native/RESULT.json
           sleep 1
           docker rm -f observer-native >/dev/null 2>&1 || true
-          test -f qual/native/RESULT.json
+          docker logs ha-native | tee qual/native/HA_CONTAINER.log
+          docker rm -f ha-native >/dev/null 2>&1 || true
           cat qual/native/MQTT_OBSERVER.log
 
       - name: Run historical-replay real-stack qualification
@@ -188,12 +196,20 @@ jobs:
             sh -c "mosquitto_sub -h mosquitto -t 'replaymark/e2e/replay/temperature/set' -q 1 -F '%q|%t|%p' > /out/MQTT_OBSERVER.log"
           sleep 1
           touch qual/replay/START
-          code="$(docker wait ha-replay)"
-          docker logs ha-replay | tee qual/replay/HA_CONTAINER.log
-          test "$code" = 0
+          for i in $(seq 1 180); do
+            if test -f qual/replay/DONE; then break; fi
+            if test "$(docker inspect -f '{{.State.Running}}' ha-replay)" != true; then
+              docker logs ha-replay
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test -f qual/replay/DONE || { docker logs ha-replay; exit 1; }
+          test -f qual/replay/RESULT.json
           sleep 1
           docker rm -f observer-replay >/dev/null 2>&1 || true
-          test -f qual/replay/RESULT.json
+          docker logs ha-replay | tee qual/replay/HA_CONTAINER.log
+          docker rm -f ha-replay >/dev/null 2>&1 || true
           cat qual/replay/MQTT_OBSERVER.log
 
       - name: Independent fail-closed qualification validation
