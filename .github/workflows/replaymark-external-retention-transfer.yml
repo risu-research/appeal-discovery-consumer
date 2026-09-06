@@ -1,0 +1,93 @@
+name: ReplayMark External Retention Transfer
+
+on:
+  push:
+    branches:
+      - replaymark-external-retention-transfer-final
+    paths:
+      - 'replaymark_theory/external_transfer/**'
+      - '.github/workflows/replaymark-external-retention-transfer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout frozen audit branch
+        uses: actions/checkout@v4
+
+      - name: Record local authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          git log --oneline -5
+          test -f replaymark_theory/external_transfer/EXTERNAL_RETENTION_TRANSFER_PROTOCOL.md
+          test -f replaymark_theory/external_transfer/audit_external_retention_transfer.py
+
+      - name: Fetch pinned third-party artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/replaymark_external_inputs /tmp/replaymark_external_results
+
+          NVIDIA_COMMIT=26092ade9de608a71695bfc5800c956b8658ee98
+          AIPERF_COMMIT=13ae4f6b6b5363007ad52ee2470c3b49c9403b34
+
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/tensorrt_llm/scaffolding/trace_replay/replay.py" \
+            -o /tmp/replaymark_external_inputs/nvidia_replay.py
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/examples/scaffolding/trace_replay/trace_example/matplotlib__matplotlib-23412/matplotlib__matplotlib-23412.trace.json" \
+            -o /tmp/replaymark_external_inputs/nvidia_trace.json
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/examples/scaffolding/trace_replay/README.md" \
+            -o /tmp/replaymark_external_inputs/nvidia_README.md
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/NVIDIA/TensorRT-LLM/${NVIDIA_COMMIT}/docs/source/blogs/tech_blog/blog27_Evaluating_Agentic_Serving_with_Trace_Replay_and_Job_Level_Metrics.md" \
+            -o /tmp/replaymark_external_inputs/nvidia_blog.md
+
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/docs/tutorials/weka-trace.md" \
+            -o /tmp/replaymark_external_inputs/aiperf_weka_trace.md
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/docs/tutorials/agentx-mvp.md" \
+            -o /tmp/replaymark_external_inputs/aiperf_agentx_mvp.md
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/ai-dynamo/aiperf/${AIPERF_COMMIT}/src/aiperf/dataset/loader/weka_trace.py" \
+            -o /tmp/replaymark_external_inputs/aiperf_weka_trace.py
+
+      - name: Run frozen fail-closed audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python replaymark_theory/external_transfer/audit_external_retention_transfer.py \
+            --input-dir /tmp/replaymark_external_inputs \
+            --output-dir /tmp/replaymark_external_results
+
+      - name: Show result
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          if test -f /tmp/replaymark_external_results/EXTERNAL_RETENTION_TRANSFER_REPORT.md; then
+            cat /tmp/replaymark_external_results/EXTERNAL_RETENTION_TRANSFER_REPORT.md
+          fi
+          if test -f /tmp/replaymark_external_results/EXTERNAL_RETENTION_TRANSFER_RESULTS.json; then
+            python -m json.tool /tmp/replaymark_external_results/EXTERNAL_RETENTION_TRANSFER_RESULTS.json
+          fi
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-external-retention-transfer
+          path: |
+            /tmp/replaymark_external_results/EXTERNAL_RETENTION_TRANSFER_RESULTS.json
+            /tmp/replaymark_external_results/EXTERNAL_RETENTION_TRANSFER_REPORT.md
+          if-no-files-found: error
+          retention-days: 90
