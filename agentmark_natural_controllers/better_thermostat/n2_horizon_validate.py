@@ -2,7 +2,11 @@ from __future__ import annotations
 
 """Independent validator for N2 horizon runtime realization.
 
-This intentionally does not import the producer or its helper functions.
+This intentionally does not import the producer or its helper functions.  It
+reconstructs the frozen output paths from raw Home Assistant state/service
+events.  In particular, it does not infer a pre-handler thermostat preset by
+reading the state registry inside EVENT_CALL_SERVICE; run 34010261833 showed
+that location observes the post-handler registry state in HA 2026.9.0.
 """
 
 import argparse
@@ -11,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "replaymark.better_thermostat.horizon_runtime.v1"
-VALIDATION_SCHEMA = "replaymark.better_thermostat.horizon_runtime.validation.v1"
+VALIDATION_SCHEMA = "replaymark.better_thermostat.horizon_runtime.validation.v2"
 
 PRESENCE = "input_boolean.agentmark_presence"
 MOTION = "binary_sensor.agentmark_motion"
@@ -29,6 +33,10 @@ def transitions(row: dict[str, Any], entity: str, old: str, new: str) -> list[di
         e for e in row["state_events"]
         if e["entity_id"] == entity and e["old_state"] == old and e["new_state"] == new
     ]
+
+
+def climate_transitions(row: dict[str, Any]) -> list[dict[str, Any]]:
+    return [e for e in row["state_events"] if e["entity_id"] == CLIMATE]
 
 
 def service_presets(row: dict[str, Any]) -> list[str]:
@@ -70,6 +78,7 @@ def validate_depth1(row: dict[str, Any]) -> dict[str, Any]:
     expected_final = "home" if motion == "off" else "comfort"
     services = row["service_events"]
     presets = service_presets(row)
+    climates = climate_transitions(row)
     p_off = transitions(row, PRESENCE, "on", "off")
     p_on = transitions(row, PRESENCE, "off", "on")
     motion_changes = [e for e in row["state_events"] if e["entity_id"] == MOTION]
@@ -79,6 +88,7 @@ def validate_depth1(row: dict[str, Any]) -> dict[str, Any]:
     current = row["after_current_snapshot"]
     final = row["after_continuation_snapshot"]
 
+    climate_path = [(e["old_preset"], e["new_preset"]) for e in climates]
     checks = {
         "identity_depth": row["depth"] == 1,
         "initial_exact": (
@@ -90,6 +100,9 @@ def validate_depth1(row: dict[str, Any]) -> dict[str, Any]:
         "night_stable": len(night_changes) == 0,
         "service_count_exact": len(services) == 2,
         "service_sequence_exact": presets == ["away", expected_final],
+        "native_climate_transition_path_exact": climate_path == [
+            ("sleep", "away"), ("away", expected_final)
+        ],
         "current_snapshot_exact": (
             current["presence"] == "off" and current["motion"] == motion
             and current["night"] == "off" and current["climate_preset"] == "away"
@@ -99,23 +112,24 @@ def validate_depth1(row: dict[str, Any]) -> dict[str, Any]:
             and final["night"] == "off" and final["climate_preset"] == expected_final
         ),
         "ordering_exact": (
-            len(p_off) == 1 and len(p_on) == 1 and len(services) == 2
-            and p_off[0]["t_ns"] <= services[0]["t_ns"] <= current["t_ns"]
-            and current["t_ns"] < p_on[0]["t_ns"] <= services[1]["t_ns"] <= final["t_ns"]
+            len(p_off) == 1 and len(p_on) == 1
+            and len(services) == 2 and len(climates) == 2
+            and p_off[0]["t_ns"] <= services[0]["t_ns"] <= climates[0]["t_ns"] <= current["t_ns"]
+            and current["t_ns"] < p_on[0]["t_ns"] <= services[1]["t_ns"] <= climates[1]["t_ns"] <= final["t_ns"]
         ),
         "issue_feedback_exact": (
             len(services) == 2
             and services[0]["feedback_at_issue"] == {"presence": "off", "motion": motion, "night": "off"}
             and services[1]["feedback_at_issue"] == {"presence": "on", "motion": motion, "night": "off"}
         ),
-        "preset_before_issue_exact": (
-            len(services) == 2
-            and services[0]["climate_preset_before_issue"] == "sleep"
-            and services[1]["climate_preset_before_issue"] == "away"
+        "climate_event_feedback_exact": (
+            len(climates) == 2
+            and climates[0]["feedback_after_event"] == {"presence": "off", "motion": motion, "night": "off"}
+            and climates[1]["feedback_after_event"] == {"presence": "on", "motion": motion, "night": "off"}
         ),
         "ownership_exact": registry_ok(row),
     }
-    return {"pass": all(checks.values()), "checks": checks}
+    return {"pass": all(checks.values()), "checks": checks, "climate_path": climate_path}
 
 
 def validate_depth2(row: dict[str, Any]) -> dict[str, Any]:
@@ -123,6 +137,7 @@ def validate_depth2(row: dict[str, Any]) -> dict[str, Any]:
     expected_final = "home" if motion == "off" else "comfort"
     services = row["service_events"]
     presets = service_presets(row)
+    climates = climate_transitions(row)
     p_on = transitions(row, PRESENCE, "off", "on")
     n_off = transitions(row, NIGHT, "on", "off")
     motion_changes = [e for e in row["state_events"] if e["entity_id"] == MOTION]
@@ -131,6 +146,8 @@ def validate_depth2(row: dict[str, Any]) -> dict[str, Any]:
     step1 = row["after_step1_snapshot"]
     final = row["after_step2_snapshot"]
     services_before_or_at_step1 = [e for e in services if e["t_ns"] <= step1["t_ns"]]
+    climates_before_or_at_step1 = [e for e in climates if e["t_ns"] <= step1["t_ns"]]
+    climate_path = [(e["old_preset"], e["new_preset"]) for e in climates]
 
     checks = {
         "identity_depth": row["depth"] == 2,
@@ -140,32 +157,36 @@ def validate_depth2(row: dict[str, Any]) -> dict[str, Any]:
         ),
         "exact_suffix_transitions": len(p_on) == 1 and len(n_off) == 1,
         "motion_stable": len(motion_changes) == 0,
-        "step1_no_action_from_raw_events": len(services_before_or_at_step1) == 0,
+        "step1_no_service_from_raw_events": len(services_before_or_at_step1) == 0,
+        "step1_no_climate_transition_from_raw_events": len(climates_before_or_at_step1) == 0,
         "step1_snapshot_exact": (
             step1["presence"] == "on" and step1["motion"] == motion
             and step1["night"] == "on" and step1["climate_preset"] == "sleep"
         ),
         "service_count_exact": len(services) == 1,
         "service_sequence_exact": presets == [expected_final],
+        "native_climate_transition_path_exact": climate_path == [("sleep", expected_final)],
         "final_snapshot_exact": (
             final["presence"] == "on" and final["motion"] == motion
             and final["night"] == "off" and final["climate_preset"] == expected_final
         ),
         "ordering_exact": (
-            len(p_on) == 1 and len(n_off) == 1 and len(services) == 1
+            len(p_on) == 1 and len(n_off) == 1
+            and len(services) == 1 and len(climates) == 1
             and p_on[0]["t_ns"] <= step1["t_ns"]
-            and step1["t_ns"] < n_off[0]["t_ns"] <= services[0]["t_ns"] <= final["t_ns"]
+            and step1["t_ns"] < n_off[0]["t_ns"] <= services[0]["t_ns"] <= climates[0]["t_ns"] <= final["t_ns"]
         ),
         "issue_feedback_exact": (
             len(services) == 1
             and services[0]["feedback_at_issue"] == {"presence": "on", "motion": motion, "night": "off"}
         ),
-        "preset_before_issue_exact": (
-            len(services) == 1 and services[0]["climate_preset_before_issue"] == "sleep"
+        "climate_event_feedback_exact": (
+            len(climates) == 1
+            and climates[0]["feedback_after_event"] == {"presence": "on", "motion": motion, "night": "off"}
         ),
         "ownership_exact": registry_ok(row),
     }
-    return {"pass": all(checks.values()), "checks": checks}
+    return {"pass": all(checks.values()), "checks": checks, "climate_path": climate_path}
 
 
 def validate(report: dict[str, Any]) -> dict[str, Any]:
