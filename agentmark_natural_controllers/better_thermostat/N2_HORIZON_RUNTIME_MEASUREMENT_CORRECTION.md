@@ -25,6 +25,6 @@ The corrected validator no longer treats a state-registry read inside `EVENT_CAL
 - depth 2, step 2 motion off: `sleep -> home`;
 - depth 2, step 2 motion on: `sleep -> comfort`.
 
-The producer field is renamed from the misleading `climate_preset_before_issue` to `climate_preset_seen_at_service_event_callback`; it is retained as diagnostic evidence but is not used to prove pre-handler state.
+The producer's legacy field name `climate_preset_before_issue` is retained unchanged so that the scientific producer and all semantic gates remain byte-stable across the corrected rerun. After this autopsy it is explicitly treated only as a diagnostic state-registry read at the service-event callback, not as evidence of a pre-handler microstep.
 
 This correction follows the same fail-closed principle as the earlier N2b v1→v2 observer correction: preserve the scientific pair and predictions, reject an invalid microstep observation claim, and validate only what the runtime actually exposes.
