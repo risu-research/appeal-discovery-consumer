@@ -1,0 +1,259 @@
+name: ReplayMark BT MQTT E2E HEAT Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [replaymark-bt-mqtt-e2e-capstone]
+    paths:
+      - 'agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify_heat.py'
+      - 'agentmark_natural_controllers/better_thermostat/BT_MQTT_E2E_CARRIER_PRECONDITION_ADDENDUM.md'
+      - '.github/workflows/replaymark-bt-mqtt-e2e-qualify-heat.yml'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONHASHSEED: '0'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact one-shot qualification head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Record frozen authority and carrier addendum
+        run: |
+          set -euo pipefail
+          mkdir -p qual/provenance qual/native qual/replay
+          git rev-parse HEAD | tee qual/provenance/QUALIFICATION_EXECUTION_HEAD.txt
+          printf '%s\n' \
+            'protocol_freeze=851960e59aa3a68fb90ef199f1dbcfefe5fcd3c0' \
+            'carrier_addendum_freeze=a3008b0ebd0eb29a8fb913b8a1355c63c4a8d6c9' \
+            'carrier_addendum_preregistered_before_heat_diagnostic=true' \
+            'selector_run=34036819138' \
+            'selector_execution_head=55f55ab39a93dc7284e9b4e194f6bcc974085783' \
+            'selector_result_sha256=07213a0d56e5f2d32b9eb3c2b2e6b20cb0aab31290f801f579905ea490161598' \
+            'validator_policy=unchanged_from_pre_heat_qualification' \
+            > qual/provenance/AUTHORITY.txt
+          test "$(git rev-parse a3008b0ebd0eb29a8fb913b8a1355c63c4a8d6c9)" = 'a3008b0ebd0eb29a8fb913b8a1355c63c4a8d6c9'
+
+      - name: Compile base producer, HEAT producer, and unchanged validator
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify.py \
+            agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify_heat.py \
+            agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py
+          find agentmark_natural_controllers -type d -name __pycache__ -prune -exec rm -rf {} +
+          test "$(git rev-parse 29219bb55a34bfed01e10932c8629cb47b43a659:agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py)" = \
+            "$(git rev-parse HEAD:agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py)"
+
+      - name: Fetch exact external controller and Better Thermostat component
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            'https://raw.githubusercontent.com/n3roGit/MyHomeAssistantMods/57d56f076c05ccaa9553e6bd4b673b6d43a8cf7f/automation/BetterThermostatControl/BetterThermostat_RoomHeatControl_Lean.yaml' \
+            -o qual/better_thermostat_lean.yaml
+          echo '16d52ce11dec44fa9ca533d15f3cec1eb9646d59bf6a455bd905af63cdf86443  qual/better_thermostat_lean.yaml' | sha256sum -c -
+
+          git init -q qual/bt_checkout
+          git -C qual/bt_checkout remote add origin https://github.com/KartoffelToby/better_thermostat.git
+          git -C qual/bt_checkout fetch --depth=1 origin b86561f61e5ba1259fc63e590f4847e9ac743d7f
+          git -C qual/bt_checkout checkout --detach FETCH_HEAD
+          test "$(git -C qual/bt_checkout rev-parse HEAD)" = 'b86561f61e5ba1259fc63e590f4847e9ac743d7f'
+          mkdir -p qual/upstream_bt
+          cp -a qual/bt_checkout/custom_components/better_thermostat/. qual/upstream_bt/
+          rm -rf qual/bt_checkout
+
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root=Path('qual/upstream_bt')
+          digest=hashlib.sha256()
+          for p in sorted(x for x in root.rglob('*') if x.is_file()):
+              rel=p.relative_to(root).as_posix().encode(); body=p.read_bytes()
+              digest.update(len(rel).to_bytes(8,'big')); digest.update(rel)
+              digest.update(len(body).to_bytes(8,'big')); digest.update(body)
+          got=digest.hexdigest()
+          assert got == 'bc648881395399a4d1957380409e1b8ad3c0c056ba9ae30a53b39d5439fef2c0', got
+          Path('qual/provenance/BETTER_THERMOSTAT_TREE_SHA256.txt').write_text(got+'\n')
+          PY
+
+      - name: Pull exact Home Assistant and Mosquitto images
+        run: |
+          set -euo pipefail
+          HA='ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293'
+          MOSQ='eclipse-mosquitto:2.1.2-alpine'
+          docker pull "$HA"
+          docker pull "$MOSQ"
+          docker image inspect "$HA" > qual/provenance/HOME_ASSISTANT_IMAGE_INSPECT.json
+          docker image inspect "$MOSQ" > qual/provenance/MOSQUITTO_IMAGE_INSPECT.json
+          printf '%s\n' "$HA" > qual/provenance/HOME_ASSISTANT_IMAGE_REF.txt
+          docker inspect --format='{{index .RepoDigests 0}}' "$MOSQ" | tee qual/provenance/MOSQUITTO_IMAGE_REF.txt
+
+      - name: Start real Mosquitto qualification broker
+        run: |
+          set -euo pipefail
+          cat > qual/mosquitto.conf <<'EOF'
+          listener 1883
+          allow_anonymous true
+          persistence false
+          sys_interval 1
+          log_type all
+          EOF
+          docker network create replaymark-bt-mqtt-e2e-heat
+          docker run -d --name mosquitto-heat \
+            --network replaymark-bt-mqtt-e2e-heat \
+            -v "$PWD/qual/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            eclipse-mosquitto:2.1.2-alpine
+          for i in $(seq 1 30); do
+            if docker exec mosquitto-heat mosquitto_sub -h 127.0.0.1 -t '$SYS/broker/version' -C 1 -W 2 > qual/provenance/MOSQUITTO_VERSION.txt 2>/dev/null; then break; fi
+            sleep 1
+          done
+          grep -F 'mosquitto version 2.1.2' qual/provenance/MOSQUITTO_VERSION.txt
+
+      - name: Run target-native one-shot real-stack qualification
+        run: |
+          set -euo pipefail
+          HA='ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293'
+          rm -f qual/native/READY qual/native/START qual/native/DONE qual/native/MQTT_OBSERVER.log
+          docker run -d --name ha-native-heat \
+            --network replaymark-bt-mqtt-e2e-heat \
+            -e PYTHONPATH=/repo \
+            -e PYTHONDONTWRITEBYTECODE=1 \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/qual:/qual" \
+            --entrypoint python3 \
+            "$HA" \
+            /repo/agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify_heat.py \
+              --mode target-native \
+              --blueprint /qual/better_thermostat_lean.yaml \
+              --bt-source /qual/upstream_bt \
+              --broker mosquitto-heat \
+              --namespace native \
+              --result-dir /qual/native
+          for i in $(seq 1 120); do
+            if test -f qual/native/READY; then break; fi
+            if test "$(docker inspect -f '{{.State.Running}}' ha-native-heat)" != true; then
+              docker logs ha-native-heat
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test -f qual/native/READY || { docker logs ha-native-heat; exit 1; }
+          docker run -d --name observer-native-heat \
+            --network replaymark-bt-mqtt-e2e-heat \
+            -v "$PWD/qual/native:/out" \
+            eclipse-mosquitto:2.1.2-alpine \
+            sh -c "mosquitto_sub -h mosquitto-heat -t 'replaymark/e2e/native/temperature/set' -q 1 -F '%q|%t|%p' > /out/MQTT_OBSERVER.log"
+          sleep 1
+          touch qual/native/START
+          for i in $(seq 1 180); do
+            if test -f qual/native/DONE; then break; fi
+            if test "$(docker inspect -f '{{.State.Running}}' ha-native-heat)" != true; then
+              docker logs ha-native-heat
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test -f qual/native/DONE || { docker logs ha-native-heat; exit 1; }
+          test -f qual/native/RESULT.json
+          sleep 1
+          docker rm -f observer-native-heat >/dev/null 2>&1 || true
+          docker logs ha-native-heat | tee qual/native/HA_CONTAINER.log
+          docker rm -f ha-native-heat >/dev/null 2>&1 || true
+          cat qual/native/MQTT_OBSERVER.log
+
+      - name: Run historical-replay one-shot real-stack qualification
+        run: |
+          set -euo pipefail
+          HA='ghcr.io/home-assistant/home-assistant@sha256:372d991e58882a1d8c68c07e9aa3f3b509276e695355f73ccdb03baa70407293'
+          rm -f qual/replay/READY qual/replay/START qual/replay/DONE qual/replay/MQTT_OBSERVER.log
+          docker run -d --name ha-replay-heat \
+            --network replaymark-bt-mqtt-e2e-heat \
+            -e PYTHONPATH=/repo \
+            -e PYTHONDONTWRITEBYTECODE=1 \
+            -v "$PWD:/repo:ro" \
+            -v "$PWD/qual:/qual" \
+            --entrypoint python3 \
+            "$HA" \
+            /repo/agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify_heat.py \
+              --mode replay \
+              --blueprint /qual/better_thermostat_lean.yaml \
+              --bt-source /qual/upstream_bt \
+              --broker mosquitto-heat \
+              --namespace replay \
+              --result-dir /qual/replay
+          for i in $(seq 1 120); do
+            if test -f qual/replay/READY; then break; fi
+            if test "$(docker inspect -f '{{.State.Running}}' ha-replay-heat)" != true; then
+              docker logs ha-replay-heat
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test -f qual/replay/READY || { docker logs ha-replay-heat; exit 1; }
+          docker run -d --name observer-replay-heat \
+            --network replaymark-bt-mqtt-e2e-heat \
+            -v "$PWD/qual/replay:/out" \
+            eclipse-mosquitto:2.1.2-alpine \
+            sh -c "mosquitto_sub -h mosquitto-heat -t 'replaymark/e2e/replay/temperature/set' -q 1 -F '%q|%t|%p' > /out/MQTT_OBSERVER.log"
+          sleep 1
+          touch qual/replay/START
+          for i in $(seq 1 180); do
+            if test -f qual/replay/DONE; then break; fi
+            if test "$(docker inspect -f '{{.State.Running}}' ha-replay-heat)" != true; then
+              docker logs ha-replay-heat
+              exit 1
+            fi
+            sleep 0.5
+          done
+          test -f qual/replay/DONE || { docker logs ha-replay-heat; exit 1; }
+          test -f qual/replay/RESULT.json
+          sleep 1
+          docker rm -f observer-replay-heat >/dev/null 2>&1 || true
+          docker logs ha-replay-heat | tee qual/replay/HA_CONTAINER.log
+          docker rm -f ha-replay-heat >/dev/null 2>&1 || true
+          cat qual/replay/MQTT_OBSERVER.log
+
+      - name: Run unchanged independent fail-closed validator
+        run: |
+          set -euo pipefail
+          python agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py \
+            --native qual/native/RESULT.json \
+            --native-observer qual/native/MQTT_OBSERVER.log \
+            --replay qual/replay/RESULT.json \
+            --replay-observer qual/replay/MQTT_OBSERVER.log \
+            --out qual/BT_MQTT_E2E_QUALIFICATION_CERTIFICATE.json
+          cat qual/BT_MQTT_E2E_QUALIFICATION_CERTIFICATE.json
+
+      - name: Seal one-shot qualification evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          docker logs mosquitto-heat > qual/provenance/MOSQUITTO_LOG.txt 2>&1 || true
+          cp agentmark_natural_controllers/better_thermostat/BT_MQTT_E2E_CAPSTONE_PROTOCOL.md qual/
+          cp agentmark_natural_controllers/better_thermostat/BT_MQTT_E2E_CARRIER_PRECONDITION_ADDENDUM.md qual/
+          cp agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify.py qual/
+          cp agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_qualify_heat.py qual/
+          cp agentmark_natural_controllers/better_thermostat/bt_mqtt_e2e_validate_qualification.py qual/
+          (cd qual && find . -type f ! -name CHECKSUMS.sha256 -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > CHECKSUMS.sha256)
+          (cd qual && sha256sum -c CHECKSUMS.sha256)
+
+      - name: Upload one-shot qualification capsule
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: replaymark-bt-mqtt-e2e-heat-qualification
+          path: qual
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Cleanup Docker resources
+        if: always()
+        run: |
+          docker rm -f ha-native-heat ha-replay-heat observer-native-heat observer-replay-heat mosquitto-heat >/dev/null 2>&1 || true
+          docker network rm replaymark-bt-mqtt-e2e-heat >/dev/null 2>&1 || true
