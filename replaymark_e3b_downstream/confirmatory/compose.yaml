@@ -1,0 +1,25 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.1.2-alpine
+    volumes:
+      - ./runtime/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+  device:
+    build:
+      context: ../..
+      dockerfile: replaymark_e3b_downstream/confirmatory/Dockerfile
+    environment:
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+    command: ["python", "/app/device.py"]
+    depends_on: [mosquitto]
+  runner:
+    build:
+      context: ../..
+      dockerfile: replaymark_e3b_downstream/confirmatory/Dockerfile
+    environment:
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+    volumes:
+      - ../results_confirmatory:/results
+    entrypoint: ["python", "/app/confirmatory.py"]
+    depends_on: [mosquitto, device]
