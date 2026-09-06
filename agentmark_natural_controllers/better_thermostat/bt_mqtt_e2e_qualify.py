@@ -88,17 +88,25 @@ async def setup_hass(*, config_dir: Path, bt_source: Path, broker: str, namespac
     if await bootstrap.async_from_config_dict({}, hass) is None:
         raise RuntimeError("Home Assistant core bootstrap returned false")
 
-    # Qualify Better Thermostat's top-level integration and its hard HA
-    # dependencies before any BT config entry exists. This uses HA's normal
-    # component setup path, but cleanly separates component/dependency startup
-    # from later entry setup so NOT_LOADED cannot hide which layer failed.
+    # Qualify Better Thermostat's manifest-declared hard dependencies one by
+    # one through HA's own setup path. This makes a dependency failure explicit
+    # rather than collapsing it into a generic BT component setup failure.
+    for dependency in ("climate", "recorder"):
+        if not await async_setup_component(hass, dependency, {}):
+            raise RuntimeError(
+                f"Better Thermostat hard dependency setup failed: {dependency}"
+            )
+        if dependency not in hass.config.components:
+            raise RuntimeError(
+                f"Better Thermostat hard dependency missing after setup: {dependency}"
+            )
+
+    # With the hard dependencies established, qualify the untouched pinned BT
+    # top-level component separately before any BT config entry exists.
     if not await async_setup_component(hass, BT_DOMAIN, {}):
-        raise RuntimeError("Better Thermostat component/dependency setup failed")
-    missing_components = {BT_DOMAIN, "climate", "recorder"} - hass.config.components
-    if missing_components:
-        raise RuntimeError(
-            f"Better Thermostat hard dependencies not loaded: {sorted(missing_components)}"
-        )
+        raise RuntimeError("Better Thermostat top-level component setup failed")
+    if BT_DOMAIN not in hass.config.components:
+        raise RuntimeError("Better Thermostat top-level component missing after setup")
 
     hass.set_state(CoreState.running)
 
