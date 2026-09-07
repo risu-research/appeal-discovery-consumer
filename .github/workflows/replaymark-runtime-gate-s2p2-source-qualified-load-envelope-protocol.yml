@@ -1,0 +1,124 @@
+name: ReplayMark Gate S2-P2 source-qualified load-envelope protocol freeze
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p2-source-qualified-load-envelope-protocol-final
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2p2-protocol-freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GATE_DIR: /tmp/replaymark-gate-s2p2
+      Q1_HEAD: 2a7e994810ae9c88d626d50fea1b06a7eb3550b5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile P2 protocol verifier
+        run: |
+          python -m py_compile \
+            replaymark_verification/verify_s2p2_source_qualified_load_envelope.py
+
+      - name: Verify prospective P2 protocol freeze
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE_DIR"
+          python replaymark_verification/verify_s2p2_source_qualified_load_envelope.py \
+            --out "$GATE_DIR/s2p2_protocol_gate.json"
+
+      - name: Seal P2 protocol authority
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import subprocess
+
+          root = Path(".")
+          gate = Path(os.environ["GATE_DIR"])
+          report = json.loads(
+              (gate / "s2p2_protocol_gate.json").read_text(encoding="utf-8")
+          )
+          if report.get("verdict") != "PASS":
+              raise SystemExit("S2-P2 verifier did not PASS")
+
+          protocol = json.loads(
+              (root / "replaymark" / "S2P2_SOURCE_QUALIFIED_LOAD_ENVELOPE.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if protocol["status"] != "FROZEN_AFTER_Q1_SOURCE_ONLY_FAILURE_BEFORE_ANY_SHIFTED_TARGET_OUTCOME":
+              raise SystemExit("P2 protocol is not prospectively frozen")
+
+          status = (
+              "schema=replaymark.s2p2-source-qualified-load-envelope-freeze-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              f"q1_failed_head={os.environ['Q1_HEAD']}\n"
+              "q1_scientific_verdict=FAIL_PRESERVED\n"
+              "wave_32=PERMANENTLY_INELIGIBLE_FOR_THIS_S2_CAPSTONE\n"
+              "eligible_screening_waves=16,8,4\n"
+              "source_screening=NOT_RUN\n"
+              "source_holdout=NOT_RUN\n"
+              "W_star=NOT_AVAILABLE\n"
+              "D_star=NOT_AVAILABLE\n"
+              "target_outcomes_visible=NO\n"
+              "runtime_micro_optimization=FROZEN\n"
+              "fallback=ABSENT\n"
+              "regeneration=ABSENT\n"
+              "next_gate=S2Q2_SOURCE_LOAD_ENVELOPE_SCREEN_HOLDOUT_AND_DSTAR_SEAL\n"
+          )
+          (gate / "GATE_STATUS").write_text(status, encoding="utf-8")
+
+          for path in (
+              root / "replaymark" / "S2P2_SOURCE_QUALIFIED_LOAD_ENVELOPE.json",
+              root / "replaymark" / "S2P2_SOURCE_QUALIFIED_LOAD_ENVELOPE.md",
+              root / "replaymark_verification" / "verify_s2p2_source_qualified_load_envelope.py",
+              root / "replaymark" / "S2_MIXED_CAPSTONE_PROTOCOL.json",
+              root / "replaymark" / "S2Q_SOURCE_ONLY_CALIBRATION.md",
+          ):
+              (gate / path.name).write_bytes(path.read_bytes())
+
+          (gate / "SEAL_COMMIT.txt").write_text(
+              subprocess.check_output(
+                  ["git", "show", "--no-patch", "--format=fuller", "HEAD"],
+                  text=True,
+              ),
+              encoding="utf-8",
+          )
+
+          files = sorted(p for p in gate.iterdir() if p.is_file())
+          sums = []
+          for path in files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              sums.append(f"{digest}  {path.name}\n")
+          (gate / "SHA256SUMS").write_text("".join(sums), encoding="utf-8")
+
+          print(
+              "GATE_S2P2_SOURCE_QUALIFIED_LOAD_ENVELOPE: PASS "
+              f"head={os.environ['GITHUB_SHA']} "
+              f"protocol_sha256={report['protocol_sha256']} "
+              f"schedule_sha256={report['screening']['schedule_sha256']}"
+          )
+          PY
+
+      - name: Upload P2 protocol seal
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p2-source-qualified-load-envelope-protocol
+          path: ${{ env.GATE_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

@@ -1,0 +1,186 @@
+{
+  "anti_fishing_rules": {
+    "all_screening_candidates_must_run": true,
+    "candidate_order_cannot_change_after_p2_freeze": true,
+    "candidate_qualification_thresholds_cannot_change_after_p2_freeze": true,
+    "candidate_set_cannot_change_after_p2_freeze": true,
+    "first_complete_q2_report_is_authoritative": true,
+    "holdout_failure_cannot_trigger_same_generation_lower_wave_fallback": true,
+    "later_exact_repetitions_are_replication_only": true,
+    "q1_failure_remains_authoritative": true,
+    "target_cannot_run_before_W_star_and_D_star_are_sealed": true,
+    "target_outcomes_cannot_influence_W_star_or_D_star": true,
+    "wave_32_cannot_be_retried_for_promotion": true
+  },
+  "authorities": {
+    "s0_optimization_authority": "25d317392b9ce6aaaedc190ef6aff8bc38d555b5",
+    "s0_runtime_seal_head": "8716db916c49578ee69930b973a44f892f975307",
+    "s1_execution_admission_head": "c93c8574eb62cb4dcde94890fdfc8f939b41e00a",
+    "s2p_v1_protocol_head": "ce92490e546e25cae980b7c84806ff655f2c947d",
+    "s2q_v1_artifact": {
+      "id": 10031102728,
+      "sha256": "1e70174e401bf3147b0ef66586b978d500f409e0d0534b15a7cfea392eba1975"
+    },
+    "s2q_v1_failed_head": "2a7e994810ae9c88d626d50fea1b06a7eb3550b5",
+    "s2q_v1_source_result_sha256": "393231030149423cf2137bf4f998f4a6809b777241741664dc08972adc1a225e",
+    "s2q_v1_workflow_run": 34156280604
+  },
+  "claims_not_made": [
+    "wave 32 is universally infeasible",
+    "W_star is a global throughput optimum",
+    "D_star is optimal for target mixture",
+    "target mixture is guaranteed",
+    "latency improvement",
+    "new semantic theorem",
+    "fallback quality",
+    "regeneration quality",
+    "global Pareto optimality"
+  ],
+  "dstar_seal": {
+    "alternate_formula_forbidden": true,
+    "computed_once": true,
+    "computed_only_after_holdout_passes": true,
+    "data_source": "only the 576 fresh holdout completion offsets at W_star_screen",
+    "definition": "D_star_ms = floor((100.0 - pooled_median_holdout_completion_ms) + 0.5)",
+    "must_satisfy_max_exclusive_ms": 100,
+    "must_satisfy_min_ms": 1,
+    "retune_after_target_outcome_forbidden": true,
+    "rounding": "nearest integer millisecond; positive half rounds upward",
+    "screening_rows_may_not_be_pooled_into_D_star_estimate": true,
+    "sealed_before_any_shifted_target_outcome": true
+  },
+  "fresh_holdout_confirmation": {
+    "broker_and_device_restart_per_holdout_replicate": true,
+    "failure_rule": "If holdout fails, do not fall back to a lower screened wave in the same protocol generation. P2/Q2 fails before target execution.",
+    "fresh_task_namespace_per_replicate": true,
+    "qualification": {
+      "all_576_rows_present": true,
+      "all_tasks_complete_by_timeout": true,
+      "all_tasks_visible_by_verify_deadline": true,
+      "each_replicate_p99_ms_max": 80.0,
+      "no_task_exclusion": true,
+      "pooled_p99_ms_max": 80.0
+    },
+    "replicates": 3,
+    "runs_only_if_screening_selects_W_star": true,
+    "selection_data_not_reused_for_D_star": true,
+    "state_delay_ms": 0,
+    "task_timeout_ms": 1000,
+    "tasks_per_replicate": 192,
+    "total_holdout_rows": 576,
+    "verify_ms": 100.0,
+    "wave_period_ms": 300.0,
+    "wave_size": "exact W_star_screen"
+  },
+  "gate": "S2P2_SOURCE_QUALIFIED_LOAD_ENVELOPE_PROTOCOL",
+  "load_envelope_screening": {
+    "all_candidates_are_run_regardless_of_earlier_candidate_results": true,
+    "broker_and_device_restart_at_start_of_each_screening_round": true,
+    "candidate_order_design": "three-round cyclic Latin square; every candidate appears once in every within-round position",
+    "eligible_wave_sizes_descending": [
+      16,
+      8,
+      4
+    ],
+    "fresh_task_namespace_per_candidate_cell": true,
+    "generation_rule": "strict geometric backoff from the permanently failed wave 32: 32/2, 32/4, 32/8",
+    "intermediate_or_smaller_candidates_may_not_be_inserted_after_results": true,
+    "no_early_stop": true,
+    "no_target_data_in_selection": true,
+    "qualification_per_candidate": {
+      "all_576_rows_present": true,
+      "all_tasks_complete_by_timeout": true,
+      "all_tasks_visible_by_verify_deadline": true,
+      "each_replicate_p99_ms_max": 80.0,
+      "no_task_exclusion": true,
+      "pooled_p99_ms_max": 80.0
+    },
+    "quiescence_barrier_between_candidate_cells": true,
+    "replicates_per_candidate": 3,
+    "rows_per_candidate": 576,
+    "screening_rounds": 3,
+    "screening_schedule": [
+      {
+        "ordered_wave_sizes": [
+          16,
+          8,
+          4
+        ],
+        "round": 0
+      },
+      {
+        "ordered_wave_sizes": [
+          8,
+          4,
+          16
+        ],
+        "round": 1
+      },
+      {
+        "ordered_wave_sizes": [
+          4,
+          16,
+          8
+        ],
+        "round": 2
+      }
+    ],
+    "screening_schedule_sha256": "7850522b51e6f62130685835fb487bfe94cca9e122a79e11f64d5232bbf648d7",
+    "selection_rule": "W_star_screen = maximum numeric eligible wave size whose every frozen qualification criterion passes; if none pass, the gate fails",
+    "state_delay_ms": 0,
+    "task_timeout_ms": 1000,
+    "tasks_per_candidate_replicate": 192,
+    "total_screening_rows": 1728,
+    "verify_ms": 100.0,
+    "wave_32_is_not_a_candidate": true,
+    "wave_period_ms": 300.0
+  },
+  "next_gate": "S2Q2_SOURCE_LOAD_ENVELOPE_SCREEN_HOLDOUT_AND_DSTAR_SEAL",
+  "p2_boundary": {
+    "fallback_or_regeneration": false,
+    "new_semantic_theorem": false,
+    "protocol_only_increment": true,
+    "runtime_micro_optimization": false,
+    "sealed_D_star_available": false,
+    "selected_W_star_available": false,
+    "shifted_target_execution_permitted": false,
+    "source_holdout_executed": false,
+    "source_screening_executed": false,
+    "target_outcome_visibility_permitted": false
+  },
+  "q1_failure_anchor": {
+    "act2_candidate_constructed": false,
+    "later_replication_may_not_rehabilitate_wave_32": true,
+    "not_visible_by_100ms": 16,
+    "permanently_ineligible_for_this_s2_capstone": true,
+    "pooled_completion_p99_ms": 128.36104425,
+    "pooled_median_source_completion_ms": 12.5464795,
+    "scientific_verdict": "FAIL",
+    "shifted_target_executed": false,
+    "source_rows": 576,
+    "visible_by_100ms": 560,
+    "wave_size": 32
+  },
+  "schema": "replaymark.s2p2-source-qualified-load-envelope-protocol.v1",
+  "scientific_question": "After the preregistered wave-32 source qualification failed before any shifted-target execution, what is the largest predeclared lower source load that is independently feasible, and what target delay is then derived from fresh source-only holdout evidence without target-informed retuning?",
+  "status": "FROZEN_AFTER_Q1_SOURCE_ONLY_FAILURE_BEFORE_ANY_SHIFTED_TARGET_OUTCOME",
+  "supersession_scope": {
+    "inherits_s2p_v1_evidence_before_dispatch_barrier_unchanged": true,
+    "inherits_s2p_v1_independent_oracle_unchanged": true,
+    "inherits_s2p_v1_no_fallback_no_regeneration": true,
+    "inherits_s2p_v1_policy_assignment_schedule_sha256": "ec91b78a6720ef9b4e83da12f9b8cf37c1d05028bb6ebaf0e4c6a274ff372d1e",
+    "inherits_s2p_v1_policy_semantics_unchanged": true,
+    "inherits_s2p_v1_promotion_criteria_unchanged": true,
+    "inherits_s2p_v1_target_tasks_per_trial": 192,
+    "inherits_s2p_v1_target_trials": 6,
+    "inherits_s2p_v1_verify_ms": 100.0,
+    "inherits_s2p_v1_wave_period_ms": 300.0,
+    "supersedes_only": [
+      "fixed wave_size=32 source calibration",
+      "fixed wave_size=32 target workload",
+      "same-data source load qualification and D_star estimation"
+    ],
+    "target_delay_if_q2_promotes": "exact sealed D_star from fresh holdout",
+    "target_wave_size_if_q2_promotes": "exact sealed W_star from P2/Q2"
+  }
+}
