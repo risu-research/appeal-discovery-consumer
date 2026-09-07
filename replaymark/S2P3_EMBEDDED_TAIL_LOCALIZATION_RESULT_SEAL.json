@@ -1,0 +1,49 @@
+{
+  "anti_repair": {
+    "exact_repeat_is_replication_only": true,
+    "no_80ms_threshold_rewrite": true,
+    "no_W_star_or_D_star_from_p3": true,
+    "no_target_probe_from_p3": true,
+    "q2_failure_remains_authoritative": true
+  },
+  "artifact": {
+    "id": 10032248216,
+    "name": "replaymark-gate-s2p3-embedded-tail-localization",
+    "sha256": "44e1320f22aac6e152030c582b6fa2dee3411d8d6803e78c1fb363f7d15fcf4f",
+    "size_bytes": 184825
+  },
+  "execution_head": "8378113f4392a69c282f402fe3ef4fd0c93738f3",
+  "execution_job": 101859086158,
+  "execution_run": 34159820966,
+  "interpretation_limits": {
+    "40ms_quantization_descriptive_only": true,
+    "broker_cause_established": false,
+    "kernel_cause_established": false,
+    "mqtt_cause_established": false,
+    "tcp_cause_established": false
+  },
+  "next_gate": "S2P4_MINIMAL_TRANSPORT_TIMER_DISCRIMINATOR_PROTOCOL",
+  "protocol_head": "496ceaead74df882e91b6c86670cc62329e6b88e",
+  "q2_failure_seal_head": "0b24288d85958fd7b4f3dcd418fd7dda85bd4efc",
+  "schema": "replaymark.s2p3-embedded-tail-localization-result-seal.v1",
+  "scientific": {
+    "D_star": null,
+    "W_star": null,
+    "classification": "MIXED_OR_UNLOCALIZED",
+    "clock_domain_valid": true,
+    "pooled": {
+      "end_to_end_completion_ms": {"max":123.401504,"p50":5.553305,"p95":45.2469577,"p99":83.47056386},
+      "forward_plus_device_ms": {"max":83.15977,"p50":1.0200695,"p95":41.3717769,"p99":82.56624778},
+      "post_device_observation_ms": {"max":81.789248,"p50":3.0559985000000003,"p95":41.545980650000004,"p99":42.08291311},
+      "puback_latency_ms": {"max":43.913279,"p50":1.7101264999999999,"p95":41.6740354,"p99":42.57891698},
+      "scheduler_start_lateness_ms": {"max":1.14025,"p50":0.3658045,"p95":0.6438592500000001,"p99":0.7537660700000001},
+      "rows":1728,
+      "visible_by_100ms":1722
+    },
+    "q2_rehabilitated": false,
+    "rows": 1728,
+    "shifted_target_executed": false,
+    "verdict": "PASS"
+  },
+  "status": "FROZEN_COMPLETE_SCIENTIFIC_CHARACTERIZATION"
+}
