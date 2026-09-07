@@ -110,14 +110,19 @@ jobs:
           from pathlib import Path
           p=Path('results/e3b_r1_shadow_hook.json')
           d=json.loads(p.read_text())
-          assert d['schema']=='replaymark.runtime-e3b-r1-shadow-hook-live.v1'
+          assert d['schema']=='replaymark.runtime-e3b-r1-shadow-hook-live.v2'
           assert d['broker_version_sys']=='mosquitto version 2.1.2'
+          assert d['frozen_ladder_git_blob_sha1']=='fcc1768544714f1b11a497a856f8e18d4d2f07dd'
           assert d['verdict']=='PASS'
           assert d['promotion_pass'] is True
           assert d['noninterference_contract']['canonical_ladder_source_modified'] is False
           assert d['noninterference_contract']['semantic_certification_during_network_execution'] is False
+          assert d['noninterference_contract']['raw_sys_publish_byte_equality']=='DIAGNOSTIC_ONLY_NOT_PROMOTION_GATE'
           for trial in d['trials']:
               assert all(trial['checks'].values()), trial
+              assert trial['command_wire_audit']['matches_literal_frozen_r1'] is True
+              assert trial['command_wire_audit']['actual_sha256']==trial['command_wire_audit']['expected_sha256']
+              assert trial['baseline_state_event_audit']['semantic_sha256']==trial['shadow_state_event_audit']['semantic_sha256']
               assert trial['verdict_counts']=={'INVALID': d['parameters']['tasks']}
               assert trial['reuse_disposition_counts']=={'DO_NOT_REUSE': d['parameters']['tasks']}
               assert trial['token_counts']=={'not_visible_by_deadline': d['parameters']['tasks']}
@@ -180,7 +185,7 @@ jobs:
                   raise SystemExit(f'missing source authority: {path}')
 
           (gate_dir/'GATE_STATUS').write_text(
-              'schema=replaymark.runtime-e3b-r1-shadow-hook-gate.v1\n'
+              'schema=replaymark.runtime-e3b-r1-shadow-hook-gate.v2\n'
               f"head={os.environ['GITHUB_SHA']}\n"
               'runtime_boundary=PASS\n'
               'e3b_observation_realization=PASS\n'
@@ -188,7 +193,8 @@ jobs:
               'e3b_same_task_correlation=PASS\n'
               'runtime_reuse_bridge=PASS\n'
               'r1_shadow_hook=PASS\n'
-              'r1_byte_event_workload_noninterference=PASS\n'
+              'r1_consequential_wire_event_workload_noninterference=PASS\n'
+              'raw_sys_publish_byte_equality=DIAGNOSTIC_ONLY\n'
               'execution_policy=NOT_IMPLEMENTED\n'
               'latency_promotion=NOT_IMPLEMENTED\n',
               encoding='utf-8',

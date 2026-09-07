@@ -1,56 +1,56 @@
 # ReplayMark E3b R1 non-interfering shadow hook
 
-## Frozen objective
+## Status and objective
 
-This increment attaches the already-closed ReplayMark runtime certificate chain to the real E3b `R1_timing` path while preserving the historical R1 implementation and its externally visible workload.
+This increment attaches the already-closed ReplayMark runtime certificate chain to the real E3b `R1_timing` path without changing the frozen R1 implementation or giving ReplayMark any execution authority.
 
-The permitted new behavior is only:
+The only admitted new behavior is:
 
 ```text
 frozen R1 execution
-  + passive runtime capture
+  + passive capture
   -> post-execution RealizedObservation
   -> post-execution RealizedHistoricalAction
   -> same-task proof
   -> existing shadow semantic bridge
-  -> certificate
+  -> chained ReplayMark certificate
 ```
 
-There is still no execution policy, blocking, fallback, regeneration, or R2 substitution.
+There is still no blocking, fallback, regeneration, R2 substitution, or other execution policy.
 
-## Authority preservation
+## Frozen-source preservation
 
-`agentmark_e3b_lab/e3_mqtt/app/ladder.py` remains byte-immutable. This matters twice:
+`agentmark_e3b_lab/e3_mqtt/app/ladder.py` is byte-immutable. Its Git blob SHA remains:
 
-1. it is the historical R1 implementation under test; and
-2. its Git blob SHA is already embedded in the frozen E3b historical-action realizer as source authority.
+```text
+fcc1768544714f1b11a497a856f8e18d4d2f07dd
+```
 
-The hook therefore does not add parameters, branches, callbacks, or certificate calls to `target_task`, `cond`, or `pub`.
+This is mandatory because the file is both the historical R1 implementation under test and an authority already embedded in the frozen E3b historical-action realizer.
 
-## Why an external capture scope is necessary
+The gate also rechecks the frozen `device.py`, `experiment.py`, and `ladder_v2.py` blob identities before any live experiment.
 
-The R1 observation boundary is based on the task-local value:
+## Exact boundary capture without modifying R1
+
+The R1 evidence deadline is defined from the original task-local value:
 
 ```text
 t0 = time.monotonic_ns()
 verify_deadline = t0 + verify_ms
 ```
 
-It is not equivalent to reconstructing the deadline from the later ACT1 publish timestamp. Near a boundary, replacing `t0` with a publish timestamp could change the evidence token.
+It is not reconstructed from the later ACT1 publish timestamp. Near the boundary those are not equivalent.
 
-The shadow capture scope temporarily replaces only module references used by the frozen code:
+A temporary capture scope therefore wraps only module references used by the frozen code:
 
-- a transparent `time` proxy records the exact value returned to the original `t0` assignment;
-- a wrapped first `sleep_until` arms that one capture after the scheduled offer sleep;
-- a transparent MQTT client proxy timestamps and records the exact arguments supplied to the real `Client.publish` call, then delegates that call exactly once.
+1. a transparent `time` proxy records the exact value returned to the original `t0` assignment;
+2. a transparent MQTT client proxy timestamps and records the exact arguments presented to the real Paho `Client.publish`, then delegates the invocation exactly once.
 
-The original source file is unchanged.
+No frozen source file is edited.
 
 ## Hot-path separation
 
-No ReplayMark semantic computation runs while R1 tasks are executing.
-
-The sequence is:
+ReplayMark semantic computation never runs concurrently with the R1 network workload.
 
 ```text
 install capture-only wrappers
@@ -60,76 +60,98 @@ only then snapshot already-received Harness events
 only then realize / correlate / certify
 ```
 
-The only execution-time hook work is capture bookkeeping. Certificate construction, compiled-contract lookup, adjudication, and R* are outside the network workload interval.
+Thus the task hot path pays only capture bookkeeping. Contract lookup, adjudication, R*, certificate construction, and serialization occur after `cond()` has completed.
 
-## Observation snapshot rule
+## Observation realization source
 
-After `cond()` returns, the original R1 path has already waited for the task's stage-2 completion. The Paho callback thread is serial, so all callbacks whose runner-local receive timestamp is at or before the earlier verify deadline have already been committed to `Harness.state_events`.
+After `cond()` returns, R1 has already waited for stage-2 completion. Harness has therefore committed the earlier runner-local state callbacks needed for the verify boundary.
 
-The raw realization snapshot is therefore closed exactly at the frozen verify deadline and contains every Harness state event for that stage-1 device with:
+For each task the raw observation is closed exactly at the original verify deadline and contains every stage-1 Harness state event satisfying:
 
 ```text
 recv_mono_ns <= verify_deadline_mono_ns
 ```
 
-Events use runner-local `time.monotonic_ns()` receive timestamps; device-container timestamps are never compared across clock domains.
+Only runner-local `time.monotonic_ns()` receive timestamps are compared. Device-container timestamps are never mixed into that clock domain.
 
-## Historical-action capture rule
+## Historical-action realization source
 
-The MQTT proxy observes the actual arguments supplied to Paho. It does not trust caller semantic labels. The action realizer still independently validates:
+The MQTT proxy observes the actual application call material passed to Paho. The frozen realizer still independently requires:
 
-- exact stage-2 topic role and task identity;
-- exact UTF-8 payload `{"on": true}`;
-- QoS 1;
-- retain false;
-- properties absent.
+```text
+stage-2 topic role and task identity exact
+payload UTF-8 exactly {"on": true}
+QoS = 1
+retain = false
+properties = none
+```
 
-The proxy timestamp is taken immediately before delegating the actual Paho publish invocation.
+The proxy timestamp is taken immediately before delegating the real publish call.
 
 ## Runtime contract context binding
 
-The frozen AgentMark kernel is adapted through the existing read-only `target_model_from_agentmark_kernel` path. The runtime claim is the existing operation projection at H=0.
+The frozen AgentMark kernel is lifted through the existing read-only compatibility adapter. The runtime claim is the existing operation projection at H=0.
 
-Because the full adapted target also contains later controller states (`verified`, `done`), bare runtime feedback tokens are admitted only for the `after_act1` decision boundary. Other target states receive namespaced forward-evidence tokens. Thus:
+Bare runtime evidence tokens are admitted only for the `after_act1` decision boundary. Later controller states (`verified`, `done`) receive namespaced forward-evidence tokens, preventing a runtime feedback token from silently denoting a different controller context.
+
+This is evidence-context binding, not a new target semantics implementation.
+
+## Non-interference promotion contract
+
+The live gate uses real Eclipse Mosquitto 2.1.2 and alternating paired baseline/shadow R1 arms. For each pair it requires all of the following:
 
 ```text
-confirmed_by_deadline
-not_visible_by_deadline
+legacy stable R1 result fields are exactly equal
+broker PUBLISH message count is exactly the original workload
+actual shadow ACT1/ACT2 Paho call material equals the literal frozen R1 template
+normalized device-state event semantics are exactly equal
+state-event count is exactly equal
+one chained ReplayMark certificate exists per R1 task
+no extra command publish exists
 ```
 
-cannot accidentally denote a later controller state.
+The command-wire comparison covers every captured ACT1 and ACT2 call and compares exact topic, UTF-8 payload, QoS, retain, and properties against the literal output dictated by the byte-frozen `ladder.py` authority.
 
-This is evidence-context binding, not a reimplementation of target semantics.
+Timestamp-bearing device events are compared after removing only run-local timestamps. Task id, stage role, device identity suffix, `on`, and `cause` remain in the equality relation.
 
-## Non-interference promotion gate
+## Why `$SYS/broker/publish/bytes/received` is diagnostic-only
 
-A real Eclipse Mosquitto 2.1.2 gate runs paired baseline and shadow R1 arms with alternating order and equal-length task prefixes. For every pair it requires exact equality of:
+The first live attempt deliberately treated cross-run equality of Mosquitto's `$SYS/broker/publish/bytes/received` as a promotion invariant. That gate rejected a run even though:
 
 ```text
-legacy stable result fields
-broker PUBLISH messages received
-broker PUBLISH bytes received
-Harness state-event count
+PUBLISH count              baseline = shadow = 256
+state events               baseline = shadow = 128
+legacy stable R1 outputs   exactly equal
+shadow certificates        64 / 64 correct
 ```
 
-and requires both arms to retain the original R1 workload of exactly four broker-level publishes per task (two command publishes plus two resulting device-state publishes).
+The byte counter differed because it is an asynchronously sampled aggregate and includes timestamp-bearing device-state payloads whose raw decimal timestamp bytes naturally differ across separate executions. Exact equality of that aggregate is therefore not a sound oracle for whether the shadow hook changed application-controlled wire material.
 
-The shadow arm must additionally produce exactly one chained ReplayMark certificate per R1 task and exactly two captured command invocations per task.
-
-Under the deliberately shifted E3b target used by this gate, every R1 certificate is expected to be:
+The corrected gate does not weaken the requirement. It replaces the false aggregate oracle with a stricter causal one:
 
 ```text
-observation = not_visible_by_deadline
+actual application-controlled Paho command call material
+    == literal byte-frozen R1 command template
+```
+
+while retaining exact broker publish-count and event-semantic conservation. The raw `$SYS` byte counter is still recorded for diagnosis but cannot promote or fail the increment.
+
+## Expected shadow verdict in the shifted target world
+
+The live gate deliberately uses the target delay that makes the original R1 timing-only replay semantically unsafe. Every shadow task is therefore expected to certify, without altering execution:
+
+```text
+observation       = not_visible_by_deadline
 historical action = ACT2
-semantic verdict = INVALID
-R* = DO_NOT_REUSE
+verdict           = INVALID
+R*                = DO_NOT_REUSE
 ```
 
-This expected result is not used to alter execution.
+Any other result fails the gate.
 
-## Timing is intentionally not promoted yet
+## Timing is intentionally not promoted here
 
-The gate records baseline/shadow p99 and ACT2 timing differences for visibility, but timing is not yet an acceptance threshold. This increment proves semantic/workload non-interference first. Certification latency and hot-path optimization remain the later Constant-Cost Runtime Gate.
+Baseline/shadow p99 and ACT2 timing differences are recorded for visibility only. This increment closes semantic/wire/event/workload non-interference first. Formal certification-latency p50/p95/p99 thresholds belong to the later Constant-Cost Runtime Gate.
 
 ## Intentionally still open
 

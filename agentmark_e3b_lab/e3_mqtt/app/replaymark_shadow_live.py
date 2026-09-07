@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -15,11 +16,19 @@ from experiment import Harness, _sys_delta, percentile
 import ladder
 from replaymark.contracts import Verdict
 from replaymark.rstar import ReuseDisposition
-from replaymark_shadow import compile_e3b_r1_shadow_contract, run_r1_shadow_condition
+from replaymark_shadow import (
+    CapturedPublish,
+    R1ShadowRun,
+    _CaptureScope,
+    _materialize_tasks,
+    compile_e3b_r1_shadow_contract,
+)
 
 
 PUB = "$SYS/broker/publish/messages/received"
 BYTES = "$SYS/broker/publish/bytes/received"
+FROZEN_LADDER_GIT_BLOB_SHA1 = "fcc1768544714f1b11a497a856f8e18d4d2f07dd"
+FROZEN_COMMAND_PAYLOAD_UTF8 = '{"on": true}'
 _STABLE_RESULT_FIELDS = (
     "tasks",
     "success_rate",
@@ -30,26 +39,193 @@ _STABLE_RESULT_FIELDS = (
 )
 
 
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _sha256_json(value: object) -> str:
+    return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
+
+
+def _git_blob_sha1(path: Path) -> str:
+    body = path.read_bytes()
+    return hashlib.sha1(
+        b"blob " + str(len(body)).encode("ascii") + b"\0" + body
+    ).hexdigest()
+
+
 def _stable_result(result: dict[str, object]) -> dict[str, object]:
     return {name: result[name] for name in _STABLE_RESULT_FIELDS}
 
 
-def _event_count(harness: Harness, prefix: str) -> int:
+def _parse_device(device: str, prefix: str) -> tuple[int, str]:
+    try:
+        actual_prefix, task_text, role = device.rsplit("-", 2)
+    except ValueError as exc:
+        raise ValueError(f"malformed E3b device identity: {device!r}") from exc
+    if actual_prefix != prefix:
+        raise ValueError(f"device prefix mismatch: {actual_prefix!r} != {prefix!r}")
+    if role not in ("a", "b"):
+        raise ValueError(f"unexpected E3b device role: {role!r}")
+    if not task_text.isascii() or not task_text.isdigit():
+        raise ValueError(f"noncanonical E3b task id: {task_text!r}")
+    task_id = int(task_text)
+    if str(task_id) != task_text:
+        raise ValueError(f"noncanonical E3b task id: {task_text!r}")
+    return task_id, role
+
+
+def _payload_utf8(payload: object) -> str:
+    if isinstance(payload, str):
+        return payload
+    if isinstance(payload, bytes):
+        return payload.decode("utf-8")
+    if isinstance(payload, bytearray):
+        return bytes(payload).decode("utf-8")
+    raise TypeError(f"captured MQTT payload is not UTF-8 text/bytes: {type(payload).__name__}")
+
+
+def _command_wire_audit(
+    records: tuple[CapturedPublish, ...],
+    prefix: str,
+    tasks: int,
+) -> dict[str, object]:
+    """Compare actual delegated Paho call material to the literal frozen R1 template."""
+
+    actual: list[dict[str, object]] = []
+    for record in records:
+        if not isinstance(record.topic, str):
+            raise TypeError("captured MQTT topic must be a string")
+        parts = record.topic.split("/")
+        if len(parts) != 3 or parts[0] != "agentmark" or parts[2] != "command":
+            raise ValueError(f"unexpected captured command topic: {record.topic!r}")
+        task_id, role = _parse_device(parts[1], prefix)
+        actual.append(
+            {
+                "task_id": task_id,
+                "role": role,
+                "topic": record.topic,
+                "payload_utf8": _payload_utf8(record.payload),
+                "qos": record.qos,
+                "retain": record.retain,
+                "properties": record.properties,
+            }
+        )
+    actual.sort(key=lambda row: (int(row["task_id"]), str(row["role"])))
+
+    expected = [
+        {
+            "task_id": task_id,
+            "role": role,
+            "topic": f"agentmark/{prefix}-{task_id}-{role}/command",
+            "payload_utf8": FROZEN_COMMAND_PAYLOAD_UTF8,
+            "qos": 1,
+            "retain": False,
+            "properties": None,
+        }
+        for task_id in range(tasks)
+        for role in ("a", "b")
+    ]
+    return {
+        "matches_literal_frozen_r1": actual == expected,
+        "actual_rows": len(actual),
+        "expected_rows": len(expected),
+        "actual_sha256": _sha256_json(actual),
+        "expected_sha256": _sha256_json(expected),
+    }
+
+
+def _state_event_audit(harness: Harness, prefix: str, tasks: int) -> dict[str, object]:
+    """Compare timestamp-free event semantics; timestamps are intentionally run-local."""
+
+    rows: list[dict[str, object]] = []
     with harness.cv:
-        return sum(
-            len(events)
+        items = [
+            (str(device), list(events))
             for device, events in harness.state_events.items()
             if str(device).startswith(prefix + "-")
-        )
+        ]
+    for device, events in items:
+        task_id, role = _parse_device(device, prefix)
+        for event in events:
+            rows.append(
+                {
+                    "task_id": task_id,
+                    "role": role,
+                    "device_suffix": f"{task_id}-{role}",
+                    "body_device_suffix": str(event.get("device")).removeprefix(prefix + "-"),
+                    "on": event.get("on"),
+                    "cause": event.get("cause"),
+                }
+            )
+    rows.sort(key=lambda row: (int(row["task_id"]), str(row["role"])))
+    expected = [
+        {
+            "task_id": task_id,
+            "role": role,
+            "device_suffix": f"{task_id}-{role}",
+            "body_device_suffix": f"{task_id}-{role}",
+            "on": True,
+            "cause": "command",
+        }
+        for task_id in range(tasks)
+        for role in ("a", "b")
+    ]
+    return {
+        "matches_literal_frozen_device_effect": rows == expected,
+        "event_count": len(rows),
+        "semantic_sha256": _sha256_json(rows),
+        "expected_sha256": _sha256_json(expected),
+    }
 
 
-def _measure(harness: Harness, prefix: str, target_delay_ms: float, fn):
+def _measure(harness: Harness, prefix: str, tasks: int, target_delay_ms: float, fn):
     harness.set_state_delay(target_delay_ms)
     before = harness.fresh_sys_snapshot()
     value = fn()
     time.sleep(target_delay_ms / 1000.0 + 0.05)
     after = harness.fresh_sys_snapshot()
-    return value, _sys_delta(before, after), _event_count(harness, prefix)
+    return value, _sys_delta(before, after), _state_event_audit(harness, prefix, tasks)
+
+
+def _run_shadow_with_capture_records(
+    harness: Harness,
+    traces: list[dict[str, object]],
+    wave_size: int,
+    wave_period_ms: float,
+    prefix: str,
+    verify_ms: float,
+    post_completion_gap_ms: float,
+    task_timeout_ms: int,
+    contract,
+) -> tuple[R1ShadowRun, tuple[CapturedPublish, ...]]:
+    """Verification view of the production hook, retaining the passive capture transcript."""
+
+    with _CaptureScope(harness) as capture:
+        legacy_result = ladder.cond(
+            harness,
+            "R1_timing",
+            traces,
+            wave_size,
+            wave_period_ms,
+            prefix,
+            verify_ms,
+            post_completion_gap_ms,
+            task_timeout_ms,
+        )
+    materials = _materialize_tasks(harness, capture.records, verify_ms, contract)
+    run = R1ShadowRun(
+        legacy_result=legacy_result,
+        task_material=materials,
+        captured_publish_count=len(capture.records),
+    )
+    return run, tuple(capture.records)
 
 
 def main() -> None:
@@ -70,6 +246,13 @@ def main() -> None:
     args = parser.parse_args()
     if args.tasks % args.wave_size:
         raise ValueError("tasks must be divisible by wave size")
+
+    ladder_path = Path(ladder.__file__).resolve()
+    ladder_blob = _git_blob_sha1(ladder_path)
+    if ladder_blob != FROZEN_LADDER_GIT_BLOB_SHA1:
+        raise RuntimeError(
+            f"live runner loaded non-frozen ladder authority: {ladder_blob}"
+        )
 
     contract = compile_e3b_r1_shadow_contract()
     harness = Harness(args.broker, args.port)
@@ -105,11 +288,10 @@ def main() -> None:
 
         trials: list[dict[str, object]] = []
         for trial in range(args.paired_trials):
-            # Equal-length prefixes make device-state payload lengths identical.
             base_prefix = f"b{trial:02d}-r1-shadow"
             shadow_prefix = f"s{trial:02d}-r1-shadow"
             if len(base_prefix) != len(shadow_prefix):
-                raise AssertionError("paired prefixes must have equal byte length")
+                raise AssertionError("paired prefixes must have equal length")
 
             def baseline_run():
                 return ladder.cond(
@@ -125,7 +307,7 @@ def main() -> None:
                 )
 
             def shadow_run():
-                return run_r1_shadow_condition(
+                return _run_shadow_with_capture_records(
                     harness,
                     traces,
                     args.wave_size,
@@ -138,22 +320,22 @@ def main() -> None:
                 )
 
             order = ("baseline", "shadow") if trial % 2 == 0 else ("shadow", "baseline")
-            measured: dict[str, tuple[object, dict[str, float], int]] = {}
+            measured: dict[str, tuple[object, dict[str, float], dict[str, object]]] = {}
             for label in order:
                 if label == "baseline":
                     measured[label] = _measure(
-                        harness, base_prefix, target_delay_ms, baseline_run
+                        harness, base_prefix, args.tasks, target_delay_ms, baseline_run
                     )
                 else:
                     measured[label] = _measure(
-                        harness, shadow_prefix, target_delay_ms, shadow_run
+                        harness, shadow_prefix, args.tasks, target_delay_ms, shadow_run
                     )
 
-            baseline, baseline_sys, baseline_events = measured["baseline"]
-            shadow, shadow_sys, shadow_events = measured["shadow"]
+            baseline, baseline_sys, baseline_event_audit = measured["baseline"]
+            shadow_capture, shadow_sys, shadow_event_audit = measured["shadow"]
             if not isinstance(baseline, dict):
                 raise TypeError("baseline R1 result must be a dict")
-            shadow_result = shadow
+            shadow_result, captured_records = shadow_capture
             legacy = shadow_result.legacy_result
 
             stable_equal = _stable_result(baseline) == _stable_result(legacy)
@@ -162,12 +344,19 @@ def main() -> None:
                 float(baseline_sys.get(PUB, float("nan"))) == expected_publishes
                 and float(shadow_sys.get(PUB, float("nan"))) == expected_publishes
             )
-            bytes_equal = (
-                BYTES in baseline_sys
-                and BYTES in shadow_sys
-                and float(baseline_sys[BYTES]) == float(shadow_sys[BYTES])
+            event_count_equal = (
+                int(baseline_event_audit["event_count"])
+                == int(shadow_event_audit["event_count"])
+                == 2 * args.tasks
             )
-            event_equal = baseline_events == shadow_events == 2 * args.tasks
+            event_semantics_exact = (
+                baseline_event_audit["matches_literal_frozen_device_effect"] is True
+                and shadow_event_audit["matches_literal_frozen_device_effect"] is True
+                and baseline_event_audit["semantic_sha256"]
+                == shadow_event_audit["semantic_sha256"]
+            )
+            wire_audit = _command_wire_audit(captured_records, shadow_prefix, args.tasks)
+            wire_exact = wire_audit["matches_literal_frozen_r1"] is True
 
             materials = shadow_result.task_material
             verdicts = Counter(
@@ -184,7 +373,7 @@ def main() -> None:
             )
             task_ids = [item.task_id for item in materials]
             exact_action_capture = all(
-                item.raw_historical_action["payload_utf8"] == '{"on": true}'
+                item.raw_historical_action["payload_utf8"] == FROZEN_COMMAND_PAYLOAD_UTF8
                 and item.raw_historical_action["qos"] == 1
                 and item.raw_historical_action["retain"] is False
                 and item.raw_historical_action["properties"] is None
@@ -210,8 +399,9 @@ def main() -> None:
             checks = {
                 "legacy_execution_result_fields_identical": stable_equal,
                 "broker_publish_workload_identical": pub_equal,
-                "broker_publish_bytes_identical": bytes_equal,
-                "state_event_count_identical": event_equal,
+                "exact_frozen_command_wire_material_preserved": wire_exact,
+                "state_event_count_identical": event_count_equal,
+                "state_event_semantics_identical": event_semantics_exact,
                 "one_certificate_per_r1_task": len(materials) == args.tasks,
                 "shadow_capture_exactly_two_commands_per_task": (
                     shadow_result.captured_publish_count == 2 * args.tasks
@@ -228,8 +418,9 @@ def main() -> None:
                             "shadow_legacy": legacy,
                             "baseline_sys": baseline_sys,
                             "shadow_sys": shadow_sys,
-                            "baseline_events": baseline_events,
-                            "shadow_events": shadow_events,
+                            "baseline_event_audit": baseline_event_audit,
+                            "shadow_event_audit": shadow_event_audit,
+                            "wire_audit": wire_audit,
                             "verdicts": verdicts,
                             "dispositions": dispositions,
                             "tokens": tokens,
@@ -239,6 +430,14 @@ def main() -> None:
                     )
                 )
 
+            baseline_bytes = baseline_sys.get(BYTES)
+            shadow_bytes = shadow_sys.get(BYTES)
+            byte_delta = None
+            if isinstance(baseline_bytes, (int, float)) and isinstance(
+                shadow_bytes, (int, float)
+            ):
+                byte_delta = float(shadow_bytes) - float(baseline_bytes)
+
             trials.append(
                 {
                     "trial": trial,
@@ -246,10 +445,25 @@ def main() -> None:
                     "checks": checks,
                     "baseline_stable_result": _stable_result(baseline),
                     "shadow_stable_result": _stable_result(legacy),
-                    "baseline_sys": {PUB: baseline_sys.get(PUB), BYTES: baseline_sys.get(BYTES)},
-                    "shadow_sys": {PUB: shadow_sys.get(PUB), BYTES: shadow_sys.get(BYTES)},
-                    "baseline_state_events": baseline_events,
-                    "shadow_state_events": shadow_events,
+                    "broker_publish_messages": {
+                        "baseline": baseline_sys.get(PUB),
+                        "shadow": shadow_sys.get(PUB),
+                        "expected_each": expected_publishes,
+                    },
+                    "broker_publish_bytes_diagnostic_only": {
+                        "baseline": baseline_bytes,
+                        "shadow": shadow_bytes,
+                        "shadow_minus_baseline": byte_delta,
+                        "promotion_gate": False,
+                        "reason": (
+                            "Mosquitto $SYS byte counters are sampled asynchronously and "
+                            "include timestamp-bearing device-state payloads; exact cross-run "
+                            "equality is not a sound wire-equivalence oracle"
+                        ),
+                    },
+                    "command_wire_audit": wire_audit,
+                    "baseline_state_event_audit": baseline_event_audit,
+                    "shadow_state_event_audit": shadow_event_audit,
                     "certificate_count": len(materials),
                     "verdict_counts": dict(verdicts),
                     "reuse_disposition_counts": dict(dispositions),
@@ -273,9 +487,10 @@ def main() -> None:
         for row in trials
     ]
     report = {
-        "schema": "replaymark.runtime-e3b-r1-shadow-hook-live.v1",
+        "schema": "replaymark.runtime-e3b-r1-shadow-hook-live.v2",
         "verdict": "PASS" if all_checks else "FAIL",
         "broker_version_sys": version,
+        "frozen_ladder_git_blob_sha1": ladder_blob,
         "contract_fingerprint": contract.fingerprint(),
         "claim_fingerprint": contract.claim_fingerprint,
         "parameters": {
@@ -291,10 +506,12 @@ def main() -> None:
             "execution_or_fallback_policy": "NOT_IMPLEMENTED",
             "required_equivalence": [
                 "legacy stable result fields",
+                "literal frozen application-controlled command wire material",
                 "broker publish message count",
-                "broker publish byte count",
+                "timestamp-free device state event semantics",
                 "state event count",
             ],
+            "raw_sys_publish_byte_equality": "DIAGNOSTIC_ONLY_NOT_PROMOTION_GATE",
         },
         "trials": trials,
         "timing_not_a_promotion_gate_yet": {
