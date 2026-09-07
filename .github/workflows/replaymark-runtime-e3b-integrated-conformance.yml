@@ -1,0 +1,278 @@
+name: ReplayMark E3b integrated frozen runtime conformance
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-e3b-integrated-conformance
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e3b-integrated-runtime-conformance-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile integrated increment
+        run: |
+          python -m py_compile \
+            replaymark_oracle/e3b_integrated_runtime_oracle.py \
+            replaymark_verification/verify_runtime_e3b_integrated_oracle.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py
+
+      - name: Verify frozen runtime authorities remain byte-immutable
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          expected = {
+              "agentmark_e3b_lab/e3_mqtt/app/ladder.py": "fcc1768544714f1b11a497a856f8e18d4d2f07dd",
+              "agentmark_e3b_lab/e3_mqtt/app/device.py": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+              "agentmark_e3b_lab/e3_mqtt/app/experiment.py": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+              "agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py": "1f8f689f393f9a547cbd9a76736389096521e2ca",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py": "fb7bbd8c94b3584099e0530033f9e404fabf71af",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py": "7f05d6f2148ba6af7a37d89fc8648664c5150a86",
+              "replaymark/runtime_e3b_observation.py": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+              "replaymark/runtime_e3b_action.py": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+              "replaymark/runtime_e3b_correlation.py": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+              "replaymark/runtime_e3b_bridge.py": "79df33b8fe2f2535f515637b0c7c6129039e2c7f",
+          }
+          for name, want in expected.items():
+              body = Path(name).read_bytes()
+              got = hashlib.sha1(
+                  b"blob " + str(len(body)).encode("ascii") + b"\0" + body
+              ).hexdigest()
+              if got != want:
+                  raise SystemExit(f"frozen authority drift: {name}: {got} != {want}")
+          print("INTEGRATED_FROZEN_AUTHORITIES: PASS")
+          PY
+
+      - name: Verify independent integrated literal oracle
+        run: |
+          mkdir -p /tmp/replaymark-e3b-integrated
+          python replaymark_verification/verify_runtime_e3b_integrated_oracle.py \
+            --out /tmp/replaymark-e3b-integrated/integrated_oracle_gate.json
+
+      - name: Verify semantic seed remains frozen
+        run: python replaymark/verify_seed.py
+
+      - name: Reverify CompiledContract API freeze
+        run: python replaymark_verification/verify_compiled_contract_api.py
+
+      - name: Reverify E3b observation realization
+        run: |
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-e3b-integrated/runtime_observation_gate.json
+
+      - name: Reverify E3b historical-action realization
+        run: |
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out /tmp/replaymark-e3b-integrated/runtime_action_gate.json
+
+      - name: Reverify E3b same-task correlation
+        run: |
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out /tmp/replaymark-e3b-integrated/same_task_gate.json
+
+      - name: Reverify concrete contract packaging
+        run: |
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-e3b-integrated/concrete_contract_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-e3b-integrated/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-e3b-integrated/rstar_gate.json
+
+      - name: Reverify E3b shadow runtime bridge
+        run: |
+          python replaymark_verification/verify_runtime_e3b_bridge.py \
+            --out /tmp/replaymark-e3b-integrated/shadow_bridge_gate.json
+
+      - name: Real Mosquitto R1 non-interference and integrated matrix
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f results/e3b_r1_shadow_hook.json
+          rm -f results/e3b_integrated_frozen_runtime_conformance.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+
+          docker compose run --rm runner_shadow
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py \
+              --broker mosquitto \
+              --tasks 64 \
+              --wave-size 16 \
+              --wave-period-ms 300 \
+              --verify-floor-ms 100 \
+              --source-guard-ms 20 \
+              --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 \
+              --post-completion-gap-ms 20 \
+              --trials 3 \
+              --out /results/e3b_integrated_frozen_runtime_conformance.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          shadow = json.loads(Path('results/e3b_r1_shadow_hook.json').read_text())
+          assert shadow['schema'] == 'replaymark.runtime-e3b-r1-shadow-hook-live.v2'
+          assert shadow['verdict'] == 'PASS'
+          assert shadow['promotion_pass'] is True
+
+          integrated = json.loads(
+              Path('results/e3b_integrated_frozen_runtime_conformance.json').read_text()
+          )
+          assert integrated['schema'] == 'replaymark.runtime-e3b-integrated-frozen-conformance.v1'
+          assert integrated['broker_version_sys'] == 'mosquitto version 2.1.2'
+          assert integrated['verdict'] == 'PASS'
+          assert integrated['promotion_pass'] is True
+          assert integrated['coverage']['task_rows'] == 192
+          assert integrated['coverage']['all_task_rows_pass'] is True
+          assert integrated['coverage']['total_boolean_conformance_checks'] > 0
+          assert len(integrated['matrix_sha256']) == 64
+          assert all(row['pass'] is True for row in integrated['rows'])
+          assert integrated['aggregate']['verdict_counts'] == {'INVALID': 192}
+          assert integrated['aggregate']['reuse_disposition_counts'] == {'DO_NOT_REUSE': 192}
+          assert integrated['aggregate']['token_counts'] == {'not_visible_by_deadline': 192}
+          assert all(integrated['falsification'].values())
+          print(json.dumps({
+              'promotion_pass': True,
+              'task_rows': integrated['coverage']['task_rows'],
+              'checks_per_task_row': integrated['coverage']['checks_per_task_row'],
+              'matrix_sha256': integrated['matrix_sha256'],
+              'contract': integrated['frozen_authorities']['contract_fingerprint'],
+          }, sort_keys=True))
+          PY
+
+          cp results/e3b_r1_shadow_hook.json \
+            /tmp/replaymark-e3b-integrated/r1_shadow_live_gate.json
+          cp results/e3b_integrated_frozen_runtime_conformance.json \
+            /tmp/replaymark-e3b-integrated/integrated_runtime_conformance.json
+
+      - name: Seal integrated frozen runtime conformance
+        env:
+          GATE_DIR: /tmp/replaymark-e3b-integrated
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          gate_dir = Path(os.environ['GATE_DIR'])
+          expected = (
+              'integrated_oracle_gate.json',
+              'runtime_observation_gate.json',
+              'runtime_action_gate.json',
+              'same_task_gate.json',
+              'concrete_contract_gate.json',
+              'adjudicator_gate.json',
+              'rstar_gate.json',
+              'shadow_bridge_gate.json',
+              'r1_shadow_live_gate.json',
+              'integrated_runtime_conformance.json',
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f'missing/empty gate output: {path}')
+              parsed = json.loads(path.read_text())
+              if parsed.get('verdict') != 'PASS':
+                  raise SystemExit(f'gate is not PASS: {name}: {parsed.get("verdict")}')
+
+          integrated = json.loads(
+              (gate_dir / 'integrated_runtime_conformance.json').read_text()
+          )
+          if integrated.get('promotion_pass') is not True:
+              raise SystemExit('integrated conformance promotion failed')
+          coverage = integrated['coverage']
+          if coverage['task_rows'] != (
+              integrated['parameters']['tasks'] * integrated['parameters']['trials']
+          ):
+              raise SystemExit('integrated task-row coverage is incomplete')
+          if coverage['all_task_rows_pass'] is not True:
+              raise SystemExit('integrated matrix contains failing task rows')
+          matrix_sha = integrated.get('matrix_sha256')
+          if (
+              not isinstance(matrix_sha, str)
+              or len(matrix_sha) != 64
+              or any(ch not in '0123456789abcdef' for ch in matrix_sha)
+          ):
+              raise SystemExit('integrated matrix identity is not canonical sha256')
+
+          sources = (
+              Path('agentmark_e3b_lab/e3_mqtt/app/ladder.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/device.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/experiment.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py'),
+              Path('replaymark_oracle/e3b_integrated_runtime_oracle.py'),
+              Path('replaymark_verification/verify_runtime_e3b_integrated_oracle.py'),
+              Path('replaymark/runtime_e3b_observation.py'),
+              Path('replaymark/runtime_e3b_action.py'),
+              Path('replaymark/runtime_e3b_correlation.py'),
+              Path('replaymark/runtime_e3b_bridge.py'),
+              Path('replaymark/E3B_INTEGRATED_FROZEN_RUNTIME_CONFORMANCE.md'),
+          )
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          (gate_dir / 'GATE_STATUS').write_text(
+              'schema=replaymark.runtime-e3b-integrated-frozen-conformance-gate.v1\n'
+              f"head={os.environ['GITHUB_SHA']}\n"
+              'runtime_boundary=PASS\n'
+              'e3b_observation_realization=PASS\n'
+              'e3b_historical_action_realization=PASS\n'
+              'e3b_same_task_correlation=PASS\n'
+              'runtime_reuse_bridge=PASS\n'
+              'r1_shadow_hook=PASS\n'
+              'r1_consequential_wire_event_workload_noninterference=PASS\n'
+              'integrated_literal_oracle=PASS\n'
+              'integrated_task_by_task_conformance=PASS\n'
+              f"integrated_matrix_sha256={matrix_sha}\n"
+              'execution_policy=NOT_IMPLEMENTED\n'
+              'selective_reuse_intervention=NOT_IMPLEMENTED\n'
+              'latency_characterization=NOT_IMPLEMENTED\n',
+              encoding='utf-8',
+          )
+          (gate_dir / 'SOURCE_SHA256SUMS').write_text(
+              ''.join(f'{digest(path)}  {path.as_posix()}\n' for path in sources),
+              encoding='utf-8',
+          )
+          (gate_dir / 'GATE_SHA256SUMS').write_text(
+              ''.join(f'{digest(gate_dir / name)}  {name}\n' for name in expected),
+              encoding='utf-8',
+          )
+          print(
+              f"SEALED integrated frozen runtime conformance "
+              f"matrix={matrix_sha} head={os.environ['GITHUB_SHA']}"
+          )
+          PY
+
+      - name: Upload sealed integrated conformance artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-runtime-e3b-integrated-frozen-conformance
+          path: /tmp/replaymark-e3b-integrated
+          if-no-files-found: error
