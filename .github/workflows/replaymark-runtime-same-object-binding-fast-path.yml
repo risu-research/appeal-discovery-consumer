@@ -1,0 +1,283 @@
+name: ReplayMark E3b same-object certificate binding fast path
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-same-object-binding-fast-path
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  same-object-binding-fast-path-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify atomic bounded optimization increment
+        run: |
+          python -m py_compile \
+            replaymark/runtime_e3b_bridge.py \
+            replaymark_verification/verify_runtime_e3b_same_object_binding.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_same_object_binding_optimization.py
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import subprocess
+
+          expected_parent = "a1445ce1b03aa75b95b97f518f1d79227f2206f9"
+          parent = subprocess.check_output(["git", "rev-parse", "HEAD^"], text=True).strip()
+          if parent != expected_parent:
+              raise SystemExit(f"wrong residual-profile parent: {parent} != {expected_parent}")
+
+          changed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", "HEAD^", "HEAD"], text=True
+          ).splitlines())
+          expected_changed = {
+              ".github/workflows/replaymark-runtime-same-object-binding-fast-path.yml",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_same_object_binding_optimization.py",
+              "replaymark/SAME_OBJECT_CERTIFICATE_BINDING_FAST_PATH.md",
+              "replaymark/runtime_e3b_bridge.py",
+              "replaymark_verification/verify_runtime_e3b_same_object_binding.py",
+          }
+          if changed != expected_changed:
+              raise SystemExit(f"optimization increment drift: {sorted(changed)} != {sorted(expected_changed)}")
+
+          parent_bridge = subprocess.check_output(
+              ["git", "rev-parse", "HEAD^:replaymark/runtime_e3b_bridge.py"], text=True
+          ).strip()
+          if parent_bridge != "0092ecccbe95b03ae513da63e5d4f4a66e4b3a6f":
+              raise SystemExit(f"unexpected parent bridge blob: {parent_bridge}")
+          current_bridge = subprocess.check_output(
+              ["git", "rev-parse", "HEAD:replaymark/runtime_e3b_bridge.py"], text=True
+          ).strip()
+          if current_bridge != "5c2b13f35edcae9ce42fa062f51f1b6ce46747bf":
+              raise SystemExit(f"unexpected optimized bridge blob: {current_bridge}")
+
+          expected_unchanged = {
+              "agentmark_e3b_lab/e3_mqtt/app/ladder.py": "fcc1768544714f1b11a497a856f8e18d4d2f07dd",
+              "agentmark_e3b_lab/e3_mqtt/app/device.py": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+              "agentmark_e3b_lab/e3_mqtt/app/experiment.py": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+              "agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py": "1f8f689f393f9a547cbd9a76736389096521e2ca",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py": "fb7bbd8c94b3584099e0530033f9e404fabf71af",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py": "7f05d6f2148ba6af7a37d89fc8648664c5150a86",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py": "5b64ea546c8c82f4346aae8b652bb10e1c669f7d",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_cost.py": "f75e2a1bef21256ff3031f3ecdad31f928f008d5",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_identity_optimization.py": "3fae9a2f1f32e5e10fc3ccfc20aafaf54eab35aa",
+              "replaymark/runtime_contract_identity.py": "feb68c404e0fac4f37e0d2fe7fa3049493142197",
+              "replaymark/runtime_e3b_observation.py": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+              "replaymark/runtime_e3b_action.py": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+              "replaymark/runtime_e3b_correlation.py": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+              "replaymark/compiled_contract.py": "9780550de9c9447ca4e488ff5797e08fdd548405",
+              "replaymark/runtime_realization.py": "3345a8ca35a5917f0062625cb216db29470c7972",
+              "replaymark/rstar.py": "73e0a94f1be76272075d7f1050439ef6b321017e",
+          }
+          for name, want in expected_unchanged.items():
+              body = Path(name).read_bytes()
+              got = hashlib.sha1(b"blob " + str(len(body)).encode("ascii") + b"\0" + body).hexdigest()
+              if got != want:
+                  raise SystemExit(f"frozen authority drift: {name}: {got} != {want}")
+          print("SAME_OBJECT_BINDING_ATOMIC_BOUNDARY: PASS")
+          PY
+
+      - name: Verify fast path safety and semantic byte equivalence
+        run: |
+          mkdir -p /tmp/replaymark-same-object-binding
+          python replaymark_verification/verify_runtime_e3b_same_object_binding.py \
+            --out /tmp/replaymark-same-object-binding/same_object_binding_gate.json
+
+      - name: Reverify frozen semantic and runtime chain
+        run: |
+          python replaymark_verification/verify_runtime_contract_identity_cache.py \
+            --out /tmp/replaymark-same-object-binding/identity_cache_gate.json
+          python replaymark/verify_seed.py
+          python replaymark_verification/verify_compiled_contract_api.py
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-same-object-binding/runtime_observation_gate.json
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out /tmp/replaymark-same-object-binding/runtime_action_gate.json
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out /tmp/replaymark-same-object-binding/same_task_gate.json
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-same-object-binding/concrete_contract_gate.json
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-same-object-binding/adjudicator_gate.json
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-same-object-binding/rstar_gate.json
+          python replaymark_verification/verify_runtime_e3b_bridge.py \
+            --out /tmp/replaymark-same-object-binding/shadow_bridge_gate.json
+
+      - name: Real Mosquitto conformance paired A-B and new residual profile
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f \
+            results/e3b_r1_shadow_hook.json \
+            results/e3b_integrated_frozen_runtime_conformance.json \
+            results/e3b_same_object_binding_fast_path_ab.json \
+            results/e3b_post_optimization_residual_cost_profile.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+
+          docker compose run --rm runner_shadow
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 --trials 3 \
+              --out /results/e3b_integrated_frozen_runtime_conformance.json
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_same_object_binding_optimization.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 \
+              --rounds 240 --inner 8 --authority-head "$GITHUB_SHA" \
+              --out /results/e3b_same_object_binding_fast_path_ab.json
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_post_optimization_residual_cost.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 \
+              --rounds 240 --inner 8 --trace-repeats 10 --authority-head "$GITHUB_SHA" \
+              --out /results/e3b_post_optimization_residual_cost_profile.json
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          shadow = json.loads(Path("results/e3b_r1_shadow_hook.json").read_text())
+          integrated = json.loads(Path("results/e3b_integrated_frozen_runtime_conformance.json").read_text())
+          ab = json.loads(Path("results/e3b_same_object_binding_fast_path_ab.json").read_text())
+          residual = json.loads(Path("results/e3b_post_optimization_residual_cost_profile.json").read_text())
+
+          assert shadow["promotion_pass"] is True and shadow["verdict"] == "PASS"
+          assert integrated["promotion_pass"] is True and integrated["coverage"]["task_rows"] == 192
+          assert integrated["coverage"]["all_task_rows_pass"] is True
+          assert ab["authority_head"] == os.environ["GITHUB_SHA"]
+          assert ab["promotion_pass"] is True and ab["verdict"] == "PASS"
+          assert ab["semantic_equivalence"]["complete_128_case_parent_vs_fast_path_canonical_bytes_exact"] is True
+          assert ab["semantic_equivalence"]["bridge_semantic_digest_unchanged"] is True
+          assert ab["measurement_validity"]["fixed_speed_promotion_threshold"] is False
+          assert ab["paper_boundary"]["new_semantic_claim"] is False
+          assert residual["authority_head"] == os.environ["GITHUB_SHA"]
+          assert residual["promotion_pass"] is True and residual["verdict"] == "PASS"
+          assert residual["semantic_identity"]["stable"] is True
+          assert residual["measurement_validity"]["optimization_performed"] is False
+          assert residual["measurement_validity"]["additive_phase_conservation_exact"] is True
+
+          print(json.dumps({
+              "negative_parent_p50_us": ab["paired_ab"]["live_negative"]["full_pipeline"]["parent_content_binding"]["p50_us"],
+              "negative_fast_p50_us": ab["paired_ab"]["live_negative"]["full_pipeline"]["same_object_fast_path"]["p50_us"],
+              "negative_ctor_parent_p50_us": ab["paired_ab"]["live_negative"]["wrapper_constructor"]["parent_content_binding"]["p50_us"],
+              "negative_ctor_fast_p50_us": ab["paired_ab"]["live_negative"]["wrapper_constructor"]["same_object_fast_path"]["p50_us"],
+              "positive_parent_p50_us": ab["paired_ab"]["derived_positive"]["full_pipeline"]["parent_content_binding"]["p50_us"],
+              "positive_fast_p50_us": ab["paired_ab"]["derived_positive"]["full_pipeline"]["same_object_fast_path"]["p50_us"],
+              "new_negative_residual_p50_us": residual["exact_uninstrumented_production_path"]["live_negative"]["full_pipeline_object"]["p50_us"],
+              "new_positive_residual_p50_us": residual["exact_uninstrumented_production_path"]["derived_positive"]["full_pipeline_object"]["p50_us"],
+          }, indent=2, sort_keys=True))
+          PY
+
+          cp results/e3b_r1_shadow_hook.json /tmp/replaymark-same-object-binding/r1_shadow_live_gate.json
+          cp results/e3b_integrated_frozen_runtime_conformance.json /tmp/replaymark-same-object-binding/integrated_runtime_conformance.json
+          cp results/e3b_same_object_binding_fast_path_ab.json /tmp/replaymark-same-object-binding/same_object_binding_ab.json
+          cp results/e3b_post_optimization_residual_cost_profile.json /tmp/replaymark-same-object-binding/post_fast_path_residual_profile.json
+
+      - name: Seal same-object certificate-binding fast path
+        env:
+          GATE_DIR: /tmp/replaymark-same-object-binding
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected = (
+              "same_object_binding_gate.json",
+              "identity_cache_gate.json",
+              "runtime_observation_gate.json",
+              "runtime_action_gate.json",
+              "same_task_gate.json",
+              "concrete_contract_gate.json",
+              "adjudicator_gate.json",
+              "rstar_gate.json",
+              "shadow_bridge_gate.json",
+              "r1_shadow_live_gate.json",
+              "integrated_runtime_conformance.json",
+              "same_object_binding_ab.json",
+              "post_fast_path_residual_profile.json",
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing gate output: {name}")
+              if json.loads(path.read_text()).get("verdict") != "PASS":
+                  raise SystemExit(f"gate not PASS: {name}")
+
+          fast = json.loads((gate_dir / "same_object_binding_gate.json").read_text())
+          ab = json.loads((gate_dir / "same_object_binding_ab.json").read_text())
+          residual = json.loads((gate_dir / "post_fast_path_residual_profile.json").read_text())
+          assert fast["same_object_fast_path"]["observation_fingerprint_calls"] == 0
+          assert fast["same_object_fast_path"]["historical_action_fingerprint_calls"] == 0
+          assert fast["detached_content_path"]["observation_fingerprint_calls"] == 2
+          assert fast["detached_content_path"]["historical_action_fingerprint_calls"] == 2
+          assert fast["detached_content_path"]["mismatched_detached_observation_rejected"] is True
+          assert ab["semantic_equivalence"]["complete_128_case_parent_vs_fast_path_canonical_bytes_exact"] is True
+          assert residual["semantic_identity"]["stable"] is True
+
+          sources = (
+              Path("replaymark/runtime_e3b_bridge.py"),
+              Path("replaymark_verification/verify_runtime_e3b_same_object_binding.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_same_object_binding_optimization.py"),
+              Path("replaymark/SAME_OBJECT_CERTIFICATE_BINDING_FAST_PATH.md"),
+          )
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          (gate_dir / "GATE_STATUS").write_text(
+              "schema=replaymark.runtime-e3b-same-object-binding-fast-path-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              "residual_profile_parent=a1445ce1b03aa75b95b97f518f1d79227f2206f9\n"
+              "same_object_binding_fast_path=PASS\n"
+              "detached_content_binding_fallback=PASS\n"
+              "bridge_semantic_digest_unchanged=PASS\n"
+              "certificate_byte_equivalence=PASS\n"
+              "runtime_contract_identity_cache=PASS\n"
+              "semantic_runtime_chain=PASS\n"
+              "r1_noninterference=PASS\n"
+              "integrated_frozen_runtime_conformance=PASS\n"
+              "paired_live_corpus_ab=PASS\n"
+              "post_fast_path_residual_profile=PASS\n"
+              "new_semantic_claim=NO\n"
+              "execution_policy=NOT_IMPLEMENTED\n"
+              "selective_reuse_intervention=NOT_IMPLEMENTED\n",
+              encoding="utf-8",
+          )
+          (gate_dir / "SOURCE_SHA256SUMS").write_text(
+              "".join(f"{digest(path)}  {path.as_posix()}\n" for path in sources), encoding="utf-8"
+          )
+          (gate_dir / "GATE_SHA256SUMS").write_text(
+              "".join(f"{digest(gate_dir / name)}  {name}\n" for name in expected), encoding="utf-8"
+          )
+          print(f"SEALED same-object binding fast path head={os.environ['GITHUB_SHA']}")
+          PY
+
+      - name: Upload sealed same-object binding artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-runtime-e3b-same-object-binding-fast-path
+          path: /tmp/replaymark-same-object-binding
+          if-no-files-found: error
