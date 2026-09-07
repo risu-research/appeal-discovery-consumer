@@ -1,0 +1,152 @@
+name: ReplayMark concrete CompiledContract packaging
+
+on:
+  push:
+    branches:
+      - replaymark-concrete-contract-packaging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  concrete-contract-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile concrete packaging
+        run: |
+          python -m py_compile \
+            replaymark/compiled_contract.py \
+            replaymark/compiled_contract_codec.py \
+            replaymark_verification/verify_compiled_contract_packaging.py
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Reverify CompiledContract API freeze
+        run: python replaymark_verification/verify_compiled_contract_api.py
+
+      - name: Verify concrete contract packaging
+        run: |
+          mkdir -p /tmp/replaymark-concrete-contract
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-concrete-contract/concrete_contract_gate.json
+
+      - name: Reverify compiler-observed target provenance
+        run: |
+          python replaymark_verification/verify_target_provenance.py \
+            --out /tmp/replaymark-concrete-contract/target_provenance_gate.json
+
+      - name: Reverify bounded q compiler
+        run: |
+          python replaymark_verification/verify_bounded_q.py \
+            | tee /tmp/replaymark-concrete-contract/q_gate.json
+
+      - name: Reverify production predictive witnesses
+        run: |
+          python replaymark_verification/verify_predictive_witness.py \
+            --out /tmp/replaymark-concrete-contract/predictive_witness_gate.json
+
+      - name: Reverify compiler-owned evidence semantics
+        run: |
+          python replaymark_verification/verify_evidence_semantics.py \
+            --out /tmp/replaymark-concrete-contract/evidence_semantics_gate.json
+
+      - name: Reverify q evidence image
+        run: |
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-concrete-contract/evidence_image_gate.json
+
+      - name: Reverify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-concrete-contract/support_envelope_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-concrete-contract/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-concrete-contract/rstar_gate.json
+
+      - name: Seal successful concrete packaging
+        env:
+          GATE_DIR: /tmp/replaymark-concrete-contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import os
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected = (
+              "concrete_contract_gate.json",
+              "target_provenance_gate.json",
+              "q_gate.json",
+              "predictive_witness_gate.json",
+              "evidence_semantics_gate.json",
+              "evidence_image_gate.json",
+              "support_envelope_gate.json",
+              "adjudicator_gate.json",
+              "rstar_gate.json",
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file():
+                  raise SystemExit(f"missing gate output: {path}")
+              if path.stat().st_size == 0:
+                  raise SystemExit(f"empty gate output: {path}")
+
+          sources = (
+              Path("replaymark/compiled_contract.py"),
+              Path("replaymark/compiled_contract_codec.py"),
+              Path("replaymark/CONCRETE_CONTRACT_PACKAGING.md"),
+              Path("replaymark/SEMANTIC_BOUNDARY.md"),
+              Path("replaymark/contracts.py"),
+              Path("replaymark_verification/verify_compiled_contract_packaging.py"),
+          )
+          for path in sources:
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing/empty source authority: {path}")
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          status = (
+              "schema=replaymark.compiled-contract.explicit.packaging-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              "semantic_chain=PASS\n"
+              "concrete_packaging=PASS\n"
+          )
+          (gate_dir / "GATE_STATUS").write_text(status, encoding="utf-8")
+          (gate_dir / "SOURCE_SHA256SUMS").write_text(
+              "".join(f"{digest(path)}  {path.as_posix()}\n" for path in sources),
+              encoding="utf-8",
+          )
+          (gate_dir / "GATE_SHA256SUMS").write_text(
+              "".join(
+                  f"{digest(gate_dir / name)}  {name}\n" for name in expected
+              ),
+              encoding="utf-8",
+          )
+          print(
+              f"SEALED concrete packaging gate for {os.environ['GITHUB_SHA']} "
+              f"with {len(expected)} nonempty semantic gate outputs"
+          )
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-concrete-compiled-contract-gate
+          path: /tmp/replaymark-concrete-contract
+          if-no-files-found: error
