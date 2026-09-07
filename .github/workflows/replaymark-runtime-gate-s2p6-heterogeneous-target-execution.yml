@@ -1,0 +1,136 @@
+name: ReplayMark Gate S2-P6 heterogeneous-target capstone execution
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p6-heterogeneous-target-execution-authority
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2p6-capstone:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      LAB: agentmark_e3b_lab/e3_mqtt
+      GATE: /tmp/replaymark-s2p6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile P6 execution
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/s2p6_heterogeneous_device.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p6_heterogeneous_capstone.py \
+            replaymark_verification/verify_s2p6_heterogeneous_capstone.py
+
+      - name: Verify exact prospective P6 execution boundary
+        run: |
+          mkdir -p "$GATE"
+          PYTHONPATH="$GITHUB_WORKSPACE" python replaymark_verification/verify_s2p6_heterogeneous_capstone.py \
+            --preflight-only \
+            --out "$GATE/p6_preflight.json"
+
+      - name: Build frozen live image and broker
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose down -v --remove-orphans || true
+          docker compose build runner_shadow
+          docker compose up -d mosquitto
+          for i in $(seq 1 20); do
+            if docker compose exec -T mosquitto mosquitto_sub -h 127.0.0.1 -p 1883 -t '$SYS/broker/version' -C 1 -W 2 >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "broker did not become ready" >&2
+          exit 1
+
+      - name: Install one immutable heterogeneous target
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose run -d --name replaymark-s2p6-target --no-deps runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/s2p6_heterogeneous_device.py \
+            --broker mosquitto
+          for i in $(seq 1 20); do
+            if docker logs replaymark-s2p6-target 2>&1 | grep -q '"ready": true'; then
+              exit 0
+            fi
+            if ! docker inspect replaymark-s2p6-target >/dev/null 2>&1; then
+              echo "target container disappeared" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          docker logs replaymark-s2p6-target || true
+          echo "heterogeneous target did not become ready" >&2
+          exit 1
+
+      - name: First complete P6 live capstone
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose run --rm --no-deps runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p6_heterogeneous_capstone.py \
+            --broker mosquitto \
+            --out /results/s2p6_live_raw.json
+          cp results/s2p6_live_raw.json "$GATE/s2p6_live_raw.json"
+
+      - name: Close target before independent evaluation
+        if: always()
+        run: |
+          docker logs replaymark-s2p6-target > "$GATE/target.log" 2>&1 || true
+          docker inspect replaymark-s2p6-target > "$GATE/target_inspect.json" 2>/dev/null || true
+          docker rm -f replaymark-s2p6-target >/dev/null 2>&1 || true
+
+      - name: Independently evaluate exact safe set
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python replaymark_verification/verify_s2p6_heterogeneous_capstone.py --input "$GATE/s2p6_live_raw.json" \
+            --out "$GATE/p6_final_verification.json"
+
+      - name: Seal first complete P6 evidence
+        if: always()
+        run: |
+          cp replaymark/S2P6_ORTHOGONAL_HETEROGENEOUS_TARGET_CAPSTONE.json "$GATE/" || true
+          cp replaymark/S2P6_ORTHOGONAL_HETEROGENEOUS_TARGET_CAPSTONE.md "$GATE/" || true
+          cp replaymark/S2P6_HETEROGENEOUS_TARGET_CAPSTONE_EXECUTION.md "$GATE/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/s2p6_heterogeneous_device.py "$GATE/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p6_heterogeneous_capstone.py "$GATE/" || true
+          cp replaymark_verification/verify_s2p6_heterogeneous_capstone.py "$GATE/" || true
+          git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
+          sha256sum "$GATE"/* > "$GATE/SHA256SUMS"
+
+      - name: Upload first complete P6 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p6-heterogeneous-target-capstone
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Cleanup
+        if: always()
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker rm -f replaymark-s2p6-target >/dev/null 2>&1 || true
+          docker compose down -v --remove-orphans || true
+
+      - name: Enforce P6 scientific verdict
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["GATE"]) / "p6_final_verification.json").read_text())
+          if report.get("verdict") != "PASS":
+              raise SystemExit("P6 first-complete scientific verdict is not PASS")
+          print(json.dumps(report["counts"], indent=2, sort_keys=True))
+          PY
