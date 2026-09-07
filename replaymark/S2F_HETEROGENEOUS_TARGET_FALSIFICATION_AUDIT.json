@@ -1,0 +1,54 @@
+{
+  "artifact_authority": {
+    "artifact_id": 10034798750,
+    "artifact_name": "replaymark-gate-s2p6-heterogeneous-target-capstone",
+    "artifact_sha256": "1319c41908d511ca9e8976973801350aab593199038b82752d8e4e7c78d0ecdb",
+    "execution_head": "e5e992b0a31c952017ee4209be2c0585a6cab500",
+    "result_seal_head": "60c444f32f98c9ee9ef42c8b06395ebf4ed9a902",
+    "workflow_run": 34168034341
+  },
+  "audit": {
+    "artifact_reexecution": false,
+    "independent_auditor_imports_replaymark": false,
+    "independent_auditor_imports_original_oracle": false,
+    "new_live_target_execution": false,
+    "stdlib_only_literal_recomputation": true
+  },
+  "attacks": [
+    "recompute policy schedule from frozen seed",
+    "recompute hidden target-class schedule independently",
+    "recompute observation safety from raw timestamps/events without production or oracle imports",
+    "recompute exact historical ACT2 validity and same-task binding",
+    "derive actual execution from recording-client call multiset rather than trusting row.executed",
+    "recompute B-side effect consistency",
+    "verify all observation snapshots precede every B-side dispatch phase",
+    "scan live report for hidden class labels or class seed",
+    "test class-only REFERENCE-admit counterfactual against reference-class deadline misses",
+    "recompute Always-Admit/Always-Block/ReplayMark safe-retention and unsafe-execution sets",
+    "compare independently recomputed counts to immutable P6 result seal"
+  ],
+  "expected_falsification": {
+    "class_only_rule_on_replaymark_arm": {
+      "definition": "admit every REFERENCE task and block every SHIFTED task",
+      "must_execute_at_least_one_oracle_unsafe_reference_task": true
+    },
+    "replaymark": {
+      "actual_executed_set_must_equal_literal_safe_set": true,
+      "must_block_every_oracle_unsafe_reference_task": true,
+      "unsafe_execution_count": 0,
+      "unnecessary_block_count": 0
+    }
+  },
+  "gate": "S2F_HETEROGENEOUS_TARGET_FALSIFICATION_AUDIT",
+  "no_new_claims": [
+    "causal source of transport timing noise",
+    "hidden class equals semantic truth",
+    "cross-process exactly-once",
+    "broker delivery exactly-once",
+    "fallback quality",
+    "regeneration quality",
+    "latency speedup"
+  ],
+  "schema": "replaymark.s2f-heterogeneous-target-falsification-audit.v1",
+  "status": "FROZEN_POST_RESULT_ADVERSARIAL_AUDIT"
+}
