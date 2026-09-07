@@ -1,0 +1,91 @@
+{
+  "anti_repair": {
+    "aggregate_preregistered_classification_must_remain_AMBIGUOUS": true,
+    "exact_repeat_is_replication_only": true,
+    "no_80ms_threshold_rewrite_inside_Q2": true,
+    "no_D_star_from_P4": true,
+    "no_W_star_from_P4": true,
+    "no_target_probe_from_P4": true,
+    "per_wave_descriptive_patterns_cannot_relabel_the_aggregate_classifier": true,
+    "q1_q2_failures_remain_authoritative": true
+  },
+  "artifact": {
+    "id": 10034020334,
+    "name": "replaymark-gate-s2p4-minimal-transport-timer",
+    "sha256": "e0f363b847e380b016e2481384d8b8426bdb83a79841a1f909c2ea2df09d4085",
+    "size_bytes": 135934
+  },
+  "descriptive_audit_not_used_for_classification": {
+    "TcpExtDelayedACKs_delta_by_cell": [0, 1, 5, 1, 6, 0, 6, 1, 0],
+    "correlation_delayedACK_delta_vs_echo_35_45_count": 0.8812803174309438,
+    "correlation_delayedACK_delta_vs_puback_35_45_count": 0.9230323170405023,
+    "per_wave": {
+      "4": {
+        "echo_fraction_35_45": 0.08854166666666667,
+        "echo_p95_ms": 41.62311125,
+        "echo_p99_ms": 41.93512175,
+        "puback_fraction_35_45": 0.11805555555555555,
+        "puback_p95_ms": 41.872718500000005,
+        "puback_p99_ms": 42.1608325
+      },
+      "8": {
+        "echo_fraction_35_45": 0.036458333333333336,
+        "echo_p95_ms": 3.0224075,
+        "echo_p99_ms": 42.531917500000006,
+        "puback_fraction_35_45": 0.03993055555555555,
+        "puback_p95_ms": 3.2388434999999998,
+        "puback_p99_ms": 42.7243725
+      },
+      "16": {
+        "echo_fraction_35_45": 0.001736111111111111,
+        "echo_p95_ms": 4.561466749999999,
+        "echo_p99_ms": 5.37331225,
+        "puback_fraction_35_45": 0.0,
+        "puback_p95_ms": 4.72356475,
+        "puback_p99_ms": 5.50729125
+      }
+    }
+  },
+  "execution": {
+    "head": "cad74a2405ad21805c550812114639217b2d7c9d",
+    "job": 101875541960,
+    "run": 34165476263,
+    "tree": "347eb2dec0ea1c8751a61b933420b0991c01e5a7"
+  },
+  "interpretation": {
+    "device_logic_is_not_necessary_for_a_40ms_scale_tail": true,
+    "exact_transport_cause_established": false,
+    "old_80ms_p99_margin_is_a_replaymark_semantic_requirement": false,
+    "reason": "A device-free single-client Mosquitto self-echo path produced approximately 42-ms aggregate p99 timing and the frozen Q2 80-ms margin was an engineering slack proxy, whereas ReplayMark's inherited evidence semantics require completeness at the 100-ms boundary."
+  },
+  "next_gate": "S2P5_BOUNDARY_COMPLETE_SOURCE_QUALIFICATION_PROTOCOL",
+  "protocol_head": "d482d03816e603544c4cd131ff3add0a078cd788",
+  "schema": "replaymark.s2p4-minimal-transport-timer-result-seal.v1",
+  "scientific": {
+    "D_star": null,
+    "W_star": null,
+    "aggregate_classification": "AMBIGUOUS",
+    "device_service_started": false,
+    "echo": {
+      "fraction_35_45": 0.04224537037037037,
+      "fraction_gt_30": 0.04224537037037037,
+      "max_ms": 44.782376,
+      "p50_ms": 1.858344,
+      "p95_ms": 4.976738900000004,
+      "p99_ms": 42.07216976
+    },
+    "puback": {
+      "fraction_35_45": 0.052662037037037035,
+      "fraction_gt_30": 0.05324074074074074,
+      "max_ms": 45.073332,
+      "p50_ms": 2.111777,
+      "p95_ms": 41.24900215,
+      "p99_ms": 42.24296546
+    },
+    "rows": 1728,
+    "scientific_verdict": "PASS",
+    "shifted_target_executed": false,
+    "tcp_nodelay_values": [0, 0, 0]
+  },
+  "status": "FROZEN_COMPLETE_SCIENTIFIC_CHARACTERIZATION"
+}
