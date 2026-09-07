@@ -1,0 +1,116 @@
+name: ReplayMark Gate S2-P mixed capstone protocol freeze
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p-mixed-capstone-protocol
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2p-protocol-freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GATE_DIR: /tmp/replaymark-gate-s2p
+      S1_HEAD: c93c8574eb62cb4dcde94890fdfc8f939b41e00a
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile protocol verifier
+        run: |
+          python -m py_compile \
+            replaymark_verification/verify_s2_mixed_capstone_protocol.py
+
+      - name: Verify prospective S2-P protocol freeze
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE_DIR"
+          python replaymark_verification/verify_s2_mixed_capstone_protocol.py \
+            --out "$GATE_DIR/s2p_protocol_gate.json"
+
+      - name: Seal S2-P protocol authority
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import subprocess
+
+          root = Path(".")
+          gate_dir = Path(os.environ["GATE_DIR"])
+          report = json.loads(
+              (gate_dir / "s2p_protocol_gate.json").read_text(encoding="utf-8")
+          )
+          if report.get("verdict") != "PASS":
+              raise SystemExit("S2-P verifier did not PASS")
+
+          protocol = json.loads(
+              (root / "replaymark" / "S2_MIXED_CAPSTONE_PROTOCOL.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if protocol["status"] != "FROZEN_BEFORE_SOURCE_CALIBRATION_AND_TARGET_OUTCOMES":
+              raise SystemExit("S2 protocol is not prospectively frozen")
+
+          status = (
+              "schema=replaymark.s2p-protocol-freeze-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              f"s1_head={os.environ['S1_HEAD']}\n"
+              "protocol=FROZEN\n"
+              "source_calibration=NOT_RUN\n"
+              "shifted_target=NOT_RUN\n"
+              "target_outcomes_visible=NO\n"
+              "runtime_micro_optimization=FROZEN\n"
+              "fallback=ABSENT\n"
+              "regeneration=ABSENT\n"
+              "next_gate=S2Q_SOURCE_ONLY_CALIBRATION_AND_DSTAR_SEAL\n"
+          )
+          (gate_dir / "GATE_STATUS").write_text(status, encoding="utf-8")
+
+          for path in (
+              root / "replaymark" / "S2_MIXED_CAPSTONE_PROTOCOL.json",
+              root / "replaymark" / "S2_MIXED_CAPSTONE_PROTOCOL.md",
+              root / "replaymark_verification" / "verify_s2_mixed_capstone_protocol.py",
+          ):
+              (gate_dir / path.name).write_bytes(path.read_bytes())
+
+          commit_text = subprocess.check_output(
+              ["git", "show", "--no-patch", "--format=fuller", "HEAD"],
+              text=True,
+          )
+          (gate_dir / "SEAL_COMMIT.txt").write_text(commit_text, encoding="utf-8")
+
+          files = sorted(p for p in gate_dir.iterdir() if p.is_file())
+          sums = []
+          for path in files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              sums.append(f"{digest}  {path.name}\n")
+          (gate_dir / "SHA256SUMS").write_text("".join(sums), encoding="utf-8")
+
+          print(
+              "GATE_S2P_MIXED_CAPSTONE_PROTOCOL: PASS "
+              f"head={os.environ['GITHUB_SHA']} "
+              f"protocol_sha256={report['protocol_sha256']} "
+              f"schedule_sha256={report['policy_schedule']['schedule_sha256']}"
+          )
+          PY
+
+      - name: Upload S2-P protocol seal
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p-mixed-capstone-protocol
+          path: ${{ env.GATE_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

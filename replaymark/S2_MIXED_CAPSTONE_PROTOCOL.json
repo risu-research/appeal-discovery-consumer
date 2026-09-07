@@ -1,0 +1,246 @@
+{
+  "anti_leakage_and_falsification": {
+    "no_oracle_result_available_to_live_policy_path": true,
+    "no_policy_dispatch_before_all_evidence_is_frozen": true,
+    "no_post_hoc_Dstar_change": true,
+    "no_post_hoc_threshold_change": true,
+    "no_post_hoc_trial_selection": true,
+    "no_unresolved_to_invalid_relabeling": true,
+    "policy_assignment_never_depends_on_observation_or_certificate": true,
+    "realization_or_runtime_failure_is_not_semantic_UNRESOLVED": true,
+    "same_ACT2_candidate_constructor_for_all_policies": true,
+    "same_fixed_target_delay_for_all_policies": true,
+    "same_observation_rule_for_all_policies": true,
+    "target_delay_label_never_passed_to_ReplayMark": true
+  },
+  "authorities": {
+    "independent_integrated_oracle_blob": "9a9ebb86b7a82bdff3de6603235824fd0971e23b",
+    "s0_optimization_authority": "25d317392b9ce6aaaedc190ef6aff8bc38d555b5",
+    "s0_runtime_seal_manifest_blob": "044ba2bd2f904921422485c746875cbe9c059933",
+    "s0_seal_head": "8716db916c49578ee69930b973a44f892f975307",
+    "s1_artifact": {
+      "id": 10029052724,
+      "sha256": "d2f1f77862888c2821f7aa2724301f8eef2118fe5b20e7a2124cd3477e1c2718"
+    },
+    "s1_execution_admission_head": "c93c8574eb62cb4dcde94890fdfc8f939b41e00a",
+    "s1_workflow_run": 34150053296
+  },
+  "claims_not_made_by_s2": [
+    "caller-owned fallback quality",
+    "regeneration policy",
+    "durable cross-process exactly-once",
+    "broker delivery exactly-once",
+    "target-wide generalization",
+    "new semantic theorem",
+    "global Pareto optimality across acquisition/regeneration costs",
+    "minimum raw-variable subset"
+  ],
+  "gate": "S2P_PRE_FROZEN_MIXED_CAPSTONE_PROTOCOL",
+  "independent_evaluation": {
+    "live_dispatch_runner_imports_oracle": false,
+    "oracle": "replaymark_oracle/e3b_integrated_runtime_oracle.py",
+    "oracle_blob": "9a9ebb86b7a82bdff3de6603235824fd0971e23b",
+    "oracle_evaluation_time": "after all live dispatch is complete and the harness is closed",
+    "oracle_imports_replaymark_production": false,
+    "safe_definition": "oracle verdict VALID and reuse_disposition REUSE",
+    "task_level_metrics": [
+      "executed",
+      "oracle_safe",
+      "unsafe_execution",
+      "safe_retention",
+      "unnecessary_block",
+      "sound_block"
+    ],
+    "unsafe_definition": "oracle verdict INVALID or UNRESOLVED, with reuse_disposition DO_NOT_REUSE"
+  },
+  "live_mixed_evaluation": {
+    "adaptive_delay_forbidden": true,
+    "broker": "Eclipse Mosquitto 2.1.2",
+    "candidate_and_certificate_phase": {
+      "ACT2_candidate_created_only_after_observation_freeze": true,
+      "baseline_policy_must_not_consult_certificate_outcome": true,
+      "candidate_action": {
+        "operation": "ACT2",
+        "payload_utf8_exact": "{\"on\": true}",
+        "properties": null,
+        "qos": 1,
+        "retain": false
+      },
+      "candidate_created_immediately_before_certification_and_policy_dispatch": true,
+      "frozen_certificate_computed_for_all_tasks": true,
+      "same_candidate_constructor_for_all_policies": true
+    },
+    "dispatch_phase": {
+      "application_delegate_at_most_once_per_executed_candidate": true,
+      "automatic_retry": false,
+      "blocked_candidate_application_delegate_calls": 0,
+      "broker_exactly_once_claim": false,
+      "dispatch_order": "ascending task_id within each trial",
+      "fallback": false,
+      "regeneration": false
+    },
+    "fresh_task_namespace_per_trial": true,
+    "gate": "S2E_LIVE_MIXED_CAPSTONE_FIRST_COMPLETE_RUN",
+    "observation_phase": {
+      "A_side_quiescence_required_before_dispatch_phase": true,
+      "all_observation_snapshots_frozen_before_dispatch_phase": true,
+      "all_observations_close_at_same_verify_rule": true,
+      "all_tasks_publish_ACT1_only_before_any_ACT2_dispatch": true,
+      "late_A_events_may_not_modify_frozen_snapshot": true,
+      "no_B_side_dispatch_before_quiescence_barrier": true
+    },
+    "outcome_dependent_parameter_change_forbidden": true,
+    "target_state_delay_ms": "exact sealed D_star_ms from S2Q for every target task",
+    "task_specific_delay_forbidden": true,
+    "task_timeout_ms": 1000,
+    "tasks_per_trial": 192,
+    "total_tasks": 1152,
+    "trials": 6,
+    "verify_ms": 100.0,
+    "wave_period_ms": 300.0,
+    "wave_size": 32
+  },
+  "next_if_s2_promotes": "S3_CALLER_OWNED_NATIVE_FALLBACK_AND_DEPLOYMENT_RESTORATION",
+  "phase_order": [
+    "S2P_PROTOCOL_FREEZE",
+    "S2Q_SOURCE_ONLY_CALIBRATION_AND_DSTAR_SEAL",
+    "S2E_LIVE_MIXED_CAPSTONE_FIRST_COMPLETE_RUN",
+    "S2F_POST_EXECUTION_FALSIFICATION_AUDIT"
+  ],
+  "policy_assignment": {
+    "assignment_time": "defined by this protocol before S2Q and before all target outcomes",
+    "balanced_block_size": 3,
+    "blocks_per_trial": 64,
+    "certificate_blind": true,
+    "hash": "sha256",
+    "hash_input": "<seed>|trial=<trial>|block=<block>",
+    "one_task_per_policy_per_block": true,
+    "outcome_blind": true,
+    "permutation_order": [
+      ["ALWAYS_ADMIT", "ALWAYS_BLOCK", "REPLAYMARK"],
+      ["ALWAYS_ADMIT", "REPLAYMARK", "ALWAYS_BLOCK"],
+      ["ALWAYS_BLOCK", "ALWAYS_ADMIT", "REPLAYMARK"],
+      ["ALWAYS_BLOCK", "REPLAYMARK", "ALWAYS_ADMIT"],
+      ["REPLAYMARK", "ALWAYS_ADMIT", "ALWAYS_BLOCK"],
+      ["REPLAYMARK", "ALWAYS_BLOCK", "ALWAYS_ADMIT"]
+    ],
+    "policies": ["ALWAYS_ADMIT", "ALWAYS_BLOCK", "REPLAYMARK"],
+    "schedule_sha256": "ec91b78a6720ef9b4e83da12f9b8cf37c1d05028bb6ebaf0e4c6a274ff372d1e",
+    "seed": "replaymark.s2.policy-assignment.v1|s1=c93c8574eb62cb4dcde94890fdfc8f939b41e00a",
+    "selector": "uint64_big_endian(first_8_digest_bytes) mod 6",
+    "task_ids_in_block": "[3*block, 3*block+1, 3*block+2]",
+    "tasks_per_policy_per_trial": 64,
+    "tasks_per_policy_total": 384
+  },
+  "policy_semantics": {
+    "ALWAYS_ADMIT": {
+      "decision": "execute exact ACT2 candidate once regardless of certificate",
+      "uses_certificate_for_decision": false
+    },
+    "ALWAYS_BLOCK": {
+      "decision": "execute zero ACT2 candidates regardless of certificate",
+      "uses_certificate_for_decision": false
+    },
+    "REPLAYMARK": {
+      "decision": "dispatch only through frozen S1 certified execution gate",
+      "uses_certificate_for_decision": true
+    }
+  },
+  "promotion_criteria": {
+    "ALWAYS_ADMIT": {
+      "executed_task_set_equals_all_assigned_tasks": true,
+      "safe_retention_rate": 1.0,
+      "unsafe_execution_count_must_be_positive": true,
+      "unsafe_execution_rate": 1.0
+    },
+    "ALWAYS_BLOCK": {
+      "executed_task_set_is_empty": true,
+      "safe_retention_rate": 0.0,
+      "unnecessary_block_count_must_be_positive": true,
+      "unsafe_execution_rate": 0.0
+    },
+    "REPLAYMARK": {
+      "executed_task_set_equals_independent_oracle_safe_set": true,
+      "safe_retention_rate": 1.0,
+      "unnecessary_block_count": 0,
+      "unsafe_execution_count": 0,
+      "unsafe_execution_rate": 0.0
+    },
+    "effects": {
+      "application_delegate_call_count_exactly_matches_executed_task_count": true,
+      "each_application_executed_candidate_has_at_least_one_matching_B_state_effect": true,
+      "each_blocked_candidate_has_zero_matching_B_state_effects": true
+    },
+    "no_latency_threshold": true,
+    "no_performance_speedup_claim_required": true
+  },
+  "qualification_before_promotion": {
+    "all_1152_target_rows_present": true,
+    "each_policy_aggregate_safe_min": 64,
+    "each_policy_aggregate_unsafe_min": 64,
+    "each_trial_contains_safe_and_unsafe_tasks": true,
+    "no_post_hoc_task_exclusion": true,
+    "pooled_safe_fraction_max_inclusive": 0.8,
+    "pooled_safe_fraction_min_inclusive": 0.2,
+    "qualification_failure_is_scientific_result": true,
+    "qualification_failure_may_not_trigger_Dstar_retune": true
+  },
+  "run_authority": {
+    "complete_qualification_failure_cannot_be_replaced_by_outcome_favorable_rerun": true,
+    "infrastructure_retry_before_complete_report": "allowed only with exact same commit, protocol, and already-sealed D_star; it cannot change scientific parameters",
+    "later_exact_repetitions": "replication only; never replace the first complete authoritative result",
+    "s2e_first_complete_live_report_after_execution_charter_freeze_is_authoritative": true,
+    "s2q_first_complete_calibration_artifact_becomes_Dstar_authority": true
+  },
+  "s1_frozen_blobs": {
+    ".github/workflows/replaymark-runtime-gate-s1-certified-execution-admission.yml": "7f85d5e83c791941bd03c9757b5ffa28608558c4",
+    "agentmark_e3b_lab/e3_mqtt/app/replaymark_s1_admission_live.py": "4095bea2d7771fd0d52eb9027512baca2b945574",
+    "replaymark/S1_CERTIFIED_EXECUTION_ADMISSION.md": "7b20d2cf24a6ae47801a84644a2a909356f05264",
+    "replaymark/execution_admission.py": "015b2cfb7f084562eaead2dedd2fae00628eaffa",
+    "replaymark/runtime_e3b_execution_gate.py": "22748a5aa820e83e4700a339e8af297cdd9f9143",
+    "replaymark_oracle/execution_admission_oracle.py": "5850b10217265e24defe1d83d8981e7de8bcffcf",
+    "replaymark_verification/verify_runtime_e3b_execution_admission.py": "9219f79f8acfdf19da3bd762c02dc2771b248e46"
+  },
+  "s2p_boundary": {
+    "experiment_runner_added": false,
+    "fallback_or_regeneration": false,
+    "new_semantic_theorem": false,
+    "runtime_micro_optimization": false,
+    "source_calibration_executed": false,
+    "target_execution_permitted": false,
+    "target_outcome_visibility_permitted": false
+  },
+  "schema": "replaymark.s2-mixed-capstone-protocol.v1",
+  "scientific_question": "Under one fixed target configuration and one shared historical-action class, can ReplayMark admit exactly the historical decisions independently supported by current evidence while Always-Admit executes unsafe decisions and Always-Block discards safe decisions?",
+  "source_only_calibration": {
+    "completion_offset_definition": "state_on_recv_mono_ns - task_t0_ns",
+    "dstar_rule": {
+      "alternate_formula_forbidden": true,
+      "computed_once": true,
+      "definition": "D_star_ms = floor((verify_ms - pooled_median_source_completion_ms) + 0.5)",
+      "must_satisfy_max_exclusive_ms": 100,
+      "must_satisfy_min_ms": 1,
+      "retune_after_target_outcome_forbidden": true,
+      "rounding": "nearest integer millisecond; positive half rounds upward",
+      "seal_before_any_target_outcome": true
+    },
+    "failure_rule": "If source qualification or D_star admissibility fails, S2Q fails. Do not inspect a shifted target to choose another D_star, verify boundary, workload shape, or formula.",
+    "next_gate": "S2Q_SOURCE_ONLY_CALIBRATION_AND_DSTAR_SEAL",
+    "pooled_sample_count": 576,
+    "qualification": {
+      "all_source_state_visible_by_verify_deadline": true,
+      "all_tasks_complete": true,
+      "no_task_exclusion": true,
+      "pooled_completion_p99_ms_max": 80.0
+    },
+    "replicates": 3,
+    "state_delay_ms": 0,
+    "task_timeout_ms": 1000,
+    "tasks_per_replicate": 192,
+    "verify_ms": 100.0,
+    "wave_period_ms": 300.0,
+    "wave_size": 32,
+    "workload": "ACT1-only source tasks; no ACT2 candidate or target-shift arm"
+  },
+  "status": "FROZEN_BEFORE_SOURCE_CALIBRATION_AND_TARGET_OUTCOMES"
+}
