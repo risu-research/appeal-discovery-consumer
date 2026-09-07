@@ -1,0 +1,69 @@
+name: ReplayMark Rstar maximal certified reuse
+
+on:
+  push:
+    branches:
+      - replaymark-rstar-maximal-certified-reuse
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify bounded q compiler
+        run: python replaymark_verification/verify_bounded_q.py > /tmp/q_gate.json
+
+      - name: Verify q evidence image
+        run: |
+          mkdir -p /tmp/replaymark-rstar
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-rstar/evidence_image_gate.json
+
+      - name: Verify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-rstar/support_envelope_gate.json
+
+      - name: Verify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-rstar/adjudicator_gate.json
+
+      - name: Verify Rstar maximal certified reuse against raw definition oracle
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-rstar/rstar_gate.json
+
+      - name: Seal Rstar gate
+        run: |
+          cp /tmp/q_gate.json /tmp/replaymark-rstar/q_gate.json
+          sha256sum \
+            replaymark/rstar.py \
+            replaymark_oracle/rstar_oracle.py \
+            replaymark_verification/verify_rstar.py \
+            replaymark/RSTAR.md \
+            /tmp/replaymark-rstar/rstar_gate.json \
+            /tmp/replaymark-rstar/adjudicator_gate.json \
+            /tmp/replaymark-rstar/support_envelope_gate.json \
+            /tmp/replaymark-rstar/evidence_image_gate.json \
+            /tmp/replaymark-rstar/q_gate.json \
+            > /tmp/replaymark-rstar/SHA256SUMS
+          grep -q '"verdict": "PASS"' /tmp/replaymark-rstar/rstar_gate.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-rstar-maximal-certified-reuse-gate
+          path: /tmp/replaymark-rstar
+          if-no-files-found: error
