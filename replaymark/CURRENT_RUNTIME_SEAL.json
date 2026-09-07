@@ -1,0 +1,107 @@
+{
+  "schema": "replaymark.gate-s0-current-runtime-seal.v1",
+  "gate": "S0_CURRENT_RUNTIME_SEAL",
+  "authority": {
+    "commit": "25d317392b9ce6aaaedc190ef6aff8bc38d555b5",
+    "tree": "7f8349a10d884a212c3f7143dbd56e2b8cc13718",
+    "parent": "a1445ce1b03aa75b95b97f518f1d79227f2206f9",
+    "commit_message": "reuse exact realized objects in E3b certificate binding",
+    "workflow_run": 34144836504,
+    "workflow_conclusion": "success",
+    "artifact": {
+      "id": 10027299146,
+      "name": "replaymark-runtime-e3b-same-object-binding-fast-path",
+      "sha256": "c75868eefed78f80f8a13483020b79938d852c5e0083be029e425956e57a5625",
+      "size_bytes": 94787
+    }
+  },
+  "closed": {
+    "semantic_core": "CLOSED",
+    "explicit_compiled_contract": "CLOSED",
+    "e3b_observation_realization": "PASS",
+    "e3b_historical_action_realization": "PASS",
+    "e3b_same_task_correlation": "PASS",
+    "e3b_shadow_runtime_bridge": "PASS",
+    "r1_noninterfering_shadow": "PASS",
+    "integrated_frozen_runtime_conformance": "PASS",
+    "runtime_cost_characterization": "PASS",
+    "verified_contract_identity_reuse": "PASS",
+    "same_object_certificate_binding": "PASS"
+  },
+  "not_implemented": {
+    "execution_policy": "NOT_IMPLEMENTED",
+    "selective_reuse_intervention": "NOT_IMPLEMENTED",
+    "caller_owned_fallback": "NOT_IMPLEMENTED"
+  },
+  "optimization_policy": {
+    "state": "FROZEN",
+    "rule": "No additional runtime micro-optimization before the selective-reuse capstone.",
+    "reopen_only_if": "A later capstone measurement identifies a material runtime bottleneck on the frozen production path.",
+    "reopen_requires": [
+      "predeclared measurement protocol",
+      "measured material bottleneck evidence",
+      "bounded additive optimization branch",
+      "semantic and certificate-byte equivalence revalidation"
+    ],
+    "forbidden_as_reopen_basis": [
+      "aesthetic cleanup",
+      "speculative speedup",
+      "microbenchmark-only improvement without capstone relevance",
+      "new semantic claim"
+    ]
+  },
+  "scientific_boundary": {
+    "rstar_is": "maximally permissive fixed-evidence support-sound binary reuse rule",
+    "rstar_is_not": "fallback or regeneration policy",
+    "realization_failure_is_not": "semantic UNRESOLVED",
+    "runtime_seal_adds_semantics": false,
+    "runtime_seal_adds_execution": false
+  },
+  "frozen_blobs": {
+    "semantic": {
+      "replaymark/contracts.py": "a8805eed01328061337290f0d5f2006bd2a7f1c4",
+      "replaymark/q_compiler.py": "f74e765ef1872b54743b31ebf11a113f32d9840e",
+      "replaymark/predictive_witness.py": "6115ab4f2e4f21e1abda2f4f0d37a3e4ff09d9a3",
+      "replaymark/evidence_semantics.py": "83106c59bcdab433d88be78be58e3330ab7aaa6c",
+      "replaymark/evidence_image.py": "c5a589aba97ba57de9e82a69f812e4abeff1b42e",
+      "replaymark/support_envelope.py": "6a527573d130bde5649bcf891fc080f16e38cb0d",
+      "replaymark/target_provenance.py": "e819cee216aa59ea40b1f4e66e3fb0f59b726fc7",
+      "replaymark/adjudicator.py": "32ba03a9a987b16355c166cf56efbf1f6f3b8542",
+      "replaymark/rstar.py": "73e0a94f1be76272075d7f1050439ef6b321017e",
+      "replaymark/compiled_contract.py": "9780550de9c9447ca4e488ff5797e08fdd548405",
+      "replaymark/compiled_contract_codec.py": "3eb5be07e378a342dc11186d2ef2dbf72e406831",
+      "replaymark/compat_agentmark.py": "dfdad5011443e47dcd259b0063be891c8469f86a"
+    },
+    "runtime": {
+      "replaymark/runtime_realization.py": "3345a8ca35a5917f0062625cb216db29470c7972",
+      "replaymark/runtime_e3b_observation.py": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+      "replaymark/runtime_e3b_action.py": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+      "replaymark/runtime_e3b_correlation.py": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+      "replaymark/runtime_e3b_bridge.py": "5c2b13f35edcae9ce42fa062f51f1b6ce46747bf",
+      "replaymark/runtime_contract_identity.py": "feb68c404e0fac4f37e0d2fe7fa3049493142197"
+    },
+    "r1_live": {
+      "agentmark_e3b_lab/e3_mqtt/app/ladder.py": "fcc1768544714f1b11a497a856f8e18d4d2f07dd",
+      "agentmark_e3b_lab/e3_mqtt/app/device.py": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+      "agentmark_e3b_lab/e3_mqtt/app/experiment.py": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+      "agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py": "1f8f689f393f9a547cbd9a76736389096521e2ca",
+      "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py": "fb7bbd8c94b3584099e0530033f9e404fabf71af",
+      "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py": "7f05d6f2148ba6af7a37d89fc8648664c5150a86",
+      "agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py": "5b64ea546c8c82f4346aae8b652bb10e1c669f7d",
+      "agentmark_e3b_lab/e3_mqtt/app/replaymark_post_optimization_residual_cost.py": "6bedf405124f07c31e0c09cfc7ca0af02e79541b",
+      "agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_cost.py": "f75e2a1bef21256ff3031f3ecdad31f928f008d5",
+      "agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_identity_optimization.py": "3fae9a2f1f32e5e10fc3ccfc20aafaf54eab35aa",
+      "agentmark_e3b_lab/e3_mqtt/app/replaymark_same_object_binding_optimization.py": "e0f26873a53d413b2ce15f4dada06ec6cf097020",
+      "agentmark_e3b_lab/e3_mqtt/compose.yaml": "18878117497df40c877d716159c91684dfec2cea"
+    },
+    "independent_oracles": {
+      "replaymark_oracle/definition_q_oracle.py": "5cda3464e8af7bbe1e9146f51fd8e7d6ce450b63",
+      "replaymark_oracle/adjudication_oracle.py": "98921e7759dce6c5e9f04941ff39c6f99d1dcdc1",
+      "replaymark_oracle/rstar_oracle.py": "63a8412528cdc847bd901860e9b33ca5be881f9c",
+      "replaymark_oracle/e3b_observation_oracle.py": "b4c9b8b684bb8f492668d9c731c0bad648508c07",
+      "replaymark_oracle/e3b_action_oracle.py": "f93c518f82c870394bc5f578303de9f137f1864c",
+      "replaymark_oracle/e3b_correlation_oracle.py": "8de610185963d4e58892c482541f8be9f211aa3e",
+      "replaymark_oracle/e3b_integrated_runtime_oracle.py": "9a9ebb86b7a82bdff3de6603235824fd0971e23b"
+    }
+  }
+}

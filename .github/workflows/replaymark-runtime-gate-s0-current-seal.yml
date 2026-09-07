@@ -1,0 +1,245 @@
+name: ReplayMark Gate S0 current runtime seal
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-gate-s0-current-seal-authority
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s0-current-runtime-seal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify S0 atomic seal and frozen authority manifest
+        run: |
+          mkdir -p /tmp/replaymark-gate-s0
+          python -m py_compile replaymark_verification/verify_current_runtime_seal.py
+          python replaymark_verification/verify_current_runtime_seal.py \
+            --out /tmp/replaymark-gate-s0/current_runtime_seal_gate.json
+
+      - name: Reverify frozen semantic core
+        run: |
+          python replaymark/verify_seed.py
+          python replaymark_verification/verify_bounded_q.py \
+            > /tmp/replaymark-gate-s0/q_gate.json
+          python replaymark_verification/verify_predictive_witness.py \
+            --out /tmp/replaymark-gate-s0/predictive_witness_gate.json
+          python replaymark_verification/verify_evidence_semantics.py \
+            --out /tmp/replaymark-gate-s0/evidence_semantics_gate.json
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-gate-s0/evidence_image_gate.json
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-gate-s0/support_envelope_gate.json
+          python replaymark_verification/verify_target_provenance.py \
+            --out /tmp/replaymark-gate-s0/target_provenance_gate.json
+          python replaymark_verification/verify_compiled_contract_api.py
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-gate-s0/compiled_contract_gate.json
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-gate-s0/adjudicator_gate.json
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-gate-s0/rstar_gate.json
+
+      - name: Reverify frozen runtime realization and certificate chain
+        run: |
+          python replaymark_verification/verify_runtime_contract_identity_cache.py \
+            --out /tmp/replaymark-gate-s0/identity_cache_gate.json
+          python replaymark_verification/verify_runtime_e3b_same_object_binding.py \
+            --out /tmp/replaymark-gate-s0/same_object_binding_gate.json
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-gate-s0/runtime_observation_gate.json
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out /tmp/replaymark-gate-s0/runtime_action_gate.json
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out /tmp/replaymark-gate-s0/same_task_gate.json
+          python replaymark_verification/verify_runtime_e3b_bridge.py \
+            --out /tmp/replaymark-gate-s0/runtime_bridge_gate.json
+          python replaymark_verification/verify_runtime_e3b_integrated_oracle.py \
+            --out /tmp/replaymark-gate-s0/integrated_oracle_gate.json
+
+      - name: Real Mosquitto R1 shadow integrated conformance and current cost
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f \
+            results/e3b_r1_shadow_hook.json \
+            results/e3b_integrated_frozen_runtime_conformance.json \
+            results/e3b_post_optimization_residual_cost_profile.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+
+          docker compose run --rm runner_shadow
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 --trials 3 \
+              --out /results/e3b_integrated_frozen_runtime_conformance.json
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_post_optimization_residual_cost.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 \
+              --rounds 240 --inner 8 --trace-repeats 10 --authority-head "$GITHUB_SHA" \
+              --out /results/e3b_post_optimization_residual_cost_profile.json
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          shadow = json.loads(Path("results/e3b_r1_shadow_hook.json").read_text())
+          integrated = json.loads(Path("results/e3b_integrated_frozen_runtime_conformance.json").read_text())
+          residual = json.loads(Path("results/e3b_post_optimization_residual_cost_profile.json").read_text())
+
+          assert shadow["promotion_pass"] is True and shadow["verdict"] == "PASS"
+          assert integrated["promotion_pass"] is True
+          assert integrated["coverage"]["task_rows"] == 192
+          assert integrated["coverage"]["all_task_rows_pass"] is True
+          assert residual["authority_head"] == os.environ["GITHUB_SHA"]
+          assert residual["promotion_pass"] is True and residual["verdict"] == "PASS"
+          assert residual["semantic_identity"]["stable"] is True
+          assert residual["measurement_validity"]["optimization_performed"] is False
+          assert residual["measurement_validity"]["fixed_speed_promotion_threshold"] is False
+          assert residual["measurement_validity"]["additive_phase_conservation_exact"] is True
+
+          print(json.dumps({
+              "runtime_cost_is_descriptive_not_threshold": True,
+              "negative_full_pipeline_p50_us": residual["exact_uninstrumented_production_path"]["live_negative"]["full_pipeline_object"]["p50_us"],
+              "negative_full_pipeline_p95_us": residual["exact_uninstrumented_production_path"]["live_negative"]["full_pipeline_object"]["p95_us"],
+              "negative_full_pipeline_p99_us": residual["exact_uninstrumented_production_path"]["live_negative"]["full_pipeline_object"]["p99_us"],
+              "positive_full_pipeline_p50_us": residual["exact_uninstrumented_production_path"]["derived_positive"]["full_pipeline_object"]["p50_us"],
+              "positive_full_pipeline_p95_us": residual["exact_uninstrumented_production_path"]["derived_positive"]["full_pipeline_object"]["p95_us"],
+              "positive_full_pipeline_p99_us": residual["exact_uninstrumented_production_path"]["derived_positive"]["full_pipeline_object"]["p99_us"],
+          }, indent=2, sort_keys=True))
+          PY
+
+          cp results/e3b_r1_shadow_hook.json /tmp/replaymark-gate-s0/r1_shadow_live_gate.json
+          cp results/e3b_integrated_frozen_runtime_conformance.json /tmp/replaymark-gate-s0/integrated_runtime_conformance.json
+          cp results/e3b_post_optimization_residual_cost_profile.json /tmp/replaymark-gate-s0/current_runtime_cost_profile.json
+
+      - name: Seal Gate S0
+        env:
+          GATE_DIR: /tmp/replaymark-gate-s0
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, subprocess
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected_json = (
+              "current_runtime_seal_gate.json",
+              "q_gate.json",
+              "predictive_witness_gate.json",
+              "evidence_semantics_gate.json",
+              "evidence_image_gate.json",
+              "support_envelope_gate.json",
+              "target_provenance_gate.json",
+              "compiled_contract_gate.json",
+              "adjudicator_gate.json",
+              "rstar_gate.json",
+              "identity_cache_gate.json",
+              "same_object_binding_gate.json",
+              "runtime_observation_gate.json",
+              "runtime_action_gate.json",
+              "same_task_gate.json",
+              "runtime_bridge_gate.json",
+              "integrated_oracle_gate.json",
+              "r1_shadow_live_gate.json",
+              "integrated_runtime_conformance.json",
+              "current_runtime_cost_profile.json",
+          )
+          for name in expected_json:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing S0 gate output: {name}")
+              data = json.loads(path.read_text())
+              if data.get("verdict") != "PASS":
+                  raise SystemExit(f"S0 component not PASS: {name}")
+
+          seal = json.loads((gate_dir / "current_runtime_seal_gate.json").read_text())
+          integrated = json.loads((gate_dir / "integrated_runtime_conformance.json").read_text())
+          residual = json.loads((gate_dir / "current_runtime_cost_profile.json").read_text())
+          assert seal["authority_commit"] == "25d317392b9ce6aaaedc190ef6aff8bc38d555b5"
+          assert seal["optimization_state"] == "FROZEN"
+          assert seal["execution_policy"] == "NOT_IMPLEMENTED"
+          assert seal["selective_reuse_intervention"] == "NOT_IMPLEMENTED"
+          assert integrated["coverage"]["task_rows"] == 192
+          assert residual["measurement_validity"]["optimization_performed"] is False
+
+          cost = {
+              "schema": "replaymark.gate-s0-current-runtime-cost-snapshot.v1",
+              "seal_head": os.environ["GITHUB_SHA"],
+              "authority_commit": "25d317392b9ce6aaaedc190ef6aff8bc38d555b5",
+              "promotion_threshold": None,
+              "descriptive_only": True,
+              "live_negative": residual["exact_uninstrumented_production_path"]["live_negative"]["full_pipeline_object"],
+              "derived_positive": residual["exact_uninstrumented_production_path"]["derived_positive"]["full_pipeline_object"],
+          }
+          (gate_dir / "CURRENT_RUNTIME_COST_SNAPSHOT.json").write_text(
+              json.dumps(cost, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+
+          (gate_dir / "GATE_STATUS").write_text(
+              "schema=replaymark.gate-s0-current-runtime-seal.v1\n"
+              f"seal_head={os.environ['GITHUB_SHA']}\n"
+              "optimization_authority=25d317392b9ce6aaaedc190ef6aff8bc38d555b5\n"
+              "semantic_core=CLOSED\n"
+              "compiled_contract=CLOSED\n"
+              "observation_realization=PASS\n"
+              "historical_action_realization=PASS\n"
+              "same_task_correlation=PASS\n"
+              "runtime_certificate_chain=PASS\n"
+              "r1_noninterfering_shadow=PASS\n"
+              "integrated_frozen_runtime_conformance=PASS\n"
+              "current_runtime_cost=CHARACTERIZED\n"
+              "micro_optimization=FROZEN\n"
+              "execution_policy=NOT_IMPLEMENTED\n"
+              "selective_reuse_intervention=NOT_IMPLEMENTED\n"
+              "caller_owned_fallback=NOT_IMPLEMENTED\n"
+              "next_gate=S1_CERTIFIED_EXECUTION_ADMISSION_NO_FALLBACK\n",
+              encoding="utf-8",
+          )
+
+          manifest = Path("replaymark/CURRENT_RUNTIME_SEAL.json")
+          document = Path("replaymark/CURRENT_RUNTIME_SEAL.md")
+          (gate_dir / "CURRENT_RUNTIME_SEAL.json").write_bytes(manifest.read_bytes())
+          (gate_dir / "CURRENT_RUNTIME_SEAL.md").write_bytes(document.read_bytes())
+          (gate_dir / "SEAL_COMMIT.txt").write_text(
+              subprocess.check_output(["git", "show", "--no-patch", "--format=fuller", "HEAD"], text=True),
+              encoding="utf-8",
+          )
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          all_files = sorted(path for path in gate_dir.iterdir() if path.is_file())
+          (gate_dir / "SHA256SUMS").write_text(
+              "".join(f"{digest(path)}  {path.name}\n" for path in all_files),
+              encoding="utf-8",
+          )
+          print(f"GATE_S0_CURRENT_RUNTIME_SEAL: PASS head={os.environ['GITHUB_SHA']}")
+          PY
+
+      - name: Upload sealed Gate S0 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s0-current-runtime-seal
+          path: /tmp/replaymark-gate-s0
+          if-no-files-found: error
