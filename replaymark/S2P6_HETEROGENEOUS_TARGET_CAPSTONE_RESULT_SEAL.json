@@ -1,0 +1,72 @@
+{
+  "artifact": {
+    "id": 10034798750,
+    "name": "replaymark-gate-s2p6-heterogeneous-target-capstone",
+    "sha256": "1319c41908d511ca9e8976973801350aab593199038b82752d8e4e7c78d0ecdb",
+    "size_bytes": 624939
+  },
+  "authority": {
+    "execution_head": "e5e992b0a31c952017ee4209be2c0585a6cab500",
+    "execution_tree": "a88776698d85015e0897d1d95dc87edb87aee6e3",
+    "p6_protocol_head": "4a458f2f5cc9163c6046cc6d20b3626cecfc4a81",
+    "workflow_job": 101882862715,
+    "workflow_run": 34168034341
+  },
+  "development_history": {
+    "pre_target_import_path_failure_commit": "2536b5e3d28c32a48db58478f729d5d211e66250",
+    "pre_target_import_path_failure_run": 34167976472,
+    "scientific_target_exposure_in_failed_run": false
+  },
+  "first_complete_result": {
+    "certificate_mismatches": 0,
+    "effect_failures": 0,
+    "executed_by_policy": {
+      "ALWAYS_ADMIT": 384,
+      "ALWAYS_BLOCK": 0,
+      "REPLAYMARK": 188
+    },
+    "oracle_by_hidden_target_class": {
+      "REFERENCE_safe": 565,
+      "REFERENCE_unsafe": 11,
+      "SHIFTED_safe": 0,
+      "SHIFTED_unsafe": 576
+    },
+    "policy_schedule_mismatches": 0,
+    "recording_calls": 572,
+    "replaymark": {
+      "executed_set_equals_oracle_safe_set": true,
+      "safe_assigned": 188,
+      "safe_executed": 188,
+      "safe_retention_rate": 1.0,
+      "unnecessary_blocks": 0,
+      "unsafe_assigned": 196,
+      "unsafe_executed": 0,
+      "unsafe_execution_rate": 0.0
+    },
+    "safe_by_policy": {
+      "ALWAYS_ADMIT": 186,
+      "ALWAYS_BLOCK": 191,
+      "REPLAYMARK": 188
+    },
+    "target_class_leakage_rows": 0,
+    "total_rows": 1152,
+    "unsafe_by_policy": {
+      "ALWAYS_ADMIT": 198,
+      "ALWAYS_BLOCK": 193,
+      "REPLAYMARK": 196
+    },
+    "verdict": "PASS"
+  },
+  "historical_template_sha256": "e86d5f42a09b8257185b6e3608ac83c0ac41deeba7890b914c22b0441a8b8888",
+  "interpretation_boundary": {
+    "fallback": "ABSENT",
+    "hidden_target_class_is_semantic_truth": false,
+    "independent_oracle_is_semantic_truth": true,
+    "latency_speedup_claim": false,
+    "regeneration": "ABSENT",
+    "shifted_class_safe_count_observed": 0
+  },
+  "next_gate": "S2F_HETEROGENEOUS_TARGET_FALSIFICATION_AUDIT",
+  "schema": "replaymark.s2p6-first-complete-heterogeneous-target-capstone-result-seal.v1",
+  "status": "FROZEN_FIRST_COMPLETE_PASS"
+}
