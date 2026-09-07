@@ -1,0 +1,299 @@
+name: ReplayMark post-optimization residual cost profile
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-post-optimization-residual-cost
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  post-optimization-residual-cost-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify atomic measurement-only increment
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_post_optimization_residual_cost.py
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import subprocess
+
+          parent = subprocess.check_output(
+              ["git", "rev-parse", "HEAD^"], text=True
+          ).strip()
+          expected_parent = "5d9bbdc87bf926359f83457a0c8057676a4e5b65"
+          if parent != expected_parent:
+              raise SystemExit(f"wrong optimization parent: {parent} != {expected_parent}")
+
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", "HEAD^", "HEAD"], text=True
+              ).splitlines()
+          )
+          expected_changed = {
+              ".github/workflows/replaymark-runtime-post-optimization-residual-cost.yml",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_post_optimization_residual_cost.py",
+              "replaymark/POST_OPTIMIZATION_RESIDUAL_COST_PROFILE.md",
+          }
+          if changed != expected_changed:
+              raise SystemExit(
+                  f"measurement-only increment drift: {sorted(changed)} != "
+                  f"{sorted(expected_changed)}"
+              )
+
+          expected_blobs = {
+              "agentmark_e3b_lab/e3_mqtt/app/ladder.py": "fcc1768544714f1b11a497a856f8e18d4d2f07dd",
+              "agentmark_e3b_lab/e3_mqtt/app/device.py": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+              "agentmark_e3b_lab/e3_mqtt/app/experiment.py": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+              "agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py": "1f8f689f393f9a547cbd9a76736389096521e2ca",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py": "fb7bbd8c94b3584099e0530033f9e404fabf71af",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py": "7f05d6f2148ba6af7a37d89fc8648664c5150a86",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py": "5b64ea546c8c82f4346aae8b652bb10e1c669f7d",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_cost.py": "f75e2a1bef21256ff3031f3ecdad31f928f008d5",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_identity_optimization.py": "3fae9a2f1f32e5e10fc3ccfc20aafaf54eab35aa",
+              "replaymark/runtime_contract_identity.py": "feb68c404e0fac4f37e0d2fe7fa3049493142197",
+              "replaymark/runtime_e3b_bridge.py": "0092ecccbe95b03ae513da63e5d4f4a66e4b3a6f",
+              "replaymark/runtime_e3b_observation.py": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+              "replaymark/runtime_e3b_action.py": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+              "replaymark/runtime_e3b_correlation.py": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+              "replaymark/compiled_contract.py": "9780550de9c9447ca4e488ff5797e08fdd548405",
+              "replaymark/runtime_realization.py": "3345a8ca35a5917f0062625cb216db29470c7972",
+              "replaymark/rstar.py": "73e0a94f1be76272075d7f1050439ef6b321017e",
+              "replaymark_verification/verify_runtime_contract_identity_cache.py": "c4d2fe372870a2261ee51a44ec2cd75895837347",
+          }
+          for name, want in expected_blobs.items():
+              body = Path(name).read_bytes()
+              got = hashlib.sha1(
+                  b"blob " + str(len(body)).encode("ascii") + b"\0" + body
+              ).hexdigest()
+              if got != want:
+                  raise SystemExit(f"frozen authority drift: {name}: {got} != {want}")
+          print("POST_OPT_RESIDUAL_MEASUREMENT_ONLY_BOUNDARY: PASS")
+          PY
+
+      - name: Reverify optimized identity and semantic chain
+        run: |
+          mkdir -p /tmp/replaymark-post-opt-residual
+          python replaymark_verification/verify_runtime_contract_identity_cache.py \
+            --out /tmp/replaymark-post-opt-residual/identity_cache_gate.json
+          python replaymark/verify_seed.py
+          python replaymark_verification/verify_compiled_contract_api.py
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-post-opt-residual/runtime_observation_gate.json
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out /tmp/replaymark-post-opt-residual/runtime_action_gate.json
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out /tmp/replaymark-post-opt-residual/same_task_gate.json
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-post-opt-residual/concrete_contract_gate.json
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-post-opt-residual/adjudicator_gate.json
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-post-opt-residual/rstar_gate.json
+          python replaymark_verification/verify_runtime_e3b_bridge.py \
+            --out /tmp/replaymark-post-opt-residual/shadow_bridge_gate.json
+
+      - name: Real Mosquitto noninterference and residual profile
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f \
+            results/e3b_r1_shadow_hook.json \
+            results/e3b_integrated_frozen_runtime_conformance.json \
+            results/e3b_post_optimization_residual_cost_profile.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+
+          docker compose run --rm runner_shadow
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 --trials 3 \
+              --out /results/e3b_integrated_frozen_runtime_conformance.json
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_post_optimization_residual_cost.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 \
+              --rounds 240 --inner 8 --trace-repeats 10 \
+              --authority-head "$GITHUB_SHA" \
+              --out /results/e3b_post_optimization_residual_cost_profile.json
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          shadow = json.loads(Path("results/e3b_r1_shadow_hook.json").read_text())
+          integrated = json.loads(
+              Path("results/e3b_integrated_frozen_runtime_conformance.json").read_text()
+          )
+          profile = json.loads(
+              Path("results/e3b_post_optimization_residual_cost_profile.json").read_text()
+          )
+
+          assert shadow["promotion_pass"] is True and shadow["verdict"] == "PASS"
+          assert integrated["promotion_pass"] is True
+          assert integrated["coverage"]["task_rows"] == 192
+          assert integrated["coverage"]["all_task_rows_pass"] is True
+
+          assert profile["schema"] == "replaymark.runtime-post-optimization-residual-cost-profile.v1"
+          assert profile["authority_head"] == os.environ["GITHUB_SHA"]
+          assert profile["broker_version_sys"] == "mosquitto version 2.1.2"
+          assert profile["promotion_pass"] is True and profile["verdict"] == "PASS"
+          assert profile["live_corpus"]["negative_live_cases"] == 64
+          assert profile["live_corpus"]["positive_definition_derived_cases"] == 64
+          assert profile["semantic_identity"]["stable"] is True
+          assert profile["measurement_validity"]["optimization_performed"] is False
+          assert profile["measurement_validity"]["additive_phase_conservation_exact"] is True
+          assert profile["measurement_validity"]["exclusive_phase_nonnegative"] is True
+          assert profile["cache_info"]["size"] <= profile["cache_info"]["capacity"]
+
+          for outcome in ("live_negative", "derived_positive"):
+              exact = profile["exact_uninstrumented_production_path"][outcome]
+              trace = profile["call_traced_additive_decomposition"][outcome]
+              assert exact["full_pipeline_object"]["samples"] == 240
+              assert exact["correlation_total"]["samples"] == 240
+              assert exact["bridge_hot_total"]["samples"] == 240
+              assert trace["samples"] == 640
+              assert trace["phase_conservation"]["max_abs_closure_error_ns"] == 0.0
+              assert all(
+                  count == 0
+                  for count in trace["phase_conservation"][
+                      "negative_exclusive_counts"
+                  ].values()
+              )
+
+          print(json.dumps({
+              outcome: {
+                  "full_pipeline_p50_us": profile[
+                      "exact_uninstrumented_production_path"
+                  ][outcome]["full_pipeline_object"]["p50_us"],
+                  "correlation_p50_us": profile[
+                      "exact_uninstrumented_production_path"
+                  ][outcome]["correlation_total"]["p50_us"],
+                  "bridge_hot_p50_us": profile[
+                      "exact_uninstrumented_production_path"
+                  ][outcome]["bridge_hot_total"]["p50_us"],
+                  "top_phases": profile[
+                      "call_traced_additive_decomposition"
+                  ][outcome]["additive_phase_ranking"][:5],
+                  "instrumentation_inflation": profile[
+                      "triangulated_diagnostics"
+                  ][outcome]["instrumentation_inflation_ratio_p50"],
+              }
+              for outcome in ("live_negative", "derived_positive")
+          }, indent=2, sort_keys=True))
+          PY
+
+          cp results/e3b_r1_shadow_hook.json \
+            /tmp/replaymark-post-opt-residual/r1_shadow_live_gate.json
+          cp results/e3b_integrated_frozen_runtime_conformance.json \
+            /tmp/replaymark-post-opt-residual/integrated_runtime_conformance.json
+          cp results/e3b_post_optimization_residual_cost_profile.json \
+            /tmp/replaymark-post-opt-residual/post_optimization_residual_profile.json
+
+      - name: Seal post-optimization residual profile
+        env:
+          GATE_DIR: /tmp/replaymark-post-opt-residual
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected = (
+              "identity_cache_gate.json",
+              "runtime_observation_gate.json",
+              "runtime_action_gate.json",
+              "same_task_gate.json",
+              "concrete_contract_gate.json",
+              "adjudicator_gate.json",
+              "rstar_gate.json",
+              "shadow_bridge_gate.json",
+              "r1_shadow_live_gate.json",
+              "integrated_runtime_conformance.json",
+              "post_optimization_residual_profile.json",
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing gate output: {name}")
+              if json.loads(path.read_text()).get("verdict") != "PASS":
+                  raise SystemExit(f"gate not PASS: {name}")
+
+          profile = json.loads(
+              (gate_dir / "post_optimization_residual_profile.json").read_text()
+          )
+          assert profile["measurement_validity"]["optimization_performed"] is False
+          assert profile["measurement_validity"]["additive_phase_conservation_exact"] is True
+          assert profile["semantic_identity"]["stable"] is True
+
+          sources = (
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_post_optimization_residual_cost.py"),
+              Path("replaymark/POST_OPTIMIZATION_RESIDUAL_COST_PROFILE.md"),
+          )
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          (gate_dir / "GATE_STATUS").write_text(
+              "schema=replaymark.runtime-post-optimization-residual-cost-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              "optimization_parent=5d9bbdc87bf926359f83457a0c8057676a4e5b65\n"
+              "measurement_only_increment=PASS\n"
+              "optimized_identity_cache=PASS\n"
+              "semantic_runtime_chain=PASS\n"
+              "r1_noninterference=PASS\n"
+              "integrated_frozen_runtime_conformance=PASS\n"
+              "residual_cost_profile=PASS\n"
+              "additive_phase_conservation=PASS\n"
+              "semantic_identity_stable=PASS\n"
+              "execution_policy=NOT_IMPLEMENTED\n"
+              "selective_reuse_intervention=NOT_IMPLEMENTED\n"
+              "new_optimization=NOT_IMPLEMENTED\n",
+              encoding="utf-8",
+          )
+          (gate_dir / "SOURCE_SHA256SUMS").write_text(
+              "".join(
+                  f"{digest(path)}  {path.as_posix()}\n"
+                  for path in sources
+              ),
+              encoding="utf-8",
+          )
+          (gate_dir / "GATE_SHA256SUMS").write_text(
+              "".join(
+                  f"{digest(gate_dir / name)}  {name}\n"
+                  for name in expected
+              ),
+              encoding="utf-8",
+          )
+          print(
+              f"SEALED post-optimization residual cost profile "
+              f"head={os.environ['GITHUB_SHA']}"
+          )
+          PY
+
+      - name: Upload sealed residual profile artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-post-optimization-residual-cost-profile
+          path: /tmp/replaymark-post-opt-residual
+          if-no-files-found: error
