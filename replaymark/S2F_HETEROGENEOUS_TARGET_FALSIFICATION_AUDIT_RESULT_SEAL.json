@@ -1,0 +1,86 @@
+{
+  "artifact": {
+    "id": 10035196799,
+    "name": "replaymark-gate-s2f-heterogeneous-target-falsification-audit",
+    "sha256": "2159054f1b84308e8f0f5d32227dea03d57f2fa41e04f8ba90f2ab354f37ace3",
+    "size_bytes": 599251
+  },
+  "audit_authority": {
+    "head": "91f217c2db79f84b269e4a350d86bcc82d302ac5",
+    "tree": "d570097d975ba1d60fa2b3819e4bf7f6d1351f17",
+    "workflow_job": 101886605891,
+    "workflow_run": 34169373685
+  },
+  "development_history": {
+    "first_preflight_failure_head": "31cc0d77b9fbc5c389f30e04e0a95fa58aafa276",
+    "first_preflight_failure_run": 34168431916,
+    "failure_reason": "self-referential source-string import scanner false positive",
+    "p6_artifact_fetched_in_failed_attempt": false,
+    "preserved_branch": "replaymark-dev-s2f-selfscan-preflight-failure"
+  },
+  "falsification_result": {
+    "all_checks_pass": true,
+    "failures": {
+      "calls": 0,
+      "effects": 0,
+      "execution": 0,
+      "foreign_sink_calls": 0,
+      "phase": 0,
+      "semantic": 0
+    },
+    "class_only_reference_rule": {
+      "replaymark_arm_reference_but_unsafe_tasks": 4,
+      "unsafe_executions_if_reference_always_admitted": 4,
+      "actual_replaymark_unsafe_executions_on_those_tasks": 0
+    },
+    "recomputed": {
+      "executed_by_policy": {
+        "ALWAYS_ADMIT": 384,
+        "ALWAYS_BLOCK": 0,
+        "REPLAYMARK": 188
+      },
+      "oracle_by_hidden_target_class": {
+        "REFERENCE_safe": 565,
+        "REFERENCE_unsafe": 11,
+        "SHIFTED_safe": 0,
+        "SHIFTED_unsafe": 576
+      },
+      "safe_by_policy": {
+        "ALWAYS_ADMIT": 186,
+        "ALWAYS_BLOCK": 191,
+        "REPLAYMARK": 188
+      },
+      "unsafe_by_policy": {
+        "ALWAYS_ADMIT": 198,
+        "ALWAYS_BLOCK": 193,
+        "REPLAYMARK": 196
+      }
+    },
+    "replaymark_exact_literal_safe_set": true,
+    "verdict": "PASS"
+  },
+  "preflight": {
+    "declared_files_only": true,
+    "exact_result_seal_parent": true,
+    "new_live_execution": false,
+    "source_artifact_pinned": true,
+    "stdlib_only_literal_auditor": true
+  },
+  "source_p6_authority": {
+    "artifact_id": 10034798750,
+    "artifact_sha256": "1319c41908d511ca9e8976973801350aab593199038b82752d8e4e7c78d0ecdb",
+    "execution_head": "e5e992b0a31c952017ee4209be2c0585a6cab500",
+    "live_raw_sha256": "efc111166330a71634b40a190e046b5154c21f44096cfb375c6850c7975f7b80",
+    "result_seal_head": "60c444f32f98c9ee9ef42c8b06395ebf4ed9a902",
+    "workflow_run": 34168034341
+  },
+  "s2_closure": {
+    "fallback": "ABSENT",
+    "regeneration": "ABSENT",
+    "status": "CLOSED_PASS",
+    "stochastic_source_calibration": "RETIRED_BY_EVIDENCE",
+    "target_class_used_as_semantic_truth": false
+  },
+  "schema": "replaymark.s2f-heterogeneous-target-falsification-audit-result-seal.v1",
+  "status": "FROZEN_COMPLETE_PASS"
+}
