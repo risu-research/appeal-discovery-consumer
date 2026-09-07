@@ -1,22 +1,24 @@
-# ReplayMark semantic boundary — target-provenance hardening freeze
+# ReplayMark semantic boundary — `CompiledContract` API re-freeze
 
-**Status:** bounded `q_{C,H}`, compiler-owned evidence semantics, q evidence image,
-deterministic support envelope, three-valued adjudication, maximal certified
-reuse `R*`, and production predictive continuation witnesses are implemented and
-independently gated. This branch adds compiler-observed target semantic
-provenance and migrates q compilation to snapshot-first semantics.  
-**Predictive-witness authority:** `replaymark-predictive-witness@067eadbf938e58170aebff883b4ab0c8e085e9cd`.  
-**Current branch scope:** demote provider fingerprint to metadata; enumerate,
-stability-check, and content-address the complete finite two-phase TargetModel;
-then compile q from exactly that sealed snapshot.  
-**Still out of scope:** final `CompiledContract` API re-freeze/implementation,
-runtime raw-observation canonicalizer, concrete historical-action realization
-obligation, target-native fallback policy, runtime E3b gate, stochastic q
-compilation, BDD/bitset optimization, and new live experiments.
+**Status:** the finite deterministic semantic chain is implemented and independently
+gated through bounded `q_{C,H}`, compiler-owned evidence semantics, evidence image,
+support envelope, three-valued adjudication, maximal certified reuse `R*`,
+production shortest predictive witnesses, and compiler-observed target semantic
+provenance. This branch re-freezes the runtime-facing semantic API around those
+established products; it does **not** implement the concrete contract backend.  
+**Target-provenance authority:** `replaymark-target-provenance@b63254ea0e57b01f2bdf7f4ed95d2590ab04f721`.  
+**Current branch scope:** correct the provisional `CompiledContract` Protocol so it
+exposes auditable certificates, compiler-owned evidence uncertainty,
+compiler-observed target provenance, distinct predictive/reuse explanations, and
+R* without adding execution policy.  
+**Still out of scope:** concrete contract packaging, runtime raw-observation
+canonicalization, concrete historical-action realization validation, target-native
+fallback policy, evidence-acquisition policy, runtime E3b intervention, stochastic
+q compilation, BDD/bitset optimization, and new live experiments.
 
 ## 1. Executable semantic chain
 
-The production semantic chain is:
+The established production chain is:
 
 `TargetModel -> ObservedTargetSemantics -> ClaimSpec -> q_{C,H}`
 
@@ -24,135 +26,55 @@ then:
 
 `CompiledEvidenceSemantics -> q[Omega(e)] -> S-/S+ -> VALID/INVALID/UNRESOLVED -> R*`.
 
-Predictive continuation witnesses are compiled from the sealed q artifact and
-remain separate from R* counterexample worlds.
+Predictive continuation witnesses are explanation products of q and remain
+semantically separate from R* counterexample worlds.
 
-## 2. Target semantics
+## 2. Target provenance
 
-ReplayMark uses a finite two-phase target model:
+`TargetModel.fingerprint` is provider metadata, not semantic authority.
+ReplayMark observes and seals the complete finite two-phase target semantics
+before q compilation and computes a compiler-derived `target_semantic_digest`.
+The q compiler consumes that immutable snapshot rather than re-querying the
+provider, closing the semantic-hash/TOCTOU gap.
 
-```text
-decision_state
-    -- current_distribution --> (full action, post-decision state)
-post-decision state
-    -- advance_distribution(future continuation) --> next decision_state
-```
+The semantic digest is claim-independent and covers full positive-probability
+action/transition laws. Snapshot identity separately retains provider metadata
+and declared continuation order.
 
-The public TargetModel can represent exact rational stochastic laws. Production
-bounded-q compilation remains deterministic and input-enabled over the declared
-continuation alphabet. Stochastic models are not silently assigned a production
-q semantics.
+## 3. Bounded claim-predictive state
 
-## 3. Compiler-observed target provenance
-
-`TargetModel.fingerprint` is retained as provider metadata but is no longer the
-semantic provenance authority.
-
-Before q compilation, ReplayMark observes and seals:
-
-- every declared decision state;
-- every continuation symbol;
-- every positive current `(full ProjectedAction, post_state, exact mass)` branch;
-- every positive post-state induced by those current laws; and
-- every positive next-decision-state law for each positive post-state x declared
-  continuation symbol.
-
-The resulting `ObservedTargetSemantics.semantic_digest` is compiler-derived.
-`compile_bounded_q()` then consumes only that snapshot rather than re-querying the
-TargetModel, binding q to the exact semantics that were hashed.
-
-The digest is claim-independent: full action coordinates are observed before
-`ClaimSpec.project()` is applied.
-
-## 4. Semantic digest versus snapshot fingerprint
-
-ReplayMark deliberately separates behavioral identity from artifact metadata.
-
-The **semantic digest** is invariant to provider fingerprint text, target state
-enumeration order, mapping insertion order, explicit zero-mass branches, and a
-mere permutation of the declared continuation order when the named transition
-relation is unchanged.
-
-The **snapshot fingerprint** additionally binds provider metadata and declared
-continuation order. Continuation order matters to deterministic tie-breaking
-among equally short predictive witnesses, but is not itself a change in the
-labeled target behavior.
-
-The semantic root is decomposed into compiler-derived domain/current/advance
-digests so semantic changes can be localized during audit.
-
-## 5. Provenance stability checks
-
-Target observation is executed twice using opposite query orders. Compilation
-fails closed if the provider fingerprint, state domain, continuation order,
-current laws, or advance laws change between passes.
-
-Exact probability laws must sum to one. Positive branches must be well formed,
-and positive advance branches must remain inside the declared decision-state
-domain. Every positive post-state x declared continuation pair must have total
-semantics.
-
-Zero-mass entries are intentionally excluded from semantic identity.
-
-## 6. Bounded claim-predictive state
-
-After provenance observation, production computes exactly the declared finite
-horizon:
+For deterministic input-enabled targets:
 
 `q_{C,0}(s) = current claim-projected output`
 
 and for `h >= 1`:
 
-`q_{C,h}(s) = (current output, q_{C,h-1}(next(s,u)) for every admitted u)`.
+`q_{C,h}(s) = (current output, q_{C,h-1}(next(s,u)) for each admitted u)`.
 
-No hidden `H+1` lookahead is used. The q definition oracle independently
-enumerates continuation words and projected output-trace laws.
+Only layers `0..H` are compiled. No hidden `H+1` lookahead is used.
+The independent q oracle enumerates continuation words and projected trace laws.
 
-`BoundedQuotient` records both the provider fingerprint and the compiler-observed
-semantic/snapshot/component digests. The provider fingerprint is explicitly not
-used as the semantic authority.
+## 4. Evidence semantics
 
-## 7. Predictive witness semantics
-
-A predictive continuation witness answers why two worlds lie in different
-`q_{C,H}` classes. It is the shortest admitted continuation word whose projected
-output traces differ.
-
-Production derives shortest witnesses from first-separation q refinement
-backpointers. The independent definition oracle instead enumerates words by
-length and evaluates exact trace laws.
-
-A current-output difference has the empty word as its shortest witness.
-
-Predictive witnesses contain no evidence token, historical action, support
-verdict, or reuse decision.
-
-## 8. Evidence semantics: forward relation is authoritative
-
-Production authoring supplies:
+Production authoring supplies a forward observation-support relation:
 
 `O(w) = set of retained-evidence tokens possible in modeled world w`.
 
-ReplayMark enumerates every target decision world and computes:
+ReplayMark, not the adapter author, derives:
 
 `Omega(e) = { w : e in O(w) }`.
 
-Users/adapters do not manually enumerate `Omega(e)` on the certification path.
-A deterministic observation is a singleton `O(w)`; partial/noisy/multi-mode
-evidence may return several tokens.
+The compiler guarantees exact inversion relative to the modeled finite target.
+The external adapter obligation remains conservative semantic adequacy:
 
-For support-sound reuse the external adapter obligation is conservative
-completeness:
+`Omega_real(e) subseteq Omega_model(e)`.
 
-`O_real(w) subseteq O_model(w)`
+Over-approximation may reduce reuse; under-approximation can create false
+certification and is not admitted.
 
-or equivalently `Omega_real(e) subseteq Omega_model(e)`.
+## 5. Evidence image, support envelope, and adjudication
 
-Over-approximation may reduce reuse but does not hide a real counterexample.
-
-## 9. Evidence image and support envelope
-
-For each observation token:
+For evidence token `e`:
 
 `I_{C,h}(e) = q_{C,h}[Omega(e)]`.
 
@@ -162,102 +84,179 @@ Then:
 
 `S_C^+(e) = union_{w in Omega(e)} S_C(w)`.
 
-Production verifies current-support constancy inside deterministic q blocks. The
-raw support oracle bypasses compiled q/evidence artifacts and evaluates raw worlds
-directly.
-
-## 10. Three-valued adjudication
-
 For recorded claim-projected action `z`:
 
 - `VALID` iff `z in S_C^-(e)`;
 - `INVALID` iff `z notin S_C^+(e)`;
 - `UNRESOLVED` otherwise.
 
-UNRESOLVED is semantic underdetermination, not a confidence score.
+UNRESOLVED is exact semantic underdetermination, not a confidence score.
 
-## 11. Maximal certified reuse R*
+## 6. Maximal certified reuse R*
 
 For fixed evidence and support validity:
 
 `R*(e,z) = REUSE iff z in S_C^-(e)`.
 
-Thus:
+Thus VALID maps to REUSE and both INVALID/UNRESOLVED map to DO_NOT_REUSE.
+`DO_NOT_REUSE` is not a regeneration/fallback command. R* is pointwise maximal
+among fixed-evidence binary support-sound reuse rules.
 
-- `VALID -> REUSE`;
-- `INVALID -> DO_NOT_REUSE`;
-- `UNRESOLVED -> DO_NOT_REUSE`.
+## 7. Witness semantics remain split
 
-`DO_NOT_REUSE` is not a regeneration command. Fallback remains policy. R* is
-pointwise maximal among fixed-evidence binary support-sound reuse rules.
+ReplayMark has two constructive explanations and the API must not conflate them.
 
-An R* counterexample is one raw world in `Omega(e)` that excludes `z`; it is not
-a predictive continuation witness and has no shortest-continuation semantics.
+A **predictive continuation witness** is defined for two target worlds and is the
+shortest admitted continuation whose claim-projected traces differ. It explains q
+inequivalence and depends on neither evidence nor historical action.
 
-## 12. Verification independence and TCB
+An **R* counterexample world** is defined for one `(e,z)` pair and is a raw world
+in `Omega(e)` that excludes `z` from positive projected support. It explains why
+additional reuse would be support-unsound. It is not a continuation sequence and
+has no shortest-word semantics.
 
-The project uses algorithmically independent definition oracles above shared
-semantic contracts:
+## 8. Re-frozen `CompiledContract` principles
 
-- q production: bounded partition refinement; q oracle: literal continuation-word
-  trace laws;
-- predictive witness production: refinement backpointers; witness oracle: literal
-  shortest-word enumeration;
-- evidence closure production: compiler-owned forward inversion; evidence oracle:
-  literal inverse relation;
-- support/adjudication/R* production: compiled intermediate artifacts; raw oracles:
-  direct compatible-world support evaluation;
-- target provenance production: stable two-pass semantic snapshot; provenance
-  oracle: independent one-pass positive-law canonicalization and digesting.
+The public contract freezes **semantic behavior, certificates, and provenance**,
+not storage layout.
 
-These oracles verify implementation fidelity. They do not prove that TargetModel
-or observation adapters are adequate models of physical reality.
+Inputs called `observation_token` are already-canonical retained-evidence tokens.
+Raw runtime event/sensor canonicalization remains outside the contract.
 
-## 13. Admitted target-provenance verification
+The contract returns rich semantic certificates instead of lossy summaries:
 
-This branch is closed only if:
+- `adjudicate(...) -> Adjudication`, not bare `Verdict`;
+- `certify_reuse(...) -> RStarDecision`, preserving the original three-valued
+  verdict; and
+- `predictive_witness(...) -> PredictiveContinuationWitness | None`.
 
-- same semantics under different provider fingerprints produce the same semantic
-  digest;
-- changed semantics under the same stale provider fingerprint change the digest;
-- state/dictionary order and zero-mass representation do not change the digest;
-- continuation-order permutation preserves semantic identity while remaining
-  visible in snapshot identity;
-- current-only and advance-only mutations change the corresponding component
-  digest and root;
-- exact probability changes change semantic identity;
-- stateful/order-dependent TargetModels fail closed;
-- forged semantic roots are rejected by the snapshot object;
-- q embeds exactly the digest of the snapshot it consumed;
-- different ClaimSpecs over one target share target provenance while allowing
-  different q partitions;
-- Better Thermostat preserves the frozen `5 -> 14 -> 16 -> 16 -> 16` result;
-- all 5,832 complete labeled 3-state/2-continuation/2-output deterministic
-  machines agree with an independent provenance oracle; and
-- giving all 5,832 models the same provider fingerprint still yields 5,832
-  distinct compiler-observed semantic digests.
+No contract operation executes a historical action or chooses regenerate/refine/
+abort/fallback policy.
 
-All prior semantic gates must remain green after snapshot-first q migration.
+## 9. Re-frozen provenance surface
 
-## 14. Remaining trust boundaries
+A conforming contract exposes:
 
-The compiler-observed digest proves identity of the **modeled finite target**.
-It does not prove:
+- `claim` and `claim_fingerprint`;
+- `target_provider_fingerprint` as provider metadata;
+- `target_semantic_digest` as compiler-observed target semantic authority;
+- `target_snapshot_fingerprint` as target snapshot artifact identity;
+- `evidence_semantics_fingerprint` and compiler-derived
+  `evidence_relation_fingerprint`;
+- `quotient_fingerprint`;
+- `support_envelope_fingerprint`; and
+- `predictive_witness_index_fingerprint`.
 
-- physical/runtime model adequacy;
-- runtime raw-observation canonicalization;
+These bindings let an external reviewer check that returned adjudication/reuse/
+witness certificates belong to the exact compiled semantic artifacts.
+
+## 10. Re-frozen normative operations
+
+The semantic operations are exactly:
+
+```text
+compatible_worlds(observation_token)
+    -> tuple[target_world, ...]
+
+adjudicate(observation_token, historical_action)
+    -> Adjudication
+
+certify_reuse(observation_token, historical_action)
+    -> RStarDecision
+
+reuse_counterexample_world(observation_token, historical_action)
+    -> target_world | None
+
+predictive_witness(left_world, right_world)
+    -> PredictiveContinuationWitness | None
+```
+
+`canonical_bytes()` and `fingerprint()` provide concrete contract artifact
+identity.
+
+The public predictive-witness operation is deliberately fixed at the
+claim-declared horizon H. Lower-depth q diagnostics remain compiler-level tools,
+not runtime contract semantics.
+
+## 11. Cross-operation invariants for any concrete backend
+
+A future concrete implementation must preserve:
+
+1. `claim_fingerprint == claim.fingerprint()`.
+2. `compatible_worlds(e)` equals the compiler-derived `Omega(e)` and never invents
+   fallback semantics for an unknown token.
+3. `adjudicate(e,z)` is bound to this claim/evidence/support artifact and applies
+   the exact claim projection.
+4. `certify_reuse(e,z)` preserves that adjudication verdict and returns REUSE iff
+   the verdict is VALID.
+5. `reuse_counterexample_world(e,z)` is `None` iff reuse is certified; otherwise
+   it returns a compatible raw target world excluding the projected z.
+6. `predictive_witness(w1,w2)` is evidence/action independent, bound to this
+   claim/quotient, and shortest at H.
+7. `predictive_witness(w1,w2)` is `None` iff the pair is q-equivalent at H.
+8. Unknown worlds/tokens fail closed.
+9. No normative method executes, regenerates, retries, refines evidence, aborts,
+   or selects fallback policy.
+
+## 12. Deliberately removed provisional API
+
+The old seed members are no longer normative:
+
+- `target_model_fingerprint` — ambiguous; split into provider metadata versus
+  compiler-observed semantic authority;
+- `evidence_fingerprint` — ambiguous; split into evidence artifact/relation
+  identities;
+- `adjudicate(...) -> Verdict` — replaced by full `Adjudication` certificate;
+- `reusable_observations(...)` — convenience enumeration, not theorem primitive;
+- `shortest_witness(observation, historical_action)` — conflated two distinct
+  witness semantics.
+
+This is an intentional correction of a provisional interface before concrete
+packaging, not a compatibility-preserving deprecation.
+
+## 13. Backend neutrality
+
+A future explicit-table, Python-int bitset, Roaring, BDD, or other backend may
+implement the Protocol. Backend indexes, caches, and batch helpers are
+non-normative unless separately frozen.
+
+Concrete artifact fingerprints may differ across intentionally different
+serializations/backends. The semantic authorities and all observable certificate
+behavior above must remain equivalent.
+
+## 14. Verification independence and shared TCB
+
+The project continues to use algorithmically independent definition oracles above
+a shared semantic-contract TCB:
+
+- q refinement versus literal continuation-word trace laws;
+- predictive backpointers versus shortest-word enumeration;
+- compiler-owned evidence inversion versus literal relation inversion;
+- compiled support/adjudication/R* versus raw compatible-world support; and
+- two-pass target semantic snapshotting versus independent provenance
+  canonicalization.
+
+The API re-freeze adds no new mathematical theorem. Its gate verifies that the
+Protocol surface exactly matches those established semantic products and that the
+provisional conflated/policy-bearing names cannot silently re-enter.
+
+## 15. Remaining trust boundaries
+
+This API does not prove:
+
+- physical/runtime adequacy of the TargetModel;
+- conservative adequacy of the observation adapter to reality;
+- correctness of raw runtime observation tokenization;
 - equivalence between a concrete historical action realization and the modeled
   target-side transition; or
-- any fallback execution policy.
+- correctness of any fallback execution policy.
 
-Those must remain explicit rather than being hidden under the word provenance.
+Those remain explicit subsequent boundaries.
 
-## 15. Next boundary
+## 16. Next boundary
 
-Do not add runtime intervention yet.
+If this API gate closes with all earlier semantic gates green, the next admissible
+step is **concrete `CompiledContract` packaging only**: assemble the already-proved
+artifacts behind this interface without changing observable semantics.
 
-The remaining pre-packaging step is to re-freeze the `CompiledContract` API around
-the semantics now actually established. In particular, the provisional generic
-`shortest_witness(observation, historical_action)` seed must be replaced by
-separate predictive-witness and R* counterexample operations, and the contract
-must expose compiler-owned evidence and target-provenance bindings directly.
+Runtime intervention, fallback behavior, and new experiments remain later steps.

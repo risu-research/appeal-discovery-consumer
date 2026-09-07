@@ -1,0 +1,91 @@
+name: ReplayMark CompiledContract API refreeze
+
+on:
+  push:
+    branches:
+      - replaymark-compiled-contract-api-refreeze
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify CompiledContract API re-freeze
+        run: |
+          mkdir -p /tmp/replaymark-contract-api
+          python replaymark_verification/verify_compiled_contract_api.py \
+            | tee /tmp/replaymark-contract-api/compiled_contract_api_gate.txt
+
+      - name: Reverify compiler-observed target provenance
+        run: |
+          python replaymark_verification/verify_target_provenance.py \
+            --out /tmp/replaymark-contract-api/target_provenance_gate.json
+
+      - name: Reverify bounded q compiler
+        run: |
+          python replaymark_verification/verify_bounded_q.py \
+            --out /tmp/replaymark-contract-api/q_gate.json
+
+      - name: Reverify production predictive witnesses
+        run: |
+          python replaymark_verification/verify_predictive_witness.py \
+            --out /tmp/replaymark-contract-api/predictive_witness_gate.json
+
+      - name: Reverify compiler-owned evidence semantics closure
+        run: |
+          python replaymark_verification/verify_evidence_semantics.py \
+            --out /tmp/replaymark-contract-api/evidence_semantics_gate.json
+
+      - name: Reverify q evidence image
+        run: |
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-contract-api/evidence_image_gate.json
+
+      - name: Reverify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-contract-api/support_envelope_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-contract-api/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-contract-api/rstar_gate.json
+
+      - name: Seal successful API refreeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'schema=replaymark.compiled-contract-api-refreeze.gate.v1' \
+            "head=${GITHUB_SHA}" \
+            'semantic_chain=PASS' \
+            > /tmp/replaymark-contract-api/GATE_STATUS
+          sha256sum \
+            replaymark/contracts.py \
+            replaymark/COMPILED_CONTRACT_API_REFREEZE.md \
+            replaymark/SEMANTIC_BOUNDARY.md \
+            replaymark_verification/verify_compiled_contract_api.py \
+            > /tmp/replaymark-contract-api/SOURCE_SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-compiled-contract-api-refreeze-gate
+          path: /tmp/replaymark-contract-api
+          if-no-files-found: error

@@ -5,7 +5,12 @@ from enum import Enum
 import hashlib
 import json
 from fractions import Fraction
-from typing import Mapping, Protocol, runtime_checkable
+from typing import Mapping, Protocol, TYPE_CHECKING, runtime_checkable
+
+if TYPE_CHECKING:
+    from .adjudicator import Adjudication
+    from .predictive_witness import PredictiveContinuationWitness
+    from .rstar import RStarDecision
 
 
 Scalar = str | int | bool | None
@@ -141,8 +146,10 @@ class EvidenceSpec:
     histories* still compatible with retained evidence. Tokens may overlap.
     Unknown observations are not assigned a meaning and therefore fail closed.
 
-    This seed is extensional by design: later symbolic evidence backends may
-    implement the same set semantics without changing the public contract.
+    Production authoring no longer constructs this inverse map by hand. The
+    compiler derives it from a forward ObservationSupportModel; EvidenceSpec is
+    retained as the canonical low-level extensional IR used by the mathematics
+    and independent definition oracles.
     """
 
     evidence_id: str
@@ -243,47 +250,102 @@ class TargetModel(Protocol):
 
 @runtime_checkable
 class CompiledContract(Protocol):
-    """Runtime-facing result of the future full ReplayMark compiler.
+    """Frozen semantic boundary of a compiled ReplayMark contract.
 
-    This protocol freezes semantics, not a storage layout. The bounded q_{C,H}
-    compiler is only one internal stage and does not yet instantiate this
-    operational contract. A later bitset, BDD, or other verified backend must be
-    observationally equivalent at this boundary.
+    This protocol deliberately exposes *certificates and semantic provenance*,
+    not an execution policy or storage layout. A concrete bitset, BDD, table, or
+    other verified backend may implement the contract, but all implementations
+    must be observationally equivalent at this boundary.
+
+    Inputs named `observation_token` are already-canonical retained-evidence
+    tokens. Raw sensor/event canonicalization is outside this contract. Likewise,
+    a REUSE result certifies historical *projected-decision reuse* under the
+    declared claim/evidence model; it does not execute the historical action or
+    choose a fallback for DO_NOT_REUSE.
     """
 
+    # Artifact identity / compiler provenance.
     @property
     def schema_version(self) -> str: ...
 
     @property
     def compiler_id(self) -> str: ...
 
+    def canonical_bytes(self) -> bytes: ...
+
+    def fingerprint(self) -> str: ...
+
+    # Normative claim identity.
     @property
     def claim(self) -> ClaimSpec: ...
 
     @property
-    def target_model_fingerprint(self) -> str: ...
+    def claim_fingerprint(self) -> str: ...
+
+    # Target provenance. `target_provider_fingerprint` is metadata;
+    # `target_semantic_digest` is the compiler-observed semantic authority.
+    @property
+    def target_provider_fingerprint(self) -> str: ...
 
     @property
-    def evidence_fingerprint(self) -> str: ...
+    def target_semantic_digest(self) -> str: ...
 
+    @property
+    def target_snapshot_fingerprint(self) -> str: ...
+
+    # Compiler-owned evidence semantics.
+    @property
+    def evidence_semantics_fingerprint(self) -> str: ...
+
+    @property
+    def evidence_relation_fingerprint(self) -> str: ...
+
+    # Bind returned certificates to the exact compiled semantic stages.
+    @property
+    def quotient_fingerprint(self) -> str: ...
+
+    @property
+    def support_envelope_fingerprint(self) -> str: ...
+
+    @property
+    def predictive_witness_index_fingerprint(self) -> str: ...
+
+    # Audit the compiler-derived inverse evidence semantics Omega(e).
+    def compatible_worlds(self, observation_token: str) -> tuple[str, ...]: ...
+
+    # Three-valued theorem result. Return the full auditable certificate, not
+    # merely Verdict, so support membership/provenance is not discarded.
     def adjudicate(
         self,
-        observation: str,
+        observation_token: str,
         historical_action: ProjectedAction,
-    ) -> Verdict: ...
+    ) -> Adjudication: ...
 
-    def reusable_observations(
+    # R*: REUSE iff the adjudication is VALID. This is a certification result,
+    # not an instruction to execute, regenerate, refine evidence, or abort.
+    def certify_reuse(
         self,
+        observation_token: str,
         historical_action: ProjectedAction,
-    ) -> tuple[str, ...]: ...
+    ) -> RStarDecision: ...
 
-    def shortest_witness(
+    # Constructive support-unsoundness explanation. Returns None iff R* certifies
+    # REUSE; otherwise returns a canonical compatible raw target world in which
+    # the claim-projected historical action is not positively supported.
+    def reuse_counterexample_world(
         self,
-        observation: str,
+        observation_token: str,
         historical_action: ProjectedAction,
-    ) -> tuple[str, ...] | None: ...
+    ) -> str | None: ...
 
-    def canonical_bytes(self) -> bytes: ...
+    # Pure q explanation at the claim-declared horizon H. Evidence and historical
+    # actions are intentionally absent because predictive inequivalence and reuse
+    # unsoundness are different semantics.
+    def predictive_witness(
+        self,
+        left_world: str,
+        right_world: str,
+    ) -> PredictiveContinuationWitness | None: ...
 
 
 __all__ = (
