@@ -1,0 +1,43 @@
+name: ReplayMark Gate S2-P6 orthogonal heterogeneous-target protocol freeze
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p6-heterogeneous-target-protocol
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2p6-protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Static compile P6 verifier
+        run: python -m py_compile replaymark_verification/verify_s2p6_heterogeneous_target_protocol.py
+      - name: Verify prospective P6 freeze
+        run: |
+          mkdir -p /tmp/replaymark-s2p6
+          python replaymark_verification/verify_s2p6_heterogeneous_target_protocol.py \
+            --out /tmp/replaymark-s2p6/p6_protocol_verification.json
+      - name: Seal P6 protocol
+        run: |
+          cp replaymark/S2P6_ORTHOGONAL_HETEROGENEOUS_TARGET_CAPSTONE.json /tmp/replaymark-s2p6/
+          cp replaymark/S2P6_ORTHOGONAL_HETEROGENEOUS_TARGET_CAPSTONE.md /tmp/replaymark-s2p6/
+          git show --no-patch --format=fuller HEAD > /tmp/replaymark-s2p6/SEAL_COMMIT.txt
+          sha256sum /tmp/replaymark-s2p6/* > /tmp/replaymark-s2p6/SHA256SUMS
+      - name: Upload P6 protocol seal
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p6-heterogeneous-target-protocol
+          path: /tmp/replaymark-s2p6
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
