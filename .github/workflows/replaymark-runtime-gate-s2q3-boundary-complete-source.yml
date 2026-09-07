@@ -1,0 +1,132 @@
+name: ReplayMark Gate S2-Q3 boundary-complete source screen holdout and Dstar
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2q3-boundary-complete-source
+permissions:
+  contents: read
+jobs:
+  gate-s2q3-boundary-complete-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      LAB: agentmark_e3b_lab/e3_mqtt
+      GATE: /tmp/replaymark-s2q3
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 2}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Static compile Q3 verifier and frozen source runner
+        run: |
+          python -m py_compile replaymark_verification/verify_s2q3_boundary_complete_source.py agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py
+      - name: Verify exact prospective Q3 boundary
+        run: |
+          mkdir -p "$GATE/screen" "$GATE/holdout"
+          python replaymark_verification/verify_s2q3_boundary_complete_source.py --preflight-only --out "$GATE/q3_preflight.json"
+      - name: Build frozen live environment
+        working-directory: ${{ env.LAB }}
+        run: docker compose build device runner_shadow
+      - name: Screening round 0 - 16 8 4
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build mosquitto device
+          sleep 1
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py --broker mosquitto --mode screening-round --round-index 0 --out /results/q3_screen_round_0.json
+          cp results/q3_screen_round_0.json "$GATE/screen/"
+      - name: Screening round 1 - 8 4 16
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build mosquitto device
+          sleep 1
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py --broker mosquitto --mode screening-round --round-index 1 --out /results/q3_screen_round_1.json
+          cp results/q3_screen_round_1.json "$GATE/screen/"
+      - name: Screening round 2 - 4 16 8
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build mosquitto device
+          sleep 1
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py --broker mosquitto --mode screening-round --round-index 2 --out /results/q3_screen_round_2.json
+          cp results/q3_screen_round_2.json "$GATE/screen/"
+      - name: Independently select boundary-complete W star
+        id: select
+        run: |
+          set -euo pipefail
+          python replaymark_verification/verify_s2q3_boundary_complete_source.py --screening-dir "$GATE/screen" --selection-seal "$GATE/q3_selection_seal.json" --out "$GATE/q3_screening_verification.json"
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,os
+          p=os.path.join(os.environ['GATE'],'q3_selection_seal.json')
+          d=json.load(open(p)); w=d.get('W_star_screen')
+          print('w_star=' + ('' if w is None else str(w)))
+          PY
+      - name: Holdout replicate 0
+        if: steps.select.outputs.w_star != ''
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build mosquitto device
+          sleep 1
+          cp "$GATE/q3_selection_seal.json" results/q3_selection_seal.json
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py --broker mosquitto --mode holdout --holdout-replicate 0 --selection-seal /results/q3_selection_seal.json --out /results/q3_holdout_0.json
+          cp results/q3_holdout_0.json "$GATE/holdout/"
+      - name: Holdout replicate 1
+        if: steps.select.outputs.w_star != ''
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build mosquitto device
+          sleep 1
+          cp "$GATE/q3_selection_seal.json" results/q3_selection_seal.json
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py --broker mosquitto --mode holdout --holdout-replicate 1 --selection-seal /results/q3_selection_seal.json --out /results/q3_holdout_1.json
+          cp results/q3_holdout_1.json "$GATE/holdout/"
+      - name: Holdout replicate 2
+        if: steps.select.outputs.w_star != ''
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build mosquitto device
+          sleep 1
+          cp "$GATE/q3_selection_seal.json" results/q3_selection_seal.json
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py --broker mosquitto --mode holdout --holdout-replicate 2 --selection-seal /results/q3_selection_seal.json --out /results/q3_holdout_2.json
+          cp results/q3_holdout_2.json "$GATE/holdout/"
+      - name: Independently verify holdout and seal D star
+        run: |
+          python replaymark_verification/verify_s2q3_boundary_complete_source.py --screening-dir "$GATE/screen" --selection-seal "$GATE/q3_selection_seal.json" --holdout-dir "$GATE/holdout" --out "$GATE/q3_final_verification.json"
+      - name: Seal first complete Q3 evidence
+        if: always()
+        run: |
+          cp replaymark/S2P5_BOUNDARY_COMPLETE_SOURCE_QUALIFICATION.json "$GATE/"
+          cp replaymark/S2Q3_BOUNDARY_COMPLETE_SOURCE_EXECUTION.md "$GATE/"
+          git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
+          (cd "$GATE" && find . -type f -maxdepth 2 -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+      - name: Upload first complete Q3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2q3-boundary-complete-source
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Cleanup
+        if: always()
+        working-directory: ${{ env.LAB }}
+        run: docker compose down -v --remove-orphans || true
+      - name: Enforce Q3 scientific verdict
+        run: |
+          python - <<'PY'
+          import json,os
+          p=os.path.join(os.environ['GATE'],'q3_final_verification.json')
+          r=json.load(open(p))
+          if r.get('verdict')!='PASS': raise SystemExit('Q3 scientific verdict FAIL')
+          print('Q3 PASS W*=',r.get('W_star_screen'),'D*=',r.get('D_star_ms'))
+          PY
