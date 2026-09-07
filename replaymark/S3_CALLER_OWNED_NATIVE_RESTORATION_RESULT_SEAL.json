@@ -1,0 +1,96 @@
+{
+  "schema": "replaymark.s3-first-complete-caller-native-restoration-result-seal.v1",
+  "status": "FROZEN_FIRST_COMPLETE_PASS",
+  "authority": {
+    "s3_protocol_head": "75d5d4379fdda221c0b9661f799d7779d6bba9f2",
+    "execution_head": "8333e8808d5a950effd8a4e552718be3324909d3",
+    "execution_tree": "62d8ee856f9b7ea6064d4287c16a8b2c07a47c94",
+    "workflow_run": 34170631467,
+    "workflow_job": 101890108930
+  },
+  "artifact": {
+    "id": 10035602271,
+    "name": "replaymark-gate-s3-caller-native-restoration-first-complete",
+    "size_bytes": 762475,
+    "sha256": "31bd3972787ee09e0e2c366a46d2fc8f9cc1049d5d33668bb8b253901f5af2db",
+    "live_raw_sha256": "077af28be4d0fc2923a4bf454a1e609b55af6e4e5b111d37d6ed372e09f23aaa"
+  },
+  "result": {
+    "total_rows": 1152,
+    "verdict": "PASS",
+    "safe_by_policy": {
+      "ALWAYS_REUSE": 191,
+      "ALWAYS_NATIVE": 191,
+      "REPLAYMARK_NATIVE": 192
+    },
+    "unsafe_by_policy": {
+      "ALWAYS_REUSE": 193,
+      "ALWAYS_NATIVE": 193,
+      "REPLAYMARK_NATIVE": 192
+    },
+    "historical_reuse_by_policy": {
+      "ALWAYS_REUSE": 384,
+      "ALWAYS_NATIVE": 0,
+      "REPLAYMARK_NATIVE": 192
+    },
+    "native_path_by_policy": {
+      "ALWAYS_REUSE": 0,
+      "ALWAYS_NATIVE": 384,
+      "REPLAYMARK_NATIVE": 192
+    },
+    "restored_by_policy": {
+      "ALWAYS_REUSE": 384,
+      "ALWAYS_NATIVE": 384,
+      "REPLAYMARK_NATIVE": 384
+    },
+    "unsafe_historical_by_policy": {
+      "ALWAYS_REUSE": 193,
+      "ALWAYS_NATIVE": 0,
+      "REPLAYMARK_NATIVE": 0
+    },
+    "unnecessary_native_by_policy": {
+      "ALWAYS_REUSE": 0,
+      "ALWAYS_NATIVE": 191,
+      "REPLAYMARK_NATIVE": 0
+    },
+    "historical_application_calls": 576,
+    "native_query_calls": 576,
+    "native_fresh_act2_calls": 576,
+    "replaymark": {
+      "historical_reuse_set_equals_independent_safe_set": true,
+      "caller_native_set_equals_independent_unsafe_set": true,
+      "unsafe_historical_executions": 0,
+      "unnecessary_native_recoveries": 0,
+      "restored_tasks": 384
+    },
+    "oracle_by_hidden_target_class": {
+      "REFERENCE_safe": 574,
+      "REFERENCE_unsafe": 2,
+      "SHIFTED_safe": 0,
+      "SHIFTED_unsafe": 576
+    }
+  },
+  "verification": {
+    "semantic_mismatches": 0,
+    "execution_failures": 0,
+    "native_failures": 0,
+    "phase_failures": 0,
+    "effect_failures": 0,
+    "provenance_failures": 0,
+    "p6_target_reused_exactly": true,
+    "runner_hidden_class_blind": true,
+    "runner_independent_oracle_blind": true,
+    "replaymark_gate_consumed": 384
+  },
+  "interpretation_boundary": {
+    "fallback_inside_replaymark": false,
+    "regeneration_inside_replaymark": false,
+    "automatic_retry": "ABSENT",
+    "caller_owns_native_recovery": true,
+    "hidden_target_class_is_semantic_truth": false,
+    "latency_claim": false,
+    "cross_process_exactly_once_claim": false,
+    "broker_delivery_exactly_once_claim": false
+  },
+  "next_gate": "DEPLOYMENT_RESTORATION_CLOSURE_OR_MANUSCRIPT_QUANTUM_REVISION"
+}
