@@ -13,6 +13,7 @@ import hashlib
 import json
 
 from .compiled_contract import ExplicitCompiledContract
+from .runtime_contract_identity import verified_runtime_contract_identity
 from .runtime_e3b_correlation import E3bCorrelatedRuntimePair
 from .runtime_realization import RuntimeReuseCertificate
 
@@ -138,6 +139,11 @@ def certify_e3b_shadow_reuse(
     The function accepts no raw observation/action values, so individual
     realization and same-task correlation must already have succeeded. All
     semantic reasoning is delegated to the frozen concrete contract.
+
+    Contract/claim identities are verified from the exact immutable contract
+    object on first use and reused from a bounded runtime cache thereafter. The
+    cache is non-semantic: certificate bytes are identical to recomputing the
+    same identities on every call.
     """
 
     if not isinstance(contract, ExplicitCompiledContract):
@@ -150,13 +156,14 @@ def certify_e3b_shadow_reuse(
     token = observation.evidence_token
     action = historical_action.action
 
+    identity = verified_runtime_contract_identity(contract)
     adjudication = contract.adjudicate(token, action)
     reuse_decision = contract.certify_reuse(token, action)
 
     semantic_certificate = RuntimeReuseCertificate(
         schema_version=_RUNTIME_REUSE_CERTIFICATE_SCHEMA,
-        contract_fingerprint=contract.fingerprint(),
-        claim_fingerprint=contract.claim_fingerprint,
+        contract_fingerprint=identity.contract_fingerprint,
+        claim_fingerprint=identity.claim_fingerprint,
         observation=observation,
         historical_action=historical_action,
         adjudication=adjudication,
@@ -166,8 +173,8 @@ def certify_e3b_shadow_reuse(
         schema_version=E3B_SHADOW_RUNTIME_CERTIFICATE_SCHEMA,
         bridge_id=E3B_SHADOW_BRIDGE_ID,
         bridge_semantic_digest=E3B_SHADOW_BRIDGE_SEMANTIC_DIGEST,
-        contract_fingerprint=contract.fingerprint(),
-        claim_fingerprint=contract.claim_fingerprint,
+        contract_fingerprint=identity.contract_fingerprint,
+        claim_fingerprint=identity.claim_fingerprint,
         correlated_pair=correlated_pair,
         semantic_certificate=semantic_certificate,
     )

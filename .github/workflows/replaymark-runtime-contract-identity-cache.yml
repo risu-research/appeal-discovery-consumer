@@ -1,0 +1,210 @@
+name: ReplayMark runtime contract identity cache optimization
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-contract-identity-cache
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-contract-identity-cache-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile optimization increment
+        run: |
+          python -m py_compile \
+            replaymark/runtime_contract_identity.py \
+            replaymark/runtime_e3b_bridge.py \
+            replaymark_verification/verify_runtime_contract_identity_cache.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_identity_optimization.py
+
+      - name: Verify untouched frozen authorities remain byte-immutable
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+              "agentmark_e3b_lab/e3_mqtt/app/ladder.py": "fcc1768544714f1b11a497a856f8e18d4d2f07dd",
+              "agentmark_e3b_lab/e3_mqtt/app/device.py": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+              "agentmark_e3b_lab/e3_mqtt/app/experiment.py": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+              "agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py": "1f8f689f393f9a547cbd9a76736389096521e2ca",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py": "fb7bbd8c94b3584099e0530033f9e404fabf71af",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py": "7f05d6f2148ba6af7a37d89fc8648664c5150a86",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py": "5b64ea546c8c82f4346aae8b652bb10e1c669f7d",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_cost.py": "f75e2a1bef21256ff3031f3ecdad31f928f008d5",
+              "replaymark/runtime_e3b_observation.py": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+              "replaymark/runtime_e3b_action.py": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+              "replaymark/runtime_e3b_correlation.py": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+              "replaymark/compiled_contract.py": "9780550de9c9447ca4e488ff5797e08fdd548405",
+              "replaymark/runtime_realization.py": "3345a8ca35a5917f0062625cb216db29470c7972",
+              "replaymark/rstar.py": "73e0a94f1be76272075d7f1050439ef6b321017e",
+          }
+          for name, want in expected.items():
+              body = Path(name).read_bytes()
+              got = hashlib.sha1(b"blob " + str(len(body)).encode("ascii") + b"\0" + body).hexdigest()
+              if got != want:
+                  raise SystemExit(f"frozen authority drift: {name}: {got} != {want}")
+          print("RUNTIME_IDENTITY_UNTOUCHED_AUTHORITIES: PASS")
+          PY
+
+      - name: Verify identity cache safety and byte equivalence
+        run: |
+          mkdir -p /tmp/replaymark-runtime-identity
+          python replaymark_verification/verify_runtime_contract_identity_cache.py \
+            --out /tmp/replaymark-runtime-identity/identity_cache_gate.json
+
+      - name: Reverify semantic and runtime chain
+        run: |
+          python replaymark/verify_seed.py
+          python replaymark_verification/verify_compiled_contract_api.py
+          python replaymark_verification/verify_runtime_realization_observation.py --out /tmp/replaymark-runtime-identity/runtime_observation_gate.json
+          python replaymark_verification/verify_runtime_realization_action.py --out /tmp/replaymark-runtime-identity/runtime_action_gate.json
+          python replaymark_verification/verify_runtime_e3b_correlation.py --out /tmp/replaymark-runtime-identity/same_task_gate.json
+          python replaymark_verification/verify_compiled_contract_packaging.py --out /tmp/replaymark-runtime-identity/concrete_contract_gate.json
+          python replaymark_verification/verify_adjudicator.py --out /tmp/replaymark-runtime-identity/adjudicator_gate.json
+          python replaymark_verification/verify_rstar.py --out /tmp/replaymark-runtime-identity/rstar_gate.json
+          python replaymark_verification/verify_runtime_e3b_bridge.py --out /tmp/replaymark-runtime-identity/shadow_bridge_gate.json
+
+      - name: Real Mosquitto noninterference conformance and paired A-B
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f results/e3b_r1_shadow_hook.json results/e3b_integrated_frozen_runtime_conformance.json results/e3b_runtime_contract_identity_optimization.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+
+          docker compose run --rm runner_shadow
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 --trials 3 \
+              --out /results/e3b_integrated_frozen_runtime_conformance.json
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_identity_optimization.py \
+              --broker mosquitto --tasks 64 --wave-size 16 --wave-period-ms 300 \
+              --verify-floor-ms 100 --source-guard-ms 20 --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 --post-completion-gap-ms 20 --rounds 240 --inner 8 \
+              --authority-head "$GITHUB_SHA" \
+              --out /results/e3b_runtime_contract_identity_optimization.json
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          shadow = json.loads(Path("results/e3b_r1_shadow_hook.json").read_text())
+          integrated = json.loads(Path("results/e3b_integrated_frozen_runtime_conformance.json").read_text())
+          opt = json.loads(Path("results/e3b_runtime_contract_identity_optimization.json").read_text())
+          assert shadow["promotion_pass"] is True and shadow["verdict"] == "PASS"
+          assert integrated["promotion_pass"] is True and integrated["coverage"]["task_rows"] == 192
+          assert integrated["coverage"]["all_task_rows_pass"] is True
+          assert opt["schema"] == "replaymark.runtime-contract-identity-optimization-ab.v1"
+          assert opt["authority_head"] == os.environ["GITHUB_SHA"]
+          assert opt["broker_version_sys"] == "mosquitto version 2.1.2"
+          assert opt["promotion_pass"] is True and opt["verdict"] == "PASS"
+          assert opt["live_corpus"]["negative_live_cases"] == 64
+          assert opt["live_corpus"]["positive_definition_derived_cases"] == 64
+          assert opt["semantic_equivalence"]["complete_128_case_canonical_certificate_bytes_exact"] is True
+          assert opt["semantic_equivalence"]["bridge_semantic_digest_unchanged"] is True
+          assert opt["measurement_validity"]["fixed_speed_promotion_threshold"] is False
+          assert opt["cache_info"]["size"] <= opt["cache_info"]["capacity"]
+          for outcome in ("live_negative", "derived_positive"):
+              ab = opt["paired_full_pipeline_ab"][outcome]
+              assert ab["legacy_recompute"]["samples"] == 240
+              assert ab["optimized_cached"]["samples"] == 240
+          print(json.dumps({
+              "negative_legacy_p50_us": opt["paired_full_pipeline_ab"]["live_negative"]["legacy_recompute"]["p50_us"],
+              "negative_optimized_p50_us": opt["paired_full_pipeline_ab"]["live_negative"]["optimized_cached"]["p50_us"],
+              "positive_legacy_p50_us": opt["paired_full_pipeline_ab"]["derived_positive"]["legacy_recompute"]["p50_us"],
+              "positive_optimized_p50_us": opt["paired_full_pipeline_ab"]["derived_positive"]["optimized_cached"]["p50_us"],
+              "negative_ratio": opt["paired_full_pipeline_ab"]["live_negative"]["descriptive_delta"]["p50_ratio_legacy_over_optimized"],
+              "positive_ratio": opt["paired_full_pipeline_ab"]["derived_positive"]["descriptive_delta"]["p50_ratio_legacy_over_optimized"],
+          }, sort_keys=True))
+          PY
+
+          cp results/e3b_r1_shadow_hook.json /tmp/replaymark-runtime-identity/r1_shadow_live_gate.json
+          cp results/e3b_integrated_frozen_runtime_conformance.json /tmp/replaymark-runtime-identity/integrated_runtime_conformance.json
+          cp results/e3b_runtime_contract_identity_optimization.json /tmp/replaymark-runtime-identity/identity_optimization_ab.json
+
+      - name: Seal runtime contract identity optimization
+        env:
+          GATE_DIR: /tmp/replaymark-runtime-identity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected = (
+              "identity_cache_gate.json", "runtime_observation_gate.json", "runtime_action_gate.json",
+              "same_task_gate.json", "concrete_contract_gate.json", "adjudicator_gate.json",
+              "rstar_gate.json", "shadow_bridge_gate.json", "r1_shadow_live_gate.json",
+              "integrated_runtime_conformance.json", "identity_optimization_ab.json",
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing gate output: {name}")
+              if json.loads(path.read_text()).get("verdict") != "PASS":
+                  raise SystemExit(f"gate not PASS: {name}")
+          cache = json.loads((gate_dir / "identity_cache_gate.json").read_text())
+          opt = json.loads((gate_dir / "identity_optimization_ab.json").read_text())
+          assert cache["bridge_semantic_digest_unchanged"] is True
+          assert cache["byte_equivalence"]["legacy_vs_optimized_canonical_bytes_exact"] is True
+          assert cache["same_object_reuse"]["underlying_contract_fingerprint_calls"] == 1
+          assert cache["concurrent_cold_start"]["underlying_contract_fingerprint_calls"] == 1
+          assert opt["semantic_equivalence"]["complete_128_case_canonical_certificate_bytes_exact"] is True
+          sources = (
+              Path("replaymark/runtime_contract_identity.py"),
+              Path("replaymark/runtime_e3b_bridge.py"),
+              Path("replaymark_verification/verify_runtime_contract_identity_cache.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_identity_optimization.py"),
+              Path("replaymark/RUNTIME_CONTRACT_IDENTITY_CACHE_OPTIMIZATION.md"),
+          )
+          def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+          (gate_dir / "GATE_STATUS").write_text(
+              "schema=replaymark.runtime-contract-identity-cache-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              "prior_runtime_cost_characterization=PASS\n"
+              "verified_contract_identity_cache=PASS\n"
+              "legacy_certificate_byte_equivalence=PASS\n"
+              "single_contract_fingerprint_cold_once=PASS\n"
+              "concurrent_cold_start_once=PASS\n"
+              "bounded_cache=PASS\n"
+              "bridge_semantic_digest_unchanged=PASS\n"
+              "r1_noninterference=PASS\n"
+              "integrated_frozen_runtime_conformance=PASS\n"
+              "paired_live_corpus_ab=PASS\n"
+              "execution_policy=NOT_IMPLEMENTED\n"
+              "selective_reuse_intervention=NOT_IMPLEMENTED\n"
+              "further_optimization=NOT_IMPLEMENTED\n",
+              encoding="utf-8",
+          )
+          (gate_dir / "SOURCE_SHA256SUMS").write_text(
+              "".join(f"{digest(path)}  {path.as_posix()}\n" for path in sources), encoding="utf-8"
+          )
+          (gate_dir / "GATE_SHA256SUMS").write_text(
+              "".join(f"{digest(gate_dir / name)}  {name}\n" for name in expected), encoding="utf-8"
+          )
+          print(f"SEALED runtime contract identity optimization head={os.environ['GITHUB_SHA']}")
+          PY
+
+      - name: Upload sealed runtime identity optimization artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-runtime-contract-identity-cache-optimization
+          path: /tmp/replaymark-runtime-identity
+          if-no-files-found: error
