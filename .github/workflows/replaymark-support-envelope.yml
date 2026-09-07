@@ -1,0 +1,57 @@
+name: ReplayMark support envelope
+
+on:
+  push:
+    branches:
+      - replaymark-support-envelope
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify bounded q compiler
+        run: python replaymark_verification/verify_bounded_q.py > /tmp/q_gate.json
+
+      - name: Verify q evidence image
+        run: |
+          mkdir -p /tmp/replaymark-support-envelope
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-support-envelope/evidence_image_gate.json
+
+      - name: Verify support envelope against raw definition oracle
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-support-envelope/support_envelope_gate.json
+
+      - name: Seal support-envelope gate
+        run: |
+          cp /tmp/q_gate.json /tmp/replaymark-support-envelope/q_gate.json
+          sha256sum \
+            replaymark/support_envelope.py \
+            replaymark_oracle/support_envelope_oracle.py \
+            replaymark_verification/verify_support_envelope.py \
+            /tmp/replaymark-support-envelope/support_envelope_gate.json \
+            /tmp/replaymark-support-envelope/evidence_image_gate.json \
+            /tmp/replaymark-support-envelope/q_gate.json \
+            > /tmp/replaymark-support-envelope/SHA256SUMS
+          grep -q '"verdict": "PASS"' \
+            /tmp/replaymark-support-envelope/support_envelope_gate.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-support-envelope-gate
+          path: /tmp/replaymark-support-envelope
+          if-no-files-found: error

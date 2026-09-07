@@ -1,15 +1,15 @@
-# ReplayMark semantic boundary — q evidence-image freeze
+# ReplayMark semantic boundary — support-envelope freeze
 
-**Status:** bounded `q_{C,H}` compilation is frozen and the next evidence-image arrow is implemented.  
+**Status:** bounded `q_{C,H}` compilation and q evidence-image compilation are frozen; exact deterministic `S_C^-(e)` / `S_C^+(e)` support-envelope compilation is implemented with an independent raw-definition oracle.  
 **Original seed authority:** `replaymark-compiler-contract-seed@6da24cce48d1c2f6fe4bfabf4e01047e79b7e6eb`.  
 **Bounded-q authority:** `replaymark-bounded-q-compiler@b2b357ce009d26e56e4422a3d61aade57ca6064a`.  
-**Scientific ancestry:** the exact `q_{C,H}` research gate remains frozen prior authority; this package does not reinterpret its outcomes.  
-**Current scope:** public semantic types, two-phase target semantics, bounded deterministic `q_{C,H}` compilation, independent q definition oracle, and the extensional image `q_{C,H}[Omega(e)]` of retained evidence.  
-**Still out of scope:** `S^- / S^+` support envelopes, three-valued adjudication, `CompiledContract` realization, maximal reuse guards, runtime gate insertion, replay/regeneration policy integration, BDD/bitset optimization, stochastic q compilation, and new live experiments.
+**Evidence-image authority:** `replaymark-q-evidence-image@f43c0c69b2eb8e62b762fec939386e82cc521b8a`.  
+**Current scope:** public semantic types, two-phase target semantics, bounded deterministic `q_{C,H}`, independent q oracle, extensional `q_{C,H}[Omega(e)]`, independent evidence-image oracle, and exact deterministic support envelopes.  
+**Still out of scope:** recorded-action adjudication, `VALID / INVALID / UNRESOLVED`, `CompiledContract` realization, maximal reuse guard `R*`, runtime gate insertion, replay/regeneration policy integration, BDD/bitset optimization, stochastic q compilation, and new live experiments.
 
-## 1. Public boundary remains deliberately small
+## 1. Public semantic boundary remains small
 
-The package root exports exactly six semantic types:
+The package root continues to export exactly six semantic types:
 
 1. `ClaimSpec`
 2. `TargetModel`
@@ -18,31 +18,28 @@ The package root exports exactly six semantic types:
 5. `CompiledContract`
 6. `Verdict`
 
-Compiler stages, storage backends, runtime gates, substrate adapters, and verification
-oracles remain explicit submodules rather than public semantic types.
+Compiler stages, storage representations, runtime gates, substrate adapters, and
+verification oracles remain explicit submodules rather than public semantic
+types.
 
-The Replay-Sufficiency Factorization remains:
+The Replay-Sufficiency Factorization is now executable through:
 
-`claim -> projected actions -> q_{C,H} -> evidence image -> support envelope -> maximal certified reuse`.
+`claim -> projected actions -> q_{C,H} -> evidence image -> support envelope`
 
-The present branch closes only through **evidence image**.
+but **not yet** through adjudication or maximal certified reuse.
 
-## 2. Claim and action boundaries
+## 2. Claim/action semantics
 
-`ClaimSpec` is normative. It fixes stable claim identity, exact consequential action
-dimensions, a non-negative claim-bound consequence horizon, and the consequence
-endpoint. The target cannot silently refine or weaken it. Projection onto a
-dimension not established by an adapter fails closed.
+`ClaimSpec` is normative: stable claim identity, exact consequential dimensions,
+claim-bound non-negative horizon, and consequence endpoint. Missing adapter
+coordinates fail closed rather than being guessed.
 
-`ProjectedAction` remains a substrate-neutral immutable tuple of canonical named
-scalar dimensions. Missing coordinates are never guessed. In particular, the
-legacy AgentMark adapter knows target class but does not invent exact target
-identity.
+`ProjectedAction` remains immutable and substrate-neutral. Home Assistant, MQTT,
+and thermostat vocabulary lives only in adapters/fixtures, not ReplayMark core.
 
 ## 3. Two-phase `TargetModel`
 
-ReplayMark's predictive object is a target decision condition/history immediately
-before the current controller decision:
+One predictive step remains:
 
 ```text
 decision_state
@@ -51,118 +48,175 @@ post-decision state
     -- advance_distribution(future continuation) --> next decision_state
 ```
 
-The separation is required because E3b includes current feedback in the current
-decision condition, while the Better Thermostat state already contains the
-current feedback variables. A future continuation must never be consumed as if
-it were current evidence.
+This keeps current target evidence separate from future admitted continuation.
+Exact rational probabilities remain representable at the protocol boundary, but
+the production bounded-q compiler accepts only deterministic point masses until a
+stochastic finite-horizon compiler is independently proved.
 
-The protocol exposes exact rational mass over those two phases. Compiler v1
-accepts only deterministic point masses and fails closed on stochastic branching.
+## 4. Bounded `q_{C,H}`
 
-## 4. `q_{C,H}` boundary
-
-The production compiler applies exactly the declared claim projection and computes:
+Production computes exactly:
 
 `q_{C,0}(s) = current claim-projected output`
 
-and, for `h >= 1`,
+and for `h >= 1`:
 
-`q_{C,h}(s) = (current output, q_{C,h-1}(next(s,u)) for every admitted continuation u)`.
+`q_{C,h}(s) = (current output, q_{C,h-1}(next(s,u)) for every admitted u)`.
 
-Only layers `0..H` are computed. No hidden `H+1` lookahead is allowed merely to
-claim convergence. A fixed point is reported only when equality of adjacent
-already-computed partition relations is observed.
+Only `0..H` are computed; no hidden `H+1` convergence probe is allowed.
+`agentmark.minimize.quotient()` remains historical algorithmic precedent only,
+never ReplayMark `q_{C,H}`.
 
-`agentmark.minimize.quotient()` remains algorithmic precedent only. It is not
-renamed or wrapped as ReplayMark `q_{C,H}`.
+The independent q oracle enumerates continuation words and exact projected
+output-trace laws rather than reusing production refinement.
 
-## 5. Independent q definition oracle
+## 5. Evidence semantics and evidence image
 
-The production compiler and the definition oracle remain separate.
+Each `EvidenceSpec` token denotes exactly the nonempty finite set `Omega(e)` of
+target decision states/histories still compatible with retained evidence.
 
-- `replaymark/q_compiler.py`: bounded Moore-style refinement.
-- `replaymark_oracle/definition_q_oracle.py`: direct enumeration of continuation
-  words and exact projected output-trace laws.
+The q evidence image is:
 
-The oracle does not import the production compiler. Production code does not
-import the oracle. The exhaustive three-state differential gate remains the
-implementation-fidelity authority for the bounded q stage.
+`I_{C,h}(e) := q_{C,h}[Omega(e)]`.
 
-## 6. `EvidenceSpec` means `Omega(e)`
+Production maps each raw compatible state into an already-computed q block and
+seals the result to quotient, claim, evidence, and q depth. Unknown target states
+or deeper uncompiled layers fail closed.
 
-Each evidence token denotes exactly the finite nonempty set `Omega(e)` of target
-decision states/histories still compatible with retained evidence.
+The evidence-image oracle derives q from the independent definition oracle and
+then takes the literal set image of `Omega(e)`. It does not import production q
+or evidence-image code.
 
-Tokens may overlap. Unknown observations fail closed. Evidence may be coarser
-than raw target state and is not required to identify a unique decision history.
+## 6. New stage: support envelope
 
-This extensional representation is intentionally small. A future symbolic
-evidence backend may implement the same set semantics without changing the
-public contract.
+For every raw compatible world `w`, let `S_C(w)` be the positive support of its
+current `ClaimSpec`-projected target decision. Define:
 
-## 7. New stage: evidence image through `q_{C,H}`
+`S_C^-(e) := intersection_{w in Omega(e)} S_C(w)`
 
-For claim `C`, layer `h`, and evidence token `e`, define
+`S_C^+(e) := union_{w in Omega(e)} S_C(w)`.
 
-`I_{C,h}(e) := q_{C,h}[Omega(e)] = { q_{C,h}(w) : w in Omega(e) }`.
+`S^-` is guaranteed support; `S^+` is possible support.
 
-`replaymark/evidence_image.py` implements exactly this set image over an
-already-compiled `BoundedQuotient`.
+The current branch compiles exactly these two sets. It does **not** inspect a
+recorded action `z` and therefore does not produce a replay verdict.
 
-The artifact records:
+## 7. Quotient-preservation bridge
 
-- the quotient fingerprint;
-- the claim fingerprint;
-- the evidence fingerprint;
-- the exact already-computed q depth used; and
-- for each evidence token, the compatible raw decision states and canonical q
-  blocks touched by those states.
+The production bounded-q pipeline is deterministic. Each raw world therefore has
+singleton current projected support `{z}`. Every q layer refines `q_{C,0}`, and
+`q_{C,0}` groups worlds by exactly that current projected action.
 
-Evidence outside the compiled target domain fails closed. A request for a
-deeper, uncompiled q layer fails rather than triggering hidden refinement.
+Therefore support is constant within every valid q block and:
 
-No support, verdict, or reuse semantics are attached to the image.
+`intersection_{w in Omega(e)} S_C(w)`
 
-## 8. Independent evidence-image oracle
+`= intersection_{q in q[Omega(e)]} S_C(q)`
 
-`replaymark_oracle/evidence_image_oracle.py` is definition-level verification
-code. It does not import `replaymark.evidence_image` or `replaymark.q_compiler`.
+with the analogous equality for union.
 
-It obtains the q relation from the existing continuation-word/output-trace
-definition oracle and then computes the literal set image of `Omega(e)`.
-Verification compares complete semantic block-member sets rather than production
-block IDs.
+Production derives one explicit support entry per q block and checks that all
+block members really share the same current projected action. A violation fails
+closed. This prevents an implementation shortcut from silently using q block IDs
+without proving that the support semantics survived quotienting.
 
-This prevents a block-label convention from masquerading as semantic agreement.
+## 8. Support-envelope artifact binding
 
-## 9. Admitted verification for this branch
+`replaymark/support_envelope.py` consumes only:
 
-The evidence-image gate requires:
+- a sealed `BoundedQuotient`; and
+- a `QEvidenceImage` compiled from that exact quotient.
 
-- production-vs-definition agreement for Better Thermostat evidence fixtures at
-  depths 0, 1, and 2;
-- exact N2b evidence-image refinement `1 -> 2 -> 2`;
-- compression of three overwritten non-target preset identities to one stable
-  predictive class;
-- restoration of two classes when an at-target world is included;
-- subset monotonicity under stronger extensional evidence;
-- canonical invariance to evidence token/state input order;
-- fail-closed behavior for target states outside the compiled domain;
-- no hidden deeper q layer; and
-- exhaustive H=0 set-image agreement over all 27 assignments of three output
-  labels to three states and all seven nonempty evidence subsets, exercising all
-  five set partitions of a three-element domain.
+It records quotient, claim, evidence, and evidence-image fingerprints; q depth;
+block-level projected supports; and token-level guaranteed/possible support.
 
-The earlier q compiler/oracle gate must also remain green.
+A foreign evidence image, unknown q block, malformed current-action table, or q
+block whose members disagree on current projected support is rejected.
 
-## 10. Next boundary, deliberately not crossed here
+No `VALID`, `INVALID`, `UNRESOLVED`, regeneration, or reuse method is exposed.
 
-Only after this evidence-image stage is frozen may the next branch implement:
+## 9. Independent support definition oracle
 
-`evidence image / target projected supports -> S_C^-(e), S_C^+(e)`.
+`replaymark_oracle/support_envelope_oracle.py` bypasses production q,
+evidence-image, and support-envelope code.
 
-That support-envelope stage must have its own independent definition oracle.
+For each raw `w in Omega(e)` it directly evaluates
+`TargetModel.current_distribution(w)`, retains only positive probability mass,
+projects each action through `ClaimSpec`, forms literal `S_C(w)`, and computes
+intersection/union.
 
-`VALID / INVALID / UNRESOLVED`, `CompiledContract`, and the maximally permissive
-reuse guard remain later increments. No runtime E3b intervention is admitted
-before those semantic layers are independently closed.
+Because this definition depends only on support, not deterministic selection, the
+oracle can evaluate finite stochastic current decisions even though the current
+production q pipeline cannot. This preserves the theory's actual scope while
+keeping production claims narrower and proved.
+
+## 10. Canonical separating examples
+
+The Better Thermostat N2b pair demonstrates that predictive ambiguity and current
+support ambiguity are not the same thing:
+
+- q evidence-image cardinality: `1 -> 2 -> 2` for depths 0, 1, 2;
+- support envelope at all three depths: `S^- = S^+ = {SET_AWAY}`.
+
+Thus a longer consequence horizon can require more predictive target information
+while still leaving the current historical action support-certifiable.
+
+A second thermostat evidence set admitting one non-target `SET_HOME` world and
+one at-target `NO_ACTION` world yields:
+
+- `S^- = empty`;
+- `S^+ = {NO_ACTION, SET_HOME}`.
+
+Stronger evidence selecting the non-target world yields the exact singleton
+`S^- = S^+ = {SET_HOME}`.
+
+The stochastic definition-only fixture uses supports `{A,B}` and `{B,C}` and
+returns exactly `S^-={B}`, `S^+={A,B,C}`.
+
+## 11. Verification independence wall
+
+The layers remain deliberately distinct:
+
+- production bounded q: `replaymark/q_compiler.py`;
+- q definition oracle: `replaymark_oracle/definition_q_oracle.py`;
+- production evidence image: `replaymark/evidence_image.py`;
+- evidence-image oracle: `replaymark_oracle/evidence_image_oracle.py`;
+- production support envelope: `replaymark/support_envelope.py`;
+- raw-definition support oracle: `replaymark_oracle/support_envelope_oracle.py`;
+- historical/live scientific validators remain outside production.
+
+Production support code does not import any oracle. The support oracle does not
+import production q/evidence/support compilers.
+
+## 12. Admitted verification
+
+This branch is closed only if all prior gates remain green and the new gate also
+passes:
+
+- production-vs-raw-definition agreement for thermostat support envelopes at q
+  depths 0, 1, 2;
+- exact N2b `1 -> 2 -> 2` predictive-image refinement with invariant singleton
+  current support;
+- exact overwritten-preset compression and at-target disagreement cases;
+- support-envelope monotonicity under stronger evidence;
+- stochastic `{A,B}` / `{B,C}` oracle overlap;
+- hard fingerprint binding between quotient and evidence image;
+- canonical recompilation stability;
+- exhaustive deterministic differential verification across all **5,832**
+  complete 3-state / 2-continuation / 2-output machines at H=2 and all seven
+  nonempty evidence subsets, for **40,824** production-vs-definition envelopes;
+- every strict nonempty evidence-refinement relation among those subsets,
+  totaling **69,984** monotonicity checks.
+
+## 13. Next boundary, not crossed here
+
+Only after this support-envelope stage is frozen may a later branch take a
+recorded projected action `z` and implement the exact trichotomy:
+
+- `z in S^-`;
+- `z notin S^+`;
+- `z in S^+ \\ S^-`.
+
+That is the natural `VALID / INVALID / UNRESOLVED` adjudication layer, but it must
+have its own independent oracle. The maximally permissive reuse rule `R*` remains
+one further step after adjudication rather than being smuggled into this branch.
