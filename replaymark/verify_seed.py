@@ -59,29 +59,31 @@ def main() -> None:
 
     model = target_model_from_agentmark_kernel(kernel)
     assert isinstance(model, TargetModel)
-    assert model.initial_state == "s"
-    assert model.states == ("s",)
-    assert model.feedback_alphabet == ("home", "away")
+    assert len(model.decision_states) == 2
+    assert model.continuation_alphabet == ("home", "away")
     assert len(model.fingerprint) == 64
 
-    home_dist = model.distribution("s", "home")
-    away_dist = model.distribution("s", "away")
-    assert sum(home_dist.values(), Fraction()) == 1
-    assert sum(away_dist.values(), Fraction()) == 1
-    assert len(home_dist) == 1  # zero-mass legacy syntax is semantically absent
+    current = [model.current_distribution(state) for state in model.decision_states]
+    assert all(sum(dist.values(), Fraction()) == 1 for dist in current)
+    assert all(len(dist) == 1 for dist in current)
+    post_states = {next(iter(dist))[1] for dist in current}
+    assert post_states == {"s"}
+    for feedback in model.continuation_alphabet:
+        advanced = model.advance_distribution("s", feedback)
+        assert sum(advanced.values(), Fraction()) == 1
+        assert next(iter(advanced)) in model.decision_states
     try:
-        model.has_feedback("s", "unknown")
+        model.advance_distribution("s", "unknown")
     except KeyError:
         pass
     else:
-        raise AssertionError("unknown feedback must fail closed")
+        raise AssertionError("unknown future feedback must fail closed")
 
-    home_action = next(iter(home_dist))[0]
-    away_action = next(iter(away_dist))[0]
+    actions = [next(iter(dist))[0] for dist in current]
     op_claim = claim_from_agentmark_projection("operation")
     action_claim = claim_from_agentmark_projection("action")
-    assert op_claim.project(home_action) == op_claim.project(away_action)
-    assert action_claim.project(home_action) != action_claim.project(away_action)
+    assert op_claim.project(actions[0]) == op_claim.project(actions[1])
+    assert action_claim.project(actions[0]) != action_claim.project(actions[1])
     exact_target_claim = ClaimSpec(
         "exact-target",
         ("operation", "target_identity", "variant"),
@@ -89,7 +91,7 @@ def main() -> None:
         "controller-event",
     )
     try:
-        exact_target_claim.project(home_action)
+        exact_target_claim.project(actions[0])
     except KeyError:
         pass
     else:
@@ -101,7 +103,6 @@ def main() -> None:
     else:
         raise AssertionError("legacy full signature must remain structural precedent")
 
-    # Canonicalization is insertion-order independent.
     a = ProjectedAction.from_mapping({"variant": "x", "operation": "op"})
     b = ProjectedAction.from_mapping({"operation": "op", "variant": "x"})
     assert a == b
@@ -111,11 +112,18 @@ def main() -> None:
     assert c1 == c2
     assert c1.fingerprint() == c2.fingerprint()
 
-    e1 = EvidenceSpec("e", (("obs-b", ("s2", "s1")), ("obs-a", ("s1",)),))
-    e2 = EvidenceSpec("e", (("obs-a", ("s1",)), ("obs-b", ("s1", "s2")),))
+    decision_states = model.decision_states
+    e1 = EvidenceSpec(
+        "e",
+        (("obs-b", (decision_states[1], decision_states[0])), ("obs-a", (decision_states[0],))),
+    )
+    e2 = EvidenceSpec(
+        "e",
+        (("obs-a", (decision_states[0],)), ("obs-b", tuple(sorted(decision_states)))),
+    )
     assert e1 == e2
     assert e1.fingerprint() == e2.fingerprint()
-    assert e1.compatible_states("obs-b") == ("s1", "s2")
+    assert e1.compatible_states("obs-b") == tuple(sorted(decision_states))
     try:
         e1.compatible_states("unknown")
     except KeyError:
@@ -126,9 +134,10 @@ def main() -> None:
     mapping = compatibility_map()
     assert "agentmark.minimize.quotient" in mapping
     assert "NOT q_{C,H}" in mapping["agentmark.minimize.quotient"]
+    assert "two-phase" in mapping["agentmark.kernel.ReactiveKernel"]
 
     print(
-        "REPLAYMARK_COMPILER_CONTRACT_SEED: PASS "
+        "REPLAYMARK_COMPILER_CONTRACT_SEED_V2: PASS "
         f"target_model={model.fingerprint} claim={c1.fingerprint()} "
         f"evidence={e1.fingerprint()}"
     )

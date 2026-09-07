@@ -1,8 +1,8 @@
-"""ReplayMark compiler boundary seed.
+"""ReplayMark semantic compiler boundary.
 
 Only the six semantic boundary types are exported from the package root.
-Compiler, gate, backend, and live integration are intentionally not implemented
-at this freeze.
+Compiler stages, oracles, backends, and live integrations remain explicit
+submodules so implementation choices cannot masquerade as public semantics.
 """
 
 from .contracts import (

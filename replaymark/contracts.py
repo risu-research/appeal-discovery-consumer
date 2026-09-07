@@ -135,11 +135,14 @@ class ClaimSpec:
 
 @dataclass(frozen=True)
 class EvidenceSpec:
-    """Finite, explicit evidence semantics for the first compiler boundary.
+    """Finite, explicit evidence semantics for replay-time uncertainty.
 
-    Each observation token denotes exactly the target-model states/histories
-    still compatible with that retained evidence. Tokens may overlap. Unknown
-    observations are not assigned a meaning and therefore fail closed.
+    Each observation token denotes exactly the target *decision states or
+    histories* still compatible with retained evidence. Tokens may overlap.
+    Unknown observations are not assigned a meaning and therefore fail closed.
+
+    This seed is extensional by design: later symbolic evidence backends may
+    implement the same set semantics without changing the public contract.
     """
 
     evidence_id: str
@@ -153,7 +156,7 @@ class EvidenceSpec:
             token = _require_token("evidence token", token)
             if token in seen_tokens:
                 raise ValueError(f"duplicate evidence token: {token!r}")
-            clean_states = tuple(sorted({_require_token("state id", s) for s in states}))
+            clean_states = tuple(sorted({_require_token("decision state id", s) for s in states}))
             if not clean_states:
                 raise ValueError(f"evidence token {token!r} has no compatible states")
             seen_tokens.add(token)
@@ -191,38 +194,61 @@ class Verdict(str, Enum):
 
 @runtime_checkable
 class TargetModel(Protocol):
-    """Claim-independent finite reactive target model consumed by the compiler."""
+    """Claim-independent two-phase reactive target semantics.
+
+    ReplayMark's predictive object is a *decision condition/history*: a point
+    immediately before the controller emits the current claim-relevant action.
+    The model therefore separates the current controller decision from the next
+    admitted environmental continuation:
+
+      decision_state --current_distribution--> (action, post_state)
+      post_state --advance_distribution(continuation)--> next decision_state
+
+    This separation is essential. It represents both controllers whose current
+    feedback is part of the decision condition (e.g. E3b) and controllers whose
+    current state already contains the feedback variables (e.g. the thermostat)
+    without smuggling a future input into the current output definition.
+
+    Probabilities are exact Fractions at the boundary. The first bounded
+    q_{C,H} compiler intentionally accepts only deterministic point-mass models;
+    stochastic models remain representable here for a future, separately proved
+    compiler rather than being silently given probabilistic-bisimulation
+    semantics.
+    """
 
     @property
     def fingerprint(self) -> str: ...
 
     @property
-    def initial_state(self) -> str: ...
+    def decision_states(self) -> tuple[str, ...]: ...
 
     @property
-    def states(self) -> tuple[str, ...]: ...
+    def continuation_alphabet(self) -> tuple[str, ...]: ...
 
-    @property
-    def feedback_alphabet(self) -> tuple[str, ...]: ...
-
-    def has_feedback(self, state: str, feedback: str) -> bool: ...
-
-    def distribution(
+    def current_distribution(
         self,
-        state: str,
-        feedback: str,
+        decision_state: str,
     ) -> Mapping[tuple[ProjectedAction, str], Fraction]:
-        """Return exact probability mass over (full action coordinates, next state)."""
+        """Exact mass over (full action coordinates, post-decision state)."""
+        ...
+
+    def advance_distribution(
+        self,
+        post_state: str,
+        continuation: str,
+    ) -> Mapping[str, Fraction]:
+        """Exact mass over the next decision states after one continuation."""
         ...
 
 
 @runtime_checkable
 class CompiledContract(Protocol):
-    """Runtime-facing result of the future ReplayMark compiler.
+    """Runtime-facing result of the future full ReplayMark compiler.
 
-    This protocol freezes semantics, not a storage layout. The compiler may use
-    bitsets, BDDs, or another verified backend as long as this observable
-    contract remains identical.
+    This protocol freezes semantics, not a storage layout. The bounded q_{C,H}
+    compiler is only one internal stage and does not yet instantiate this
+    operational contract. A later bitset, BDD, or other verified backend must be
+    observationally equivalent at this boundary.
     """
 
     @property

@@ -1,0 +1,43 @@
+name: ReplayMark bounded q compiler
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-bounded-q-compiler
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify semantic seed v2
+        run: python replaymark/verify_seed.py
+      - name: Verify bounded q compiler against independent definition oracle
+        run: python replaymark_verification/verify_bounded_q.py | tee replaymark-q-gate.json
+      - name: Require machine-readable PASS
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('replaymark-q-gate.json').read_text())
+          assert report['verdict'] == 'PASS'
+          assert report['e3b']['q_counts'] == [3, 3, 3, 3]
+          assert report['better_thermostat']['q_counts'] == [5, 14, 16, 16, 16]
+          assert report['exhaustive_small_machine']['machines'] == 5832
+          assert report['exhaustive_small_machine']['compiler_oracle_layer_relations'] == 23328
+          print('REPLAYMARK_BOUNDED_Q_CI_GATE: PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-bounded-q-gate
+          path: replaymark-q-gate.json
+          if-no-files-found: error
+          retention-days: 30
