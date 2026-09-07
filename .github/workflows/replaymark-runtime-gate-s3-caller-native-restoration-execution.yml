@@ -1,0 +1,137 @@
+name: ReplayMark Gate S3 caller-owned native restoration first-complete execution
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s3-caller-native-restoration-execution
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s3-restoration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      LAB: agentmark_e3b_lab/e3_mqtt
+      GATE: /tmp/replaymark-s3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile S3 execution
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s3_caller_native_restoration.py \
+            replaymark_verification/verify_s3_caller_native_restoration.py \
+            agentmark_e3b_lab/e3_mqtt/app/s2p6_heterogeneous_device.py
+
+      - name: Verify exact prospective S3 execution boundary
+        run: |
+          mkdir -p "$GATE"
+          PYTHONPATH="$GITHUB_WORKSPACE" python replaymark_verification/verify_s3_caller_native_restoration.py \
+            --preflight-only \
+            --out "$GATE/s3_preflight.json"
+
+      - name: Build frozen live image and broker
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose down -v --remove-orphans || true
+          docker compose build runner_shadow
+          docker compose up -d mosquitto
+          for i in $(seq 1 20); do
+            if docker compose exec -T mosquitto mosquitto_sub -h 127.0.0.1 -p 1883 -t '$SYS/broker/version' -C 1 -W 2 >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "broker did not become ready" >&2
+          exit 1
+
+      - name: Install exact immutable P6 heterogeneous target
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose run -d --name replaymark-s3-target --no-deps runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/s2p6_heterogeneous_device.py \
+            --broker mosquitto
+          for i in $(seq 1 20); do
+            if docker logs replaymark-s3-target 2>&1 | grep -q '"ready": true'; then
+              exit 0
+            fi
+            if ! docker inspect replaymark-s3-target >/dev/null 2>&1; then
+              echo "target container disappeared" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          docker logs replaymark-s3-target || true
+          echo "heterogeneous target did not become ready" >&2
+          exit 1
+
+      - name: First complete S3 live caller-native restoration
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose run --rm --no-deps runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s3_caller_native_restoration.py \
+            --broker mosquitto \
+            --out /results/s3_live_raw.json
+          cp results/s3_live_raw.json "$GATE/s3_live_raw.json"
+
+      - name: Close target before independent evaluation
+        if: always()
+        run: |
+          docker logs replaymark-s3-target > "$GATE/target.log" 2>&1 || true
+          docker inspect replaymark-s3-target > "$GATE/target_inspect.json" 2>/dev/null || true
+          docker rm -f replaymark-s3-target >/dev/null 2>&1 || true
+
+      - name: Independently evaluate restoration and work conservation
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python replaymark_verification/verify_s3_caller_native_restoration.py \
+            --input "$GATE/s3_live_raw.json" \
+            --out "$GATE/s3_final_verification.json"
+
+      - name: Seal first complete S3 evidence
+        if: always()
+        run: |
+          cp replaymark/S3P_CALLER_OWNED_NATIVE_RESTORATION_PROTOCOL.json "$GATE/" || true
+          cp replaymark/S3P_CALLER_OWNED_NATIVE_RESTORATION_PROTOCOL.md "$GATE/" || true
+          cp replaymark/S3_CALLER_OWNED_NATIVE_RESTORATION_EXECUTION.md "$GATE/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/s2p6_heterogeneous_device.py "$GATE/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/replaymark_s3_caller_native_restoration.py "$GATE/" || true
+          cp replaymark_verification/verify_s3_caller_native_restoration.py "$GATE/" || true
+          git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
+          sha256sum "$GATE"/* > "$GATE/SHA256SUMS"
+
+      - name: Upload first complete S3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s3-caller-native-restoration-first-complete
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Cleanup
+        if: always()
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker rm -f replaymark-s3-target >/dev/null 2>&1 || true
+          docker compose down -v --remove-orphans || true
+
+      - name: Enforce S3 scientific verdict
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["GATE"]) / "s3_final_verification.json").read_text())
+          if report.get("verdict") != "PASS":
+              raise SystemExit("S3 first-complete scientific verdict is not PASS")
+          print(json.dumps(report["counts"], indent=2, sort_keys=True))
+          PY
