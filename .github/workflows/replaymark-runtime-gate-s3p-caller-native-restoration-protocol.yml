@@ -1,0 +1,51 @@
+name: ReplayMark Gate S3-P caller-owned native restoration protocol freeze
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s3p-caller-native-restoration-protocol
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s3p-protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GATE: /tmp/replaymark-s3p
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile S3-P verifier
+        run: python -m py_compile replaymark_verification/verify_s3p_caller_native_restoration_protocol.py
+
+      - name: Verify prospective S3-P freeze
+        run: python replaymark_verification/verify_s3p_caller_native_restoration_protocol.py
+
+      - name: Seal S3-P protocol
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE"
+          cp replaymark/S3P_CALLER_OWNED_NATIVE_RESTORATION_PROTOCOL.json "$GATE/"
+          cp replaymark/S3P_CALLER_OWNED_NATIVE_RESTORATION_PROTOCOL.md "$GATE/"
+          cp replaymark_verification/verify_s3p_caller_native_restoration_protocol.py "$GATE/"
+          cp s3p_protocol_freeze_verification.json "$GATE/"
+          git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
+          sha256sum "$GATE"/* > "$GATE/SHA256SUMS"
+
+      - name: Upload S3-P protocol seal
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s3p-caller-native-restoration-protocol
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6

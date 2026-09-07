@@ -1,0 +1,99 @@
+{
+  "authority": {
+    "parent_s2f_result_seal": "313d24099546eb672eeabb5d449a476b261087be",
+    "p6_protocol": "4a458f2f5cc9163c6046cc6d20b3626cecfc4a81",
+    "p6_first_complete_execution": "e5e992b0a31c952017ee4209be2c0585a6cab500",
+    "p6_result_seal": "60c444f32f98c9ee9ef42c8b06395ebf4ed9a902",
+    "s2f_audit": "91f217c2db79f84b269e4a350d86bcc82d302ac5"
+  },
+  "frozen_blobs": {
+    "execution_admission": "015b2cfb7f084562eaead2dedd2fae00628eaffa",
+    "historical_action_realizer": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+    "heterogeneous_target": "5b57bc44e91dc38e44eaafc760286fa4b616ff9c",
+    "observation_realizer": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+    "runtime_bridge": "5c2b13f35edcae9ce42fa062f51f1b6ce46747bf",
+    "runtime_execution_gate": "22748a5aa820e83e4700a339e8af297cdd9f9143",
+    "same_task_correlation": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+    "source_ladder": "fcc1768544714f1b11a497a856f8e18d4d2f07dd"
+  },
+  "gate": "S3P_CALLER_OWNED_NATIVE_RESTORATION_PROTOCOL",
+  "historical_template_sha256": "e86d5f42a09b8257185b6e3608ac83c0ac41deeba7890b914c22b0441a8b8888",
+  "native_path": {
+    "owner": "caller_not_replaymark",
+    "sequence": [
+      "publish QUERY to same-task role-a device",
+      "receive fresh current-state on=true confirmation caused by query",
+      "only after that confirmation generate fresh ACT2",
+      "publish fresh ACT2 to same-task role-b device",
+      "observe matching role-b command effect by task timeout"
+    ],
+    "fresh_act2_may_be_wire_identical_to_historical": true,
+    "fresh_act2_must_have_distinct_native_provenance": true,
+    "fresh_act2_is_never_submitted_to_replaymark_as_history": true,
+    "pipeline_or_certificate_failure_is_not_semantic_block": true,
+    "native_failure_is_not_semantic_unresolved": true
+  },
+  "no_new_randomization": true,
+  "policy_assignment": {
+    "inherit_p6_policy_seed": "replaymark.s2.policy-assignment.v1|s1=c93c8574eb62cb4dcde94890fdfc8f939b41e00a",
+    "relabel": {
+      "ALWAYS_ADMIT": "ALWAYS_REUSE",
+      "ALWAYS_BLOCK": "ALWAYS_NATIVE",
+      "REPLAYMARK": "REPLAYMARK_NATIVE"
+    },
+    "s3_joint_policy_target_schedule_sha256": "27503b245e2d978f1884f717248d32336602c3f1c8e22ee379ba4442fcbcc047"
+  },
+  "promotion": {
+    "all_rows": 1152,
+    "always_native": {
+      "historical_reuse_count": 0,
+      "native_path_count": 384,
+      "restored_tasks": 384,
+      "unsafe_historical_execution_count": 0,
+      "unnecessary_native_path_count_must_be_positive": true
+    },
+    "always_reuse": {
+      "historical_reuse_count": 384,
+      "native_path_count": 0,
+      "unsafe_historical_execution_count_must_be_positive": true
+    },
+    "replaymark_native": {
+      "historical_reuse_set_equals_independent_oracle_safe_set": true,
+      "native_path_set_equals_independent_oracle_unsafe_set": true,
+      "restored_tasks": 384,
+      "unsafe_historical_execution_count": 0,
+      "unnecessary_native_path_count": 0
+    },
+    "semantic_mixture_required_in_every_trial": true,
+    "target_class_balance_per_policy_per_trial": {
+      "REFERENCE": 32,
+      "SHIFTED": 32
+    }
+  },
+  "protocol": {
+    "fallback_inside_replaymark": false,
+    "regeneration_inside_replaymark": false,
+    "trials": 6,
+    "tasks_per_trial": 192,
+    "target": "exact frozen P6 heterogeneous target",
+    "verify_boundary_ms": 100,
+    "wave_period_ms": 300,
+    "wave_size": 32
+  },
+  "q_lineage": {
+    "Q1_Q2_Q3": "immutable_failed_evidence",
+    "Q4": "not_admitted",
+    "reason": "P6 prospectively replaced stochastic W*/D* calibration with an orthogonal fixed heterogeneous target",
+    "status": "RETIRED_BY_EVIDENCE"
+  },
+  "schema": "replaymark.s3p-caller-owned-native-restoration-protocol.v1",
+  "status": "FROZEN_BEFORE_S3_LIVE_EXECUTION",
+  "target_assignment": {
+    "class_seed": "replaymark.s2p6.target-class.v1|q3=ef370c38e6be82df340838be9db394559367c53e",
+    "inherit_exact_p6_class_schedule": true,
+    "reference_delay_ms": 0,
+    "shifted_delay_ms": 180,
+    "target_class_is_not_semantic_truth": true,
+    "target_class_not_visible_to_replaymark_or_policy": true
+  }
+}
