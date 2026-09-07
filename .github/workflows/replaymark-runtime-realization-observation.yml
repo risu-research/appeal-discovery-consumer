@@ -1,0 +1,172 @@
+name: ReplayMark runtime realization boundary + E3b observation
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-realization-observation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-realization-observation-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile runtime realization increment
+        run: |
+          python -m py_compile \
+            replaymark/runtime_realization.py \
+            replaymark/runtime_e3b_observation.py \
+            replaymark_oracle/e3b_observation_oracle.py \
+            replaymark_verification/verify_runtime_realization_observation.py
+
+      - name: Verify semantic seed remains frozen
+        run: python replaymark/verify_seed.py
+
+      - name: Reverify CompiledContract API freeze
+        run: python replaymark_verification/verify_compiled_contract_api.py
+
+      - name: Verify runtime realization boundary and E3b observation
+        run: |
+          mkdir -p /tmp/replaymark-runtime-realization
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-runtime-realization/runtime_realization_gate.json
+
+      - name: Reverify concrete contract packaging
+        run: |
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-runtime-realization/concrete_contract_gate.json
+
+      - name: Reverify compiler-observed target provenance
+        run: |
+          python replaymark_verification/verify_target_provenance.py \
+            --out /tmp/replaymark-runtime-realization/target_provenance_gate.json
+
+      - name: Reverify bounded q compiler
+        run: |
+          python replaymark_verification/verify_bounded_q.py \
+            | tee /tmp/replaymark-runtime-realization/q_gate.json
+
+      - name: Reverify production predictive witnesses
+        run: |
+          python replaymark_verification/verify_predictive_witness.py \
+            --out /tmp/replaymark-runtime-realization/predictive_witness_gate.json
+
+      - name: Reverify compiler-owned evidence semantics
+        run: |
+          python replaymark_verification/verify_evidence_semantics.py \
+            --out /tmp/replaymark-runtime-realization/evidence_semantics_gate.json
+
+      - name: Reverify q evidence image
+        run: |
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-runtime-realization/evidence_image_gate.json
+
+      - name: Reverify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-runtime-realization/support_envelope_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-runtime-realization/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-runtime-realization/rstar_gate.json
+
+      - name: Seal runtime realization observation gate
+        env:
+          GATE_DIR: /tmp/replaymark-runtime-realization
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected = (
+              "runtime_realization_gate.json",
+              "concrete_contract_gate.json",
+              "target_provenance_gate.json",
+              "q_gate.json",
+              "predictive_witness_gate.json",
+              "evidence_semantics_gate.json",
+              "evidence_image_gate.json",
+              "support_envelope_gate.json",
+              "adjudicator_gate.json",
+              "rstar_gate.json",
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing/empty gate output: {path}")
+              parsed = json.loads(path.read_text(encoding="utf-8"))
+              if parsed.get("verdict") != "PASS":
+                  raise SystemExit(f"gate is not PASS: {name}")
+
+          runtime = json.loads(
+              (gate_dir / "runtime_realization_gate.json").read_text(encoding="utf-8")
+          )
+          if runtime.get("schema") != "replaymark.runtime-realization.e3b-observation-gate.v2":
+              raise SystemExit("unexpected runtime realization gate schema")
+
+          sources = (
+              Path("replaymark/runtime_realization.py"),
+              Path("replaymark/runtime_e3b_observation.py"),
+              Path("replaymark/RUNTIME_REALIZATION_BOUNDARY.md"),
+              Path("replaymark_oracle/e3b_observation_oracle.py"),
+              Path("replaymark_verification/verify_runtime_realization_observation.py"),
+              Path("replaymark/compiled_contract.py"),
+              Path("replaymark/contracts.py"),
+          )
+          for path in sources:
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing/empty source authority: {path}")
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          (gate_dir / "GATE_STATUS").write_text(
+              "schema=replaymark.runtime-realization.e3b-observation-gate.v2\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              "runtime_boundary=PASS\n"
+              "e3b_observation_realization=PASS\n"
+              "historical_action_realization=NOT_IMPLEMENTED\n"
+              "execution_policy=NOT_IMPLEMENTED\n",
+              encoding="utf-8",
+          )
+          (gate_dir / "SOURCE_SHA256SUMS").write_text(
+              "".join(f"{digest(path)}  {path.as_posix()}\n" for path in sources),
+              encoding="utf-8",
+          )
+          (gate_dir / "GATE_SHA256SUMS").write_text(
+              "".join(
+                  f"{digest(gate_dir / name)}  {name}\n"
+                  for name in expected
+              ),
+              encoding="utf-8",
+          )
+          print(
+              f"SEALED runtime realization observation gate for "
+              f"{os.environ['GITHUB_SHA']} with {len(expected)} PASS gates"
+          )
+          PY
+
+      - name: Upload sealed runtime realization artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-runtime-realization-e3b-observation-gate
+          path: /tmp/replaymark-runtime-realization
+          if-no-files-found: error
