@@ -1,0 +1,97 @@
+name: ReplayMark Gate S2-F heterogeneous-target falsification audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2f-heterogeneous-target-audit
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  gate-s2f-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AUDIT: /tmp/replaymark-s2f
+      SOURCE: /tmp/replaymark-s2p6
+      SOURCE_ARTIFACT_ID: "10034798750"
+      SOURCE_RUN_ID: "34168034341"
+      SOURCE_ARTIFACT_SHA256: "1319c41908d511ca9e8976973801350aab593199038b82752d8e4e7c78d0ecdb"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile second literal auditor
+        run: python -m py_compile replaymark_verification/verify_s2f_heterogeneous_target_audit.py
+
+      - name: Verify exact S2-F audit boundary
+        run: |
+          mkdir -p "$AUDIT"
+          python replaymark_verification/verify_s2f_heterogeneous_target_audit.py \
+            --preflight-only \
+            --out "$AUDIT/s2f_preflight.json"
+
+      - name: Fetch exact immutable P6 artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip"
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$url" -o "$AUDIT/source.zip"
+          echo "${SOURCE_ARTIFACT_SHA256}  $AUDIT/source.zip" | sha256sum -c -
+          rm -rf "$SOURCE"
+          mkdir -p "$SOURCE"
+          unzip -q "$AUDIT/source.zip" -d "$SOURCE"
+          sha256sum -c "$SOURCE/SHA256SUMS"
+          printf 'artifact_id=%s\nworkflow_run=%s\nsha256=%s\n' \
+            "$SOURCE_ARTIFACT_ID" "$SOURCE_RUN_ID" "$SOURCE_ARTIFACT_SHA256" \
+            > "$AUDIT/SOURCE_AUTHORITY.txt"
+
+      - name: Run independent second-literal falsification audit
+        run: |
+          python replaymark_verification/verify_s2f_heterogeneous_target_audit.py \
+            --source-dir "$SOURCE" \
+            --out "$AUDIT/s2f_final_audit.json"
+
+      - name: Seal S2-F audit
+        if: always()
+        run: |
+          cp replaymark/S2F_HETEROGENEOUS_TARGET_FALSIFICATION_AUDIT.json "$AUDIT/" || true
+          cp replaymark/S2F_HETEROGENEOUS_TARGET_FALSIFICATION_AUDIT.md "$AUDIT/" || true
+          cp replaymark/S2P6_HETEROGENEOUS_TARGET_CAPSTONE_RESULT_SEAL.json "$AUDIT/" || true
+          cp replaymark_verification/verify_s2f_heterogeneous_target_audit.py "$AUDIT/" || true
+          git show --no-patch --format=fuller HEAD > "$AUDIT/SEAL_COMMIT.txt"
+          sha256sum "$AUDIT"/* > "$AUDIT/SHA256SUMS"
+
+      - name: Upload S2-F audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2f-heterogeneous-target-falsification-audit
+          path: ${{ env.AUDIT }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Enforce S2-F verdict
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report=json.loads((Path(os.environ["AUDIT"])/"s2f_final_audit.json").read_text())
+          if report.get("verdict") != "PASS":
+              raise SystemExit("S2-F falsification audit failed")
+          print(json.dumps(report["recomputed"], indent=2, sort_keys=True))
+          PY
