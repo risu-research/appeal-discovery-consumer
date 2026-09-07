@@ -1,0 +1,248 @@
+name: ReplayMark Gate S1 certified execution admission
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s1-certified-execution-admission
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s1-certified-execution-admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GATE_DIR: /tmp/replaymark-gate-s1
+      S0_HEAD: 8716db916c49578ee69930b973a44f892f975307
+      S0_OPTIMIZATION_AUTHORITY: 25d317392b9ce6aaaedc190ef6aff8bc38d555b5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify exact S0 parent and frozen-byte authority
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE_DIR"
+          python - <<'PY'
+          from pathlib import Path
+          import json, os, subprocess
+
+          s0 = os.environ["S0_HEAD"]
+          parent = subprocess.check_output(
+              ["git", "rev-parse", "HEAD^"], text=True
+          ).strip()
+          if parent != s0:
+              raise SystemExit(f"S1 must be an exact child of S0: {parent} != {s0}")
+
+          expected_changed = {
+              ".github/workflows/replaymark-runtime-gate-s1-certified-execution-admission.yml",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_s1_admission_live.py",
+              "replaymark/S1_CERTIFIED_EXECUTION_ADMISSION.md",
+              "replaymark/execution_admission.py",
+              "replaymark/runtime_e3b_execution_gate.py",
+              "replaymark_oracle/execution_admission_oracle.py",
+              "replaymark_verification/verify_runtime_e3b_execution_admission.py",
+          }
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", s0, "HEAD"], text=True
+              ).splitlines()
+          )
+          if changed != expected_changed:
+              raise SystemExit(
+                  "undeclared S1 increment: "
+                  f"missing={sorted(expected_changed - changed)} "
+                  f"extra={sorted(changed - expected_changed)}"
+              )
+
+          manifest = json.loads(
+              Path("replaymark/CURRENT_RUNTIME_SEAL.json").read_text(encoding="utf-8")
+          )
+          if manifest["optimization_policy"]["state"] != "FROZEN":
+              raise SystemExit("S0 optimization freeze is not intact")
+          if manifest["authority"]["commit"] != os.environ["S0_OPTIMIZATION_AUTHORITY"]:
+              raise SystemExit("S0 optimization authority drift")
+
+          matches = 0
+          frozen = manifest["frozen_blobs"]
+          for group, rows in frozen.items():
+              for path, expected_sha in rows.items():
+                  actual = subprocess.check_output(
+                      ["git", "rev-parse", f"HEAD:{path}"], text=True
+                  ).strip()
+                  if actual != expected_sha:
+                      raise SystemExit(
+                          f"frozen blob drift {group}:{path}: {actual} != {expected_sha}"
+                      )
+                  matches += 1
+
+          report = {
+              "schema": "replaymark.gate-s1-s0-base-verification.v1",
+              "verdict": "PASS",
+              "s0_head": s0,
+              "s0_optimization_authority": os.environ["S0_OPTIMIZATION_AUTHORITY"],
+              "exact_parent": True,
+              "declared_additive_files": sorted(changed),
+              "frozen_blob_matches": matches,
+              "optimization_state": "FROZEN",
+          }
+          out = Path(os.environ["GATE_DIR"]) / "s0_base_gate.json"
+          out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+
+      - name: Static compile S1 increment
+        run: |
+          python -m py_compile \
+            replaymark/execution_admission.py \
+            replaymark/runtime_e3b_execution_gate.py \
+            replaymark_oracle/execution_admission_oracle.py \
+            replaymark_verification/verify_runtime_e3b_execution_admission.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s1_admission_live.py
+
+      - name: Reverify frozen semantic and runtime prerequisites
+        run: |
+          set -euo pipefail
+          python replaymark/verify_seed.py
+          python replaymark_verification/verify_adjudicator.py \
+            --out "$GATE_DIR/adjudicator_gate.json"
+          python replaymark_verification/verify_rstar.py \
+            --out "$GATE_DIR/rstar_gate.json"
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out "$GATE_DIR/runtime_observation_gate.json"
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out "$GATE_DIR/runtime_action_gate.json"
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out "$GATE_DIR/same_task_gate.json"
+          python replaymark_verification/verify_runtime_e3b_bridge.py \
+            --out "$GATE_DIR/runtime_bridge_gate.json"
+
+      - name: Verify S1 admission and dispatch boundary
+        run: |
+          python replaymark_verification/verify_runtime_e3b_execution_admission.py \
+            --out "$GATE_DIR/execution_admission_gate.json"
+
+      - name: Real Mosquitto prospective admission falsification
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f results/e3b_s1_certified_execution_admission.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s1_admission_live.py \
+              --broker mosquitto \
+              --tasks 16 \
+              --wave-size 8 \
+              --wave-period-ms 250 \
+              --verify-ms 100 \
+              --negative-delay-ms 180 \
+              --task-timeout-ms 1000 \
+              --out /results/e3b_s1_certified_execution_admission.json
+          cp results/e3b_s1_certified_execution_admission.json \
+            "$GATE_DIR/live_mosquitto_admission_gate.json"
+
+      - name: Seal Gate S1
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, subprocess
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          required = [
+              "s0_base_gate.json",
+              "adjudicator_gate.json",
+              "rstar_gate.json",
+              "runtime_observation_gate.json",
+              "runtime_action_gate.json",
+              "same_task_gate.json",
+              "runtime_bridge_gate.json",
+              "execution_admission_gate.json",
+              "live_mosquitto_admission_gate.json",
+          ]
+          for name in required:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing S1 gate output: {name}")
+              data = json.loads(path.read_text())
+              if data.get("verdict") != "PASS":
+                  raise SystemExit(f"S1 component not PASS: {name}")
+
+          live = json.loads(
+              (gate_dir / "live_mosquitto_admission_gate.json").read_text()
+          )
+          if live.get("promotion_pass") is not True:
+              raise SystemExit("live S1 admission promotion failed")
+
+          status = (
+              "schema=replaymark.gate-s1-certified-execution-admission.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              f"s0_head={os.environ['S0_HEAD']}\n"
+              f"s0_optimization_authority={os.environ['S0_OPTIMIZATION_AUTHORITY']}\n"
+              "semantic_core=FROZEN_UNCHANGED\n"
+              "runtime_certificate_chain=FROZEN_UNCHANGED\n"
+              "micro_optimization=FROZEN\n"
+              "execution_admission_policy=PASS\n"
+              "certificate_chain_revalidation=PASS\n"
+              "valid_reuse=ADMIT_REUSE\n"
+              "invalid_reuse=BLOCK_REUSE\n"
+              "unresolved_reuse=BLOCK_REUSE\n"
+              "single_use_in_process=PASS\n"
+              "live_mosquitto_positive=PASS\n"
+              "live_mosquitto_negative=PASS\n"
+              "fallback=ABSENT\n"
+              "regeneration=ABSENT\n"
+              "automatic_retry=ABSENT\n"
+              "cross_process_exactly_once=NOT_CLAIMED\n"
+              "broker_delivery_exactly_once=NOT_CLAIMED\n"
+              "selective_reuse_capstone=NOT_YET_CLAIMED\n"
+          )
+          (gate_dir / "GATE_STATUS").write_text(status, encoding="utf-8")
+
+          for path in (
+              Path("replaymark/S1_CERTIFIED_EXECUTION_ADMISSION.md"),
+              Path("replaymark/execution_admission.py"),
+              Path("replaymark/runtime_e3b_execution_gate.py"),
+              Path("replaymark_oracle/execution_admission_oracle.py"),
+              Path("replaymark_verification/verify_runtime_e3b_execution_admission.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_s1_admission_live.py"),
+          ):
+              target = gate_dir / path.name
+              target.write_bytes(path.read_bytes())
+
+          (gate_dir / "SEAL_COMMIT.txt").write_text(
+              subprocess.check_output(
+                  ["git", "show", "--no-patch", "--format=fuller", "HEAD"], text=True
+              ),
+              encoding="utf-8",
+          )
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          all_files = sorted(p for p in gate_dir.iterdir() if p.is_file())
+          (gate_dir / "SHA256SUMS").write_text(
+              "".join(f"{digest(p)}  {p.name}\n" for p in all_files),
+              encoding="utf-8",
+          )
+          print(f"GATE_S1_CERTIFIED_EXECUTION_ADMISSION: PASS head={os.environ['GITHUB_SHA']}")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s1-certified-execution-admission
+          path: /tmp/replaymark-gate-s1
+          if-no-files-found: error
+          retention-days: 90
