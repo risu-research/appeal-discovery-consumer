@@ -1,56 +1,28 @@
-# ReplayMark semantic boundary — maximal certified reuse freeze
+# ReplayMark semantic boundary — evidence-semantics closure freeze
 
-**Status:** bounded `q_{C,H}`, q evidence image, deterministic support envelope,
-three-valued adjudication, and theorem-induced maximal certified reuse `R*` are
-implemented with independent definition oracles.  
-**Original seed authority:** `replaymark-compiler-contract-seed@6da24cce48d1c2f6fe4bfabf4e01047e79b7e6eb`.  
-**Bounded-q authority:** `replaymark-bounded-q-compiler@b2b357ce009d26e56e4422a3d61aade57ca6064a`.  
-**Evidence-image authority:** `replaymark-q-evidence-image@f43c0c69b2eb8e62b762fec939386e82cc521b8a`.  
-**Support-envelope authority:** `replaymark-support-envelope@c74929bf0a75a8a920fe951a18b694d82fc32e73`.  
-**Adjudication authority:** `replaymark-three-valued-adjudicator@4e6d70894a7ba5af2206d8ddcf0c5842ad0be658`.  
-**Current scope:** semantic types, deterministic bounded predictive state,
-`q[Omega(e)]`, exact `S^- / S^+`, `VALID / INVALID / UNRESOLVED`, and fixed-evidence
-maximal certified historical reuse.  
-**Still out of scope:** concrete `CompiledContract` realization, target-native
-fallback selection, evidence-acquisition policy, runtime gate insertion,
-replay/regeneration integration, cost optimization, BDD/bitset optimization,
-stochastic q compilation, and new live experiments.
+**Status:** bounded `q_{C,H}`, compiler-owned evidence semantics, q evidence image,
+deterministic support envelope, three-valued adjudication, and theorem-induced
+maximal certified reuse `R*` are implemented with independent definition oracles.  
+**R* authority:** `replaymark-rstar-maximal-certified-reuse@df1c9a5e66cb1348def885c3710530012230830b`.  
+**Current branch scope:** replace production hand-authored `Omega(e)` with a
+forward observation-support model whose inverse is compiler-derived and sealed.  
+**Still out of scope:** concrete `CompiledContract`, runtime raw-observation
+canonicalizer, target-native fallback policy, production predictive-witness
+synthesis, compiler-observed full target-semantic digest, runtime E3b gate,
+stochastic q compilation, BDD/bitset optimization, and new live experiments.
 
-## 1. Public semantic boundary remains deliberately small
+## 1. Executable semantic chain
 
-The package root still exports exactly six semantic types:
+The current production chain is:
 
-1. `ClaimSpec`
-2. `TargetModel`
-3. `EvidenceSpec`
-4. `ProjectedAction`
-5. `CompiledContract`
-6. `Verdict`
+`ClaimSpec -> q_{C,H} -> CompiledEvidenceSemantics -> q[Omega(e)] -> S-/S+ -> VALID/INVALID/UNRESOLVED -> R*`.
 
-Compiler stages, adjudicators, reuse dispositions, storage representations,
-adapters, and oracles remain explicit submodules rather than additional root
-semantic types.
+The key change in this branch is that `Omega(e)` is no longer production author
+input.
 
-The executable Replay-Sufficiency Factorization now reaches:
+## 2. Target semantics
 
-`claim -> projected actions -> q_{C,H} -> evidence image -> support envelope -> adjudication -> maximal certified reuse`
-
-but does **not** yet instantiate a runtime `CompiledContract` or choose a fallback
-execution action.
-
-## 2. Claim and action semantics
-
-`ClaimSpec` remains normative: stable claim identity, exact consequential action
-dimensions, claim-bound horizon, and consequence endpoint. Missing dimensions
-fail closed.
-
-Recorded actions may contain additional adapter coordinates. Adjudication applies
-the exact claim projection before support membership is tested, so irrelevant
-coordinates cannot alter the scientific identity of the historical consequence.
-
-## 3. Two-phase target semantics
-
-One predictive step remains:
+ReplayMark uses a finite two-phase target model:
 
 ```text
 decision_state
@@ -59,14 +31,13 @@ post-decision state
     -- advance_distribution(future continuation) --> next decision_state
 ```
 
-Current target evidence is therefore not conflated with future admitted
-continuation. Exact rational probabilities remain representable at the
-`TargetModel` boundary. Production bounded-q compilation remains deterministic
-until a stochastic q compiler is separately proved.
+Production bounded-q compilation remains deterministic and input-enabled over the
+declared continuation alphabet. Stochastic target models remain representable at
+the protocol/oracle boundary but are not silently assigned production q semantics.
 
-## 4. Bounded `q_{C,H}`
+## 3. Bounded claim-predictive state
 
-Production computes exactly:
+Production computes exactly the declared finite horizon:
 
 `q_{C,0}(s) = current claim-projected output`
 
@@ -74,197 +45,165 @@ and for `h >= 1`:
 
 `q_{C,h}(s) = (current output, q_{C,h-1}(next(s,u)) for every admitted u)`.
 
-Only `0..H` are compiled. No hidden `H+1` convergence probe is admitted. The
-independent q oracle enumerates continuation words and exact projected
-output-trace laws rather than reusing production refinement.
+No hidden `H+1` lookahead is used. The definition oracle independently enumerates
+continuation words and projected output-trace laws.
 
-## 5. Evidence image
+## 4. Evidence semantics: forward relation is authoritative
 
-Every evidence token denotes a nonempty finite compatible-world set `Omega(e)`.
-The evidence image is:
+The authoring boundary is now:
 
-`I_{C,h}(e) := q_{C,h}[Omega(e)]`.
+`O(w) = set of canonical retained-evidence tokens possible in modeled world w`.
 
-Production maps raw compatible worlds into an already-compiled q layer and seals
-the result to quotient, claim, evidence, and depth. The independent oracle derives
-q from the continuation-word definition and then takes the literal set image.
+`ObservationSupportModel.observation_support(w)` supplies `O(w)`.
+ReplayMark enumerates every target decision world and computes:
 
-## 6. Support envelope
+`Omega(e) = { w : e in O(w) }`.
 
-For each raw compatible world `w`, let `S_C(w)` be positive current projected
-support. Define:
+A deterministic observation is a singleton `O(w)`. Partial/noisy/multi-mode
+evidence may return several tokens.
 
-`S_C^-(e) := intersection_{w in Omega(e)} S_C(w)`
+Every modeled world must have at least one explicit evidence interpretation.
+Uncertainty is represented by more possibilities, not by leaving the world
+unmodeled.
 
-`S_C^+(e) := union_{w in Omega(e)} S_C(w)`.
+## 5. Compiler guarantee versus adapter guarantee
 
-`S^-` is guaranteed support and `S^+` is possible support.
+The compiler guarantees **mechanical closure relative to the model**:
 
-Deterministic q layers refine `q_{C,0}`, so current support is constant inside each
-valid q block. Production checks that invariant and compiles exact envelopes from
-sealed q/evidence artifacts. The independent support oracle bypasses all such
-intermediate artifacts and computes intersection/union directly over raw worlds.
+- every declared target world is queried;
+- every returned `(world, token)` edge is retained;
+- the inverse `Omega(e)` is derived rather than hand-authored;
+- forward and inverse relations are mutually checked;
+- relation and target-domain digests are compiler-derived; and
+- repeated reverse-order adapter evaluation must be stable.
 
-## 7. Three-valued adjudication
+The adapter/model author remains responsible for **semantic adequacy to reality**.
+For support-sound reuse the safe condition is conservative completeness:
+
+`O_real(w) subseteq O_model(w)`
+
+or equivalently `Omega_real(e) subseteq Omega_model(e)`.
+
+Over-approximation may reduce reuse but does not create a false support
+certification. Under-approximation can hide a real counterexample world and is
+therefore the dangerous modeling error.
+
+## 6. `EvidenceSpec` is low-level inverse IR
+
+`EvidenceSpec` still represents the canonical finite inverse relation used by
+mathematical definition oracles and historical verification fixtures.
+
+Production `compile_evidence_image` no longer accepts a naked `EvidenceSpec`; it
+requires a `CompiledEvidenceSemantics` artifact derived from forward semantics.
+This removes the manual compatible-world list from the certification path.
+
+Historical inverse fixtures are verification-only. A helper transforms each
+expected inverse into a total forward relation, recompiles it, and checks that the
+new compiler re-derives the named expected `Omega(e)` sets.
+
+## 7. Evidence image and support envelope
+
+For each token:
+
+`I_{C,h}(e) = q_{C,h}[Omega(e)]`.
+
+The evidence-image artifact is bound to the quotient, claim, compiler-derived
+evidence-semantics artifact, relation fingerprint, inverse EvidenceSpec, and q
+depth.
+
+Then:
+
+`S_C^-(e) = intersection_{w in Omega(e)} S_C(w)`
+
+`S_C^+(e) = union_{w in Omega(e)} S_C(w)`.
+
+Production verifies current-support constancy inside each deterministic q block;
+the raw support oracle bypasses q/evidence artifacts and computes the definition
+directly over raw worlds.
+
+## 8. Three-valued adjudication
 
 For recorded claim-projected action `z`:
 
 - `VALID` iff `z in S_C^-(e)`;
 - `INVALID` iff `z notin S_C^+(e)`;
-- `UNRESOLVED` iff `z in S_C^+(e) \\ S_C^-(e)`.
+- `UNRESOLVED` otherwise.
 
-These cases are mutually exclusive and exhaustive. `UNRESOLVED` is semantic
-underdetermination under current evidence, not a confidence score or an error.
+UNRESOLVED is semantic underdetermination, not a confidence score.
 
-The adjudicator returns a sealed `Adjudication` certificate and does not choose
-reuse, regeneration, evidence acquisition, or abort.
+## 9. Maximal certified reuse `R*`
 
-## 8. New stage: theorem-induced `R*`
-
-A fixed-evidence binary reuse rule sees the already-established semantic pair
-`(e,z)` and chooses only:
-
-- `REUSE`; or
-- `DO_NOT_REUSE`.
-
-Such a rule is support-sound when every REUSE choice is supported in every target
-world still compatible with `e`.
-
-Define:
+For fixed evidence and support validity:
 
 `R*(e,z) = REUSE iff z in S_C^-(e)`.
 
-Equivalently in terms of frozen adjudication:
+Thus:
 
 - `VALID -> REUSE`;
 - `INVALID -> DO_NOT_REUSE`;
 - `UNRESOLVED -> DO_NOT_REUSE`.
 
-This is not an arbitrary policy convention. Under the pointwise order
-`DO_NOT_REUSE < REUSE`, R* selects the greatest support-sound choice at every
-fixed-evidence pair. Any attempted additional reuse has at least one compatible
-raw target world that excludes `z`.
+`DO_NOT_REUSE` is not a regeneration command. Fallback selection remains policy.
+R* is pointwise maximal among fixed-evidence binary support-sound reuse rules.
 
-## 9. Theorem versus policy hard wall
+## 10. Evidence closure audit examples
 
-The R* theorem establishes only historical reuse entitlement.
+A Better Thermostat forward-observation model supplies two evidence modes from
+every raw world:
 
-`DO_NOT_REUSE` does **not** specify what execution should happen next.
+- `hide-motion`: retain presence, night, preset;
+- `hide-preset`: retain presence, motion, night.
 
-The following remain outside the theorem and outside this branch:
+The compiler derives the N2b hide-motion token to exactly two worlds without a
+manual pair list. It also derives the hide-preset token at
+presence=true/motion=false/night=false to four worlds, one for every current
+preset. This demonstrates the purpose of closure: a minimal separating witness is
+not automatically a complete epistemic class.
 
-- target-native regeneration;
-- stronger-evidence acquisition;
-- evidence ordering;
-- abort/fallback behavior;
-- cost/latency/energy optimization; and
-- stochastic distributional fidelity.
+A deliberate omission trap uses a forward relation in which evidence `e` is
+possible in three worlds. A manually written inverse could omit the third world;
+production rejects that inverse, derives all three, and preserves the resulting
+UNRESOLVED classification.
 
-INVALID and UNRESOLVED both map to DO_NOT_REUSE because neither certifies
-historical reuse. The `RStarDecision` nevertheless preserves the original verdict
-so a future execution layer can distinguish their reasons without changing R*.
+## 11. Verification independence and TCB
 
-## 10. Production R* artifact
+The new evidence-closure oracle does not import the production evidence compiler.
+It independently takes the literal inverse of the forward relation. It necessarily
+shares the target state domain and observation-support semantics: those are the
+intentional semantic TCB for this stage.
 
-`replaymark/rstar.py` consumes one sealed `Adjudication` and returns an immutable
-`RStarDecision` containing:
+Accordingly, future prose should say **algorithmically independent definition
+oracle above a shared semantic-contract TCB**, not imply that the source model
+itself is independently proven by the oracle.
 
-- adjudication fingerprint;
-- support-envelope fingerprint;
-- claim and evidence fingerprints;
-- q depth;
-- evidence token;
-- exact projected recorded action;
-- original three-valued verdict; and
-- binary `ReuseDisposition`.
+## 12. Admitted verification
 
-The certificate validates its own theorem truth table. Its binary domain contains
-only `REUSE` and `DO_NOT_REUSE`; it exposes no regeneration, evidence-refinement,
-or abort operation.
+This branch is closed only if:
 
-## 11. Completely independent R* oracle
+- all prior q/support/adjudication/R* semantic gates remain green after migration
+to compiler-derived evidence;
+- all `7^3 = 343` total nonempty relations from three worlds to nonempty subsets
+of three tokens invert exactly against an independent oracle;
+- every relation edge is verified in both directions;
+- Better Thermostat forward evidence derives the expected complete epistemic sets
+and preserves downstream semantic outcomes;
+- a deliberate manual compatible-world omission is impossible on the production
+path;
+- conservative observation over-approximation widens `Omega` as intended;
+- uncovered worlds, duplicate tokens, mutable/noncanonical return shapes, and
+stateful/order-dependent adapters fail closed; and
+- production evidence-image compilation rejects raw `EvidenceSpec` input.
 
-`replaymark_oracle/rstar_oracle.py` imports none of the production q,
-evidence-image, support-envelope, adjudicator, or R* modules.
+## 13. Next boundary
 
-For every raw `w in Omega(e)` it directly evaluates current target semantics,
-keeps positive-mass target actions, applies the claim projection, and checks
-whether `z` is supported.
+Do not instantiate the final `CompiledContract` yet.
 
-- if no compatible world excludes `z`, the oracle returns REUSE;
-- otherwise it returns DO_NOT_REUSE and records at least one excluding raw world.
+Remaining pre-packaging hardening is intentionally separate:
 
-That excluding world is a constructive maximality witness: any fixed-evidence
-policy that reused at the same pair would be support-unsound.
+1. split predictive continuation witnesses from reuse counterexample worlds and
+implement production predictive-witness synthesis;
+2. derive a compiler-observed digest of full target semantics rather than relying
+only on a provider fingerprint; and
+3. re-freeze the `CompiledContract` API around the semantics actually established.
 
-The oracle admits finite stochastic current supports. Production remains bounded
-by deterministic q compilation.
-
-## 12. Canonical separating examples
-
-The Better Thermostat N2b pair has q evidence-image cardinality `1 -> 2 -> 2` for
-H=0,1,2 while both compatible worlds support `SET_AWAY`. Adjudication remains
-VALID and R* remains REUSE at every depth.
-
-Evidence mixing one `SET_HOME` world and one at-target `NO_ACTION` world makes
-recorded `SET_HOME` and `NO_ACTION` UNRESOLVED and recorded `SET_AWAY` INVALID.
-R* returns DO_NOT_REUSE for all three while preserving the distinct underlying
-verdicts.
-
-Stronger evidence selecting only the `SET_HOME` world makes recorded `SET_HOME`
-VALID and therefore REUSE-certified.
-
-An oracle-only stochastic fixture with supports `{A,B}` and `{B,C}` gives
-`B -> REUSE`, `A -> DO_NOT_REUSE`, and zero-mass `ZERO -> DO_NOT_REUSE`.
-
-## 13. Verification independence wall
-
-The layers remain intentionally distinct:
-
-- production q: `replaymark/q_compiler.py`;
-- q oracle: `replaymark_oracle/definition_q_oracle.py`;
-- production evidence image: `replaymark/evidence_image.py`;
-- evidence-image oracle: `replaymark_oracle/evidence_image_oracle.py`;
-- production support envelope: `replaymark/support_envelope.py`;
-- raw support oracle: `replaymark_oracle/support_envelope_oracle.py`;
-- production adjudicator: `replaymark/adjudicator.py`;
-- raw adjudication oracle: `replaymark_oracle/adjudication_oracle.py`;
-- production R*: `replaymark/rstar.py`;
-- raw R* oracle: `replaymark_oracle/rstar_oracle.py`.
-
-Production R* consumes only a sealed adjudication. The R* oracle imports only the
-public semantic contracts and directly queries raw target semantics.
-
-## 14. Admitted verification
-
-This branch is closed only if every prior semantic gate remains green and R* also
-passes:
-
-- production-vs-raw-oracle agreement on canonical thermostat reuse/non-reuse
-  cases;
-- N2b REUSE persistence across predictive-image refinement `1 -> 2 -> 2`;
-- INVALID and UNRESOLVED both mapping to DO_NOT_REUSE while remaining distinct
-  certificate facts;
-- stronger-evidence transition into certified REUSE;
-- projection invariance to non-claim recorded coordinates;
-- no fallback-policy surface in the binary R* artifact;
-- rejection of theorem-inconsistent forged R* certificates;
-- stochastic raw-definition support tests including zero mass;
-- exhaustive differential verification across all **5,832** complete 3-state /
-  2-continuation / 2-output deterministic machines at H=2, all seven nonempty
-  evidence subsets, and both recorded actions: **81,648** exact R* decisions;
-- a raw excluding-world counterexample for every exhaustive DO_NOT_REUSE pair;
-- pointwise maximality at every exhaustive pair; and
-- every strict evidence-refinement relation for both recorded actions, totaling
-  **139,968** certified-reuse persistence checks.
-
-The expected exhaustive split is REUSE `27,702` and DO_NOT_REUSE `53,946`.
-
-## 15. Next boundary, deliberately not crossed here
-
-Only after R* is frozen may a later branch realize the concrete `CompiledContract`
-that packages the already-verified semantic artifacts for cheap runtime lookup.
-
-That later contract must remain observationally equivalent to the semantic chain
-frozen here. Runtime fallback policy and live E3b intervention remain subsequent
-steps rather than being smuggled into maximal certified reuse.
+Runtime raw-observation tokenization and live E3b intervention come after that.

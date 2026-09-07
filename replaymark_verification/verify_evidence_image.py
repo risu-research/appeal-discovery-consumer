@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Differential verification for EvidenceSpec -> q_{C,H} evidence image."""
+"""Differential verification for compiler-derived evidence -> q_{C,H} image."""
 
 import argparse
 from itertools import product
@@ -13,12 +13,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from replaymark.contracts import ClaimSpec, EvidenceSpec
-from replaymark.evidence_image import (
-    EvidenceOutsideQuotientError,
-    compile_evidence_image,
-)
+from replaymark.evidence_image import compile_evidence_image
 from replaymark.q_compiler import compile_bounded_q
 from replaymark_oracle.evidence_image_oracle import definition_evidence_image
+from replaymark_verification.evidence_models import compile_expected_evidence
 from replaymark_verification.models import (
     BetterThermostatFrozenModel,
     TableTargetModel,
@@ -30,13 +28,14 @@ def _production_semantic_blocks(quotient, image, token: str) -> tuple[tuple[str,
     return tuple(sorted(members[block] for block in image.blocks_for(token)))
 
 
-def _assert_matches_definition(target, claim, quotient, evidence, depth: int) -> None:
-    production = compile_evidence_image(quotient, evidence, depth=depth)
-    oracle = definition_evidence_image(target, claim, evidence, depth=depth)
-    for token, _ in evidence.observations:
+def _assert_matches_definition(target, claim, quotient, expected, depth: int) -> None:
+    compiled_evidence = compile_expected_evidence(target, expected)
+    production = compile_evidence_image(quotient, compiled_evidence, depth=depth)
+    oracle = definition_evidence_image(target, claim, expected, depth=depth)
+    for token, _ in expected.observations:
         observed = _production_semantic_blocks(quotient, production, token)
-        expected = oracle.observation(token).semantic_blocks
-        assert observed == expected, (depth, token, observed, expected)
+        expected_blocks = oracle.observation(token).semantic_blocks
+        assert observed == expected_blocks, (depth, token, observed, expected_blocks)
 
 
 def thermostat_gate() -> dict[str, object]:
@@ -51,13 +50,12 @@ def thermostat_gate() -> dict[str, object]:
 
     n2a = target.encode(False, False, False, "sleep")
     n2b = target.encode(False, True, False, "sleep")
-
     nt_home = target.encode(True, False, False, "away")
     nt_comfort = target.encode(True, False, False, "comfort")
     nt_sleep = target.encode(True, False, False, "sleep")
     at_target = target.encode(True, False, False, "home")
 
-    evidence = EvidenceSpec(
+    expected = EvidenceSpec(
         "bt-evidence-image-fixture",
         (
             ("n2b-pair", (n2a, n2b)),
@@ -66,18 +64,18 @@ def thermostat_gate() -> dict[str, object]:
             ("single", (n2a,)),
         ),
     )
+    compiled_evidence = compile_expected_evidence(target, expected)
 
     for depth in range(3):
-        _assert_matches_definition(target, claim, quotient, evidence, depth)
+        _assert_matches_definition(target, claim, quotient, expected, depth)
 
-    image0 = compile_evidence_image(quotient, evidence, depth=0)
-    image1 = compile_evidence_image(quotient, evidence, depth=1)
-    image2 = compile_evidence_image(quotient, evidence, depth=2)
+    image0 = compile_evidence_image(quotient, compiled_evidence, depth=0)
+    image1 = compile_evidence_image(quotient, compiled_evidence, depth=1)
+    image2 = compile_evidence_image(quotient, compiled_evidence, depth=2)
 
     assert image0.observation("n2b-pair").predictive_world_count == 1
     assert image1.observation("n2b-pair").predictive_world_count == 2
     assert image2.observation("n2b-pair").predictive_world_count == 2
-
     assert image2.observation("overwritten-nontargets").raw_world_count == 3
     assert image2.observation("overwritten-nontargets").predictive_world_count == 1
     assert image2.observation("with-at-target").predictive_world_count == 2
@@ -110,50 +108,37 @@ def canonical_and_fail_closed_gate() -> dict[str, bool]:
     claim = ClaimSpec("canonical", ("operation",), 1, "event")
     quotient = compile_bounded_q(target, claim)
 
-    e1 = EvidenceSpec(
-        "same",
-        (
-            ("beta", ("s2", "s1")),
-            ("alpha", ("s1", "s0")),
-        ),
-    )
-    e2 = EvidenceSpec(
-        "same",
-        (
-            ("alpha", ("s0", "s1")),
-            ("beta", ("s1", "s2")),
-        ),
-    )
-    i1 = compile_evidence_image(quotient, e1)
-    i2 = compile_evidence_image(quotient, e2)
+    e1 = EvidenceSpec("same", (("beta", ("s2", "s1")), ("alpha", ("s1", "s0"))))
+    e2 = EvidenceSpec("same", (("alpha", ("s0", "s1")), ("beta", ("s1", "s2"))))
+    c1 = compile_expected_evidence(target, e1)
+    c2 = compile_expected_evidence(target, e2)
+    i1 = compile_evidence_image(quotient, c1)
+    i2 = compile_evidence_image(quotient, c2)
     assert i1.fingerprint() == i2.fingerprint()
     assert i1.canonical_bytes() == i2.canonical_bytes()
 
-    bad = EvidenceSpec("bad", (("oops", ("s0", "not-a-state")),))
     try:
-        compile_evidence_image(quotient, bad)
-    except EvidenceOutsideQuotientError:
-        pass
+        compile_evidence_image(quotient, e1)  # type: ignore[arg-type]
+    except TypeError:
+        manual_inverse_rejected = True
     else:
-        raise AssertionError("evidence outside compiled q domain must fail closed")
+        raise AssertionError("production evidence image must reject manual EvidenceSpec")
 
     try:
-        compile_evidence_image(quotient, e1, depth=2)
+        compile_evidence_image(quotient, c1, depth=2)
     except IndexError:
-        pass
+        deeper_rejected = True
     else:
         raise AssertionError("evidence image must not invent an uncompiled H+1 layer")
 
     return {
         "canonical_order_invariant": True,
-        "unknown_state_fail_closed": True,
-        "no_hidden_deeper_layer": True,
+        "manual_inverse_rejected": manual_inverse_rejected,
+        "no_hidden_deeper_layer": deeper_rejected,
     }
 
 
 def exhaustive_h0_set_image_gate() -> dict[str, int]:
-    """Exhaust all 3-state H=0 partitions and all nonempty Omega(e)."""
-
     labels = ("A", "B", "C")
     states = ("s0", "s1", "s2")
     checked = 0
@@ -167,19 +152,15 @@ def exhaustive_h0_set_image_gate() -> dict[str, int]:
         )
         claim = ClaimSpec("exhaustive-h0", ("operation",), 0, "event")
         quotient = compile_bounded_q(target, claim)
-        distinct_relations.add(
-            tuple(sorted(members for _, members in quotient.layer(0).blocks))
-        )
+        distinct_relations.add(tuple(sorted(members for _, members in quotient.layer(0).blocks)))
 
         for mask in range(1, 1 << len(states)):
-            subset = tuple(
-                state for i, state in enumerate(states) if mask & (1 << i)
-            )
-            evidence = EvidenceSpec("subset", (("e", subset),))
-            _assert_matches_definition(target, claim, quotient, evidence, 0)
+            subset = tuple(state for i, state in enumerate(states) if mask & (1 << i))
+            expected = EvidenceSpec("subset", (("e", subset),))
+            _assert_matches_definition(target, claim, quotient, expected, 0)
             checked += 1
 
-    assert len(distinct_relations) == 5, distinct_relations
+    assert len(distinct_relations) == 5
     assert checked == 27 * 7
     return {
         "output_assignments": 27,
@@ -193,9 +174,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out")
     args = parser.parse_args()
-
     result = {
-        "schema": "replaymark.qch-evidence-image.gate.v1",
+        "schema": "replaymark.qch-evidence-image.gate.v2-derived-evidence",
         "thermostat": thermostat_gate(),
         "boundary": canonical_and_fail_closed_gate(),
         "exhaustive_h0": exhaustive_h0_set_image_gate(),

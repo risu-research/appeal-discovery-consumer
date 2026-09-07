@@ -1,0 +1,76 @@
+name: ReplayMark evidence semantics closure
+
+on:
+  push:
+    branches:
+      - replaymark-evidence-semantics-closure
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify bounded q compiler
+        run: python replaymark_verification/verify_bounded_q.py > /tmp/q_gate.json
+
+      - name: Verify compiler-owned evidence semantics closure
+        run: |
+          mkdir -p /tmp/replaymark-evidence-closure
+          python replaymark_verification/verify_evidence_semantics.py \
+            --out /tmp/replaymark-evidence-closure/evidence_semantics_gate.json
+
+      - name: Reverify q evidence image on derived evidence
+        run: |
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-evidence-closure/evidence_image_gate.json
+
+      - name: Reverify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-evidence-closure/support_envelope_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-evidence-closure/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-evidence-closure/rstar_gate.json
+
+      - name: Seal evidence-semantics closure gate
+        run: |
+          cp /tmp/q_gate.json /tmp/replaymark-evidence-closure/q_gate.json
+          sha256sum \
+            replaymark/evidence_semantics.py \
+            replaymark/evidence_image.py \
+            replaymark_oracle/evidence_semantics_oracle.py \
+            replaymark_verification/evidence_models.py \
+            replaymark_verification/verify_evidence_semantics.py \
+            replaymark/EVIDENCE_SEMANTICS_CLOSURE.md \
+            /tmp/replaymark-evidence-closure/*.json \
+            > /tmp/replaymark-evidence-closure/SHA256SUMS
+          grep -q '"verdict": "PASS"' /tmp/replaymark-evidence-closure/evidence_semantics_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-evidence-closure/evidence_image_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-evidence-closure/support_envelope_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-evidence-closure/adjudicator_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-evidence-closure/rstar_gate.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-evidence-semantics-closure-gate
+          path: /tmp/replaymark-evidence-closure
+          if-no-files-found: error

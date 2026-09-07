@@ -2,23 +2,28 @@ from __future__ import annotations
 
 """Evidence-set image through an already-compiled bounded q_{C,H} quotient.
 
-This module performs exactly one semantic step:
+Production evidence must come from compiler-owned forward observation semantics:
+
+    ObservationSupportModel -> CompiledEvidenceSemantics -> Omega(e)
+
+Only then does this module perform:
 
     Omega(e) subseteq decision states
         -> q_{C,h}[Omega(e)] subseteq predictive blocks
 
-It does not compute support envelopes, replay verdicts, or reuse policy.
+A hand-authored EvidenceSpec is intentionally not accepted at this production
+boundary. It remains a definition/oracle data type only.
 """
 
 from dataclasses import dataclass
 import hashlib
 import json
 
-from .contracts import EvidenceSpec
+from .evidence_semantics import CompiledEvidenceSemantics
 from .q_compiler import BoundedQuotient
 
 
-_SCHEMA = "replaymark.qch-evidence-image.v1"
+_SCHEMA = "replaymark.qch-evidence-image.v2-derived-evidence"
 
 
 class EvidenceImageError(ValueError):
@@ -26,7 +31,7 @@ class EvidenceImageError(ValueError):
 
 
 class EvidenceOutsideQuotientError(EvidenceImageError):
-    """Raised when retained evidence names a decision state outside the quotient."""
+    """Raised when compiled evidence and the quotient target domain disagree."""
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -69,11 +74,13 @@ class ObservationImage:
 
 @dataclass(frozen=True)
 class QEvidenceImage:
-    """Auditable image of finite retained evidence under one compiled q layer."""
+    """Auditable image of compiler-derived retained evidence under q_{C,h}."""
 
     schema_version: str
     quotient_fingerprint: str
     claim_fingerprint: str
+    evidence_semantics_fingerprint: str
+    evidence_relation_fingerprint: str
     evidence_fingerprint: str
     depth: int
     observations: tuple[ObservationImage, ...]
@@ -93,6 +100,8 @@ class QEvidenceImage:
             "schema": self.schema_version,
             "quotient_fingerprint": self.quotient_fingerprint,
             "claim_fingerprint": self.claim_fingerprint,
+            "evidence_semantics_fingerprint": self.evidence_semantics_fingerprint,
+            "evidence_relation_fingerprint": self.evidence_relation_fingerprint,
             "evidence_fingerprint": self.evidence_fingerprint,
             "depth": self.depth,
             "observations": [
@@ -109,11 +118,11 @@ class QEvidenceImage:
 
 def compile_evidence_image(
     quotient: BoundedQuotient,
-    evidence: EvidenceSpec,
+    evidence: CompiledEvidenceSemantics,
     *,
     depth: int | None = None,
 ) -> QEvidenceImage:
-    """Map each Omega(e) exactly into the requested compiled q_{C,h} layer.
+    """Map compiler-derived Omega(e) exactly into q_{C,h}.
 
     `depth=None` means the claim-declared horizon already carried by `quotient`.
     An explicit shallower depth is permitted for audit/refinement diagnostics,
@@ -122,8 +131,11 @@ def compile_evidence_image(
 
     if not isinstance(quotient, BoundedQuotient):
         raise TypeError("quotient must be a BoundedQuotient")
-    if not isinstance(evidence, EvidenceSpec):
-        raise TypeError("evidence must be EvidenceSpec")
+    if not isinstance(evidence, CompiledEvidenceSemantics):
+        raise TypeError(
+            "production evidence image requires CompiledEvidenceSemantics; "
+            "hand-authored EvidenceSpec is not a certification input"
+        )
     if isinstance(depth, bool):
         raise TypeError("evidence-image depth must be an integer or None")
 
@@ -134,12 +146,18 @@ def compile_evidence_image(
             f"[0,{quotient.horizon}]"
         )
 
+    if evidence.decision_states != quotient.decision_states:
+        raise EvidenceOutsideQuotientError(
+            "compiled evidence target domain does not exactly match the quotient domain"
+        )
+
     layer = quotient.layer(depth)
     state_to_block = dict(layer.state_to_block)
     admitted = set(quotient.decision_states)
+    spec = evidence.evidence_spec
 
     observations: list[ObservationImage] = []
-    for token, compatible_states in evidence.observations:
+    for token, compatible_states in spec.observations:
         unknown = tuple(sorted(set(compatible_states) - admitted))
         if unknown:
             raise EvidenceOutsideQuotientError(
@@ -166,7 +184,9 @@ def compile_evidence_image(
         schema_version=_SCHEMA,
         quotient_fingerprint=quotient.fingerprint(),
         claim_fingerprint=quotient.claim.fingerprint(),
-        evidence_fingerprint=evidence.fingerprint(),
+        evidence_semantics_fingerprint=evidence.fingerprint(),
+        evidence_relation_fingerprint=evidence.relation_fingerprint,
+        evidence_fingerprint=spec.fingerprint(),
         depth=depth,
         observations=tuple(observations),
     )
