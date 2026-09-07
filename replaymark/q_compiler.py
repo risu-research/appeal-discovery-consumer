@@ -2,10 +2,10 @@ from __future__ import annotations
 
 """Bounded claim-predictive state compiler for finite deterministic targets.
 
-This module implements exactly q_{C,H}: current claim-projected output plus all
-claim-projected output continuations through the *declared* horizon H. It does
-not run to an unrequested fixed point and it does not reuse AgentMark's legacy
-full-behavior minimizer.
+The compiler first takes a compiler-owned semantic snapshot of the complete finite
+TargetModel. q_{C,H} is then derived *from that snapshot*, not by re-querying the
+provider. This binds the quotient to the exact semantics it consumed and removes
+a provider-fingerprint/TOCTOU gap.
 """
 
 from dataclasses import dataclass
@@ -15,9 +15,10 @@ import json
 from typing import Hashable, Mapping, TypeVar
 
 from .contracts import ClaimSpec, ProjectedAction, TargetModel
+from .target_provenance import ObservedTargetSemantics, observe_target_semantics
 
 
-_SCHEMA = "replaymark.qch.deterministic.v1"
+_SCHEMA = "replaymark.qch.deterministic.v2"
 K = TypeVar("K", bound=Hashable)
 
 
@@ -34,7 +35,7 @@ class IncompleteTargetError(QCompileError):
 
 
 class InvalidTargetModelError(QCompileError):
-    """Raised when the TargetModel boundary is malformed or probability mass is invalid."""
+    """Raised when the observed TargetModel boundary is malformed."""
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -47,32 +48,31 @@ def _canonical_json_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
-def _checked_point_mass(
-    distribution: Mapping[K, Fraction],
+def _checked_current_point_mass(
+    rows: tuple[tuple[ProjectedAction, str, Fraction], ...],
     *,
     where: str,
-) -> K:
-    positive: list[tuple[K, Fraction]] = []
-    total = Fraction(0, 1)
-    for key, raw_mass in distribution.items():
-        mass = Fraction(raw_mass)
-        if mass < 0:
-            raise InvalidTargetModelError(f"negative probability at {where}: {mass}")
-        total += mass
-        if mass > 0:
-            positive.append((key, mass))
-    if total != 1:
-        raise InvalidTargetModelError(
-            f"probability mass at {where} is {total}, expected exactly 1"
-        )
-    if not positive:
-        raise IncompleteTargetError(f"no positive semantic branch at {where}")
-    if len(positive) != 1 or positive[0][1] != 1:
+) -> tuple[ProjectedAction, str]:
+    if len(rows) != 1 or rows[0][2] != 1:
         raise NonDeterministicTargetError(
-            f"bounded q compiler v1 accepts deterministic point-mass targets only; "
-            f"{where} has {len(positive)} positive branches"
+            "bounded q compiler v2 accepts deterministic point-mass targets only; "
+            f"{where} has {len(rows)} positive branches"
         )
-    return positive[0][0]
+    action, post_state, _mass = rows[0]
+    return action, post_state
+
+
+def _checked_advance_point_mass(
+    rows: tuple[tuple[str, Fraction], ...],
+    *,
+    where: str,
+) -> str:
+    if len(rows) != 1 or rows[0][1] != 1:
+        raise NonDeterministicTargetError(
+            "bounded q compiler v2 accepts deterministic point-mass targets only; "
+            f"{where} has {len(rows)} positive branches"
+        )
+    return rows[0][0]
 
 
 def _partition_groups(state_to_block: Mapping[str, str]) -> tuple[tuple[str, ...], ...]:
@@ -152,6 +152,11 @@ class BoundedQuotient:
     schema_version: str
     claim: ClaimSpec
     target_model_fingerprint: str
+    target_semantic_digest: str
+    target_snapshot_fingerprint: str
+    target_domain_digest: str
+    target_current_semantics_digest: str
+    target_advance_semantics_digest: str
     decision_states: tuple[str, ...]
     continuation_alphabet: tuple[str, ...]
     layers: tuple[PartitionLayer, ...]
@@ -162,6 +167,11 @@ class BoundedQuotient:
     @property
     def horizon(self) -> int:
         return self.claim.horizon
+
+    @property
+    def provider_fingerprint(self) -> str:
+        """Provider-supplied metadata; not the semantic provenance authority."""
+        return self.target_model_fingerprint
 
     def layer(self, depth: int | None = None) -> PartitionLayer:
         depth = self.horizon if depth is None else int(depth)
@@ -182,7 +192,16 @@ class BoundedQuotient:
             "schema": self.schema_version,
             "claim": self.claim.canonical_record(),
             "claim_fingerprint": self.claim.fingerprint(),
-            "target_model_fingerprint": self.target_model_fingerprint,
+            "target_provenance": {
+                "provider_fingerprint": self.target_model_fingerprint,
+                "compiler_observed_semantic_digest": self.target_semantic_digest,
+                "snapshot_fingerprint": self.target_snapshot_fingerprint,
+                "component_digests": {
+                    "domain": self.target_domain_digest,
+                    "current": self.target_current_semantics_digest,
+                    "advance": self.target_advance_semantics_digest,
+                },
+            },
             "horizon": self.horizon,
             "decision_states": list(self.decision_states),
             "continuation_alphabet": list(self.continuation_alphabet),
@@ -211,91 +230,39 @@ class BoundedQuotient:
         return hashlib.sha256(self.canonical_bytes()).hexdigest()
 
 
-def compile_bounded_q(
-    target: TargetModel,
+def _compile_observed_q(
+    observed: ObservedTargetSemantics,
     claim: ClaimSpec,
 ) -> BoundedQuotient:
-    """Compile exactly q_{C,H} for a finite deterministic two-phase target.
-
-    The algorithm is bounded Moore-style refinement:
-
-      q_0(s) = current claim-projected output
-      q_h(s) = (current output, q_{h-1}(next(s,u)) for every admitted u)
-
-    It computes layers 0..H and performs no hidden H+1 lookahead. A fixed point
-    is reported only if equality of two adjacent *computed* partition relations
-    was observed within that requested horizon.
-    """
-
-    if not isinstance(target, TargetModel):
-        raise TypeError("target does not satisfy ReplayMark TargetModel protocol")
-    if not isinstance(claim, ClaimSpec):
-        raise TypeError("claim must be ClaimSpec")
-
-    states = tuple(sorted(str(s) for s in target.decision_states))
-    if not states:
-        raise InvalidTargetModelError("TargetModel.decision_states must not be empty")
-    if len(set(states)) != len(states):
-        raise InvalidTargetModelError("TargetModel.decision_states contains duplicates")
-
-    continuations = tuple(str(u) for u in target.continuation_alphabet)
-    if len(set(continuations)) != len(continuations):
-        raise InvalidTargetModelError("TargetModel.continuation_alphabet contains duplicates")
+    states = observed.decision_states
+    continuations = observed.declared_continuation_order
     if claim.horizon > 0 and not continuations:
         raise IncompleteTargetError(
             "positive consequence horizon requires at least one admitted continuation"
         )
 
-    state_set = set(states)
     current_actions: dict[str, ProjectedAction] = {}
     post_states: dict[str, str] = {}
     for state in states:
-        try:
-            key = _checked_point_mass(
-                target.current_distribution(state),
-                where=f"current_distribution({state!r})",
-            )
-        except KeyError as exc:
-            raise IncompleteTargetError(
-                f"missing current semantics for decision state {state!r}"
-            ) from exc
-        if not isinstance(key, tuple) or len(key) != 2:
-            raise InvalidTargetModelError(
-                "current_distribution keys must be (ProjectedAction, post_state)"
-            )
-        action, post_state = key
-        if not isinstance(action, ProjectedAction):
-            raise InvalidTargetModelError(
-                f"current action at {state!r} is not ProjectedAction"
-            )
-        current_actions[state] = claim.project(action)
-        post_states[state] = str(post_state)
+        full_action, post_state = _checked_current_point_mass(
+            observed.current_law(state),
+            where=f"observed current law for {state!r}",
+        )
+        current_actions[state] = claim.project(full_action)
+        post_states[state] = post_state
 
     successors: dict[str, dict[str, str]] = {state: {} for state in states}
     if claim.horizon > 0:
         for state in states:
             post_state = post_states[state]
             for continuation in continuations:
-                try:
-                    nxt = _checked_point_mass(
-                        target.advance_distribution(post_state, continuation),
-                        where=(
-                            f"advance_distribution({post_state!r},"
-                            f" {continuation!r}) from {state!r}"
-                        ),
-                    )
-                except KeyError as exc:
-                    raise IncompleteTargetError(
-                        "admitted continuation lacks target semantics: "
-                        f"state={state!r}, post={post_state!r}, "
+                next_state = _checked_advance_point_mass(
+                    observed.advance_law(post_state, continuation),
+                    where=(
+                        f"observed advance law for post_state={post_state!r}, "
                         f"continuation={continuation!r}"
-                    ) from exc
-                next_state = str(nxt)
-                if next_state not in state_set:
-                    raise InvalidTargetModelError(
-                        "advance_distribution reached undeclared decision state: "
-                        f"{next_state!r}"
-                    )
+                    ),
+                )
                 successors[state][continuation] = next_state
 
     signatures0: dict[str, Hashable] = {
@@ -328,14 +295,23 @@ def compile_bounded_q(
     successor_rows = tuple(
         (
             state,
-            tuple((u, successors[state][u]) for u in continuations if u in successors[state]),
+            tuple(
+                (u, successors[state][u])
+                for u in continuations
+                if u in successors[state]
+            ),
         )
         for state in states
     )
     return BoundedQuotient(
         schema_version=_SCHEMA,
         claim=claim,
-        target_model_fingerprint=str(target.fingerprint),
+        target_model_fingerprint=observed.provider_fingerprint,
+        target_semantic_digest=observed.semantic_digest,
+        target_snapshot_fingerprint=observed.fingerprint(),
+        target_domain_digest=observed.domain_digest,
+        target_current_semantics_digest=observed.current_semantics_digest,
+        target_advance_semantics_digest=observed.advance_semantics_digest,
         decision_states=states,
         continuation_alphabet=continuations,
         layers=tuple(layers),
@@ -345,6 +321,26 @@ def compile_bounded_q(
         deterministic_successors=successor_rows,
         first_observed_fixed_point=first_fixed,
     )
+
+
+def compile_bounded_q(
+    target: TargetModel,
+    claim: ClaimSpec,
+) -> BoundedQuotient:
+    """Observe the target once, then compile exactly q_{C,H} from that snapshot.
+
+    The target semantic digest is compiler-derived from the complete finite
+    two-phase model before claim projection. q compilation consumes only this
+    sealed snapshot, so the digest and quotient cannot describe different target
+    semantics because of a second provider query.
+    """
+
+    if not isinstance(target, TargetModel):
+        raise TypeError("target does not satisfy ReplayMark TargetModel protocol")
+    if not isinstance(claim, ClaimSpec):
+        raise TypeError("claim must be ClaimSpec")
+    observed = observe_target_semantics(target)
+    return _compile_observed_q(observed, claim)
 
 
 __all__ = (
