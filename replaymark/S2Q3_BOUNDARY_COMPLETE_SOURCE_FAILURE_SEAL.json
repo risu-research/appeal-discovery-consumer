@@ -1,0 +1,39 @@
+{
+  "anti_repair": {
+    "D_star_from_failed_screening_forbidden": true,
+    "same_generation_deadline_retune_forbidden": true,
+    "same_generation_lower_wave_insertion_forbidden": true,
+    "same_generation_rerun_for_promotion_forbidden": true,
+    "target_probe_forbidden": true
+  },
+  "artifact": {
+    "id": 10034219737,
+    "name": "replaymark-gate-s2q3-boundary-complete-source",
+    "sha256": "7342d81c328d54b31e6049ac2ae32c6a30cb9a14ca3a22e6c6676ce3187f2932",
+    "size_bytes": 104397
+  },
+  "execution": {
+    "head": "0f5030358f3c71ba52d852b38987fc4f767fded7",
+    "run": 34166084457,
+    "job": 101877267114,
+    "tree": "45178efdcc00e25013c35452289bcad16113cfd8"
+  },
+  "next_strategy": "STOP_STOCHASTIC_MIXTURE_CALIBRATION_AND_PREREGISTER_DETERMINISTIC_HETEROGENEOUS_TARGET_CAPSTONE",
+  "p5_protocol_head": "a21192a7214c2e8eb6d2a4940775172a65b3e1e8",
+  "schema": "replaymark.s2q3-boundary-complete-source-failure-seal.v1",
+  "scientific": {
+    "D_star_ms": null,
+    "W_star_screen": null,
+    "candidate_16": {"rows":576,"visible_by_100ms":575,"completion_p99_ms":86.18599675000002,"completion_max_ms":124.458249,"qualifies":false},
+    "candidate_8": {"rows":576,"visible_by_100ms":559,"completion_p99_ms":123.79627525000001,"completion_max_ms":124.852318,"qualifies":false},
+    "candidate_4": {"rows":576,"visible_by_100ms":574,"completion_p99_ms":82.22633375,"completion_max_ms":123.502302,"qualifies":false},
+    "holdout_admitted": false,
+    "holdout_rows": 0,
+    "p99_promotion_role": "NONE_DESCRIPTIVE_ONLY",
+    "screening_rows": 1728,
+    "screening_structurally_valid": true,
+    "shifted_target_executed": false,
+    "verdict": "FAIL"
+  },
+  "status": "FROZEN_COMPLETE_SCIENTIFIC_FAILURE"
+}
