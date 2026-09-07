@@ -1,0 +1,161 @@
+name: ReplayMark Gate S2-P3 embedded-timestamp tail localization execution
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p3-embedded-tail-localization-execution
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2p3-tail-localization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      LAB: agentmark_e3b_lab/e3_mqtt
+      GATE: /tmp/replaymark-s2p3-execution
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile P3 execution
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p3_tail_localization.py \
+            replaymark_verification/verify_s2p3_tail_localization.py
+
+      - name: Verify exact prospective P3 execution boundary
+        run: |
+          mkdir -p "$GATE"
+          python replaymark_verification/verify_s2p3_tail_localization.py \
+            --preflight-only \
+            --out "$GATE/p3_preflight.json"
+
+      - name: Build frozen live environment
+        working-directory: ${{ env.LAB }}
+        run: |
+          mkdir -p results
+          docker compose build device runner_shadow
+
+      - name: P3 round 0 - 16 8 4
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d mosquitto device
+          sleep 1
+          docker compose exec -T device python -c 'import json,os; from pathlib import Path; print(json.dumps({"ns_time_link":os.readlink("/proc/self/ns/time"),"timens_offsets":Path("/proc/self/timens_offsets").read_text()}))' > "$GATE/device_time_round_0.json"
+          docker compose run --rm --no-deps runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p3_tail_localization.py \
+            --broker mosquitto --round-index 0 --out /results/p3_round_0.json
+          cp results/p3_round_0.json "$GATE/p3_round_0.json"
+
+      - name: P3 round 1 - 8 4 16
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d mosquitto device
+          sleep 1
+          docker compose exec -T device python -c 'import json,os; from pathlib import Path; print(json.dumps({"ns_time_link":os.readlink("/proc/self/ns/time"),"timens_offsets":Path("/proc/self/timens_offsets").read_text()}))' > "$GATE/device_time_round_1.json"
+          docker compose run --rm --no-deps runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p3_tail_localization.py \
+            --broker mosquitto --round-index 1 --out /results/p3_round_1.json
+          cp results/p3_round_1.json "$GATE/p3_round_1.json"
+
+      - name: P3 round 2 - 4 16 8
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker compose down -v --remove-orphans || true
+          docker compose up -d mosquitto device
+          sleep 1
+          docker compose exec -T device python -c 'import json,os; from pathlib import Path; print(json.dumps({"ns_time_link":os.readlink("/proc/self/ns/time"),"timens_offsets":Path("/proc/self/timens_offsets").read_text()}))' > "$GATE/device_time_round_2.json"
+          docker compose run --rm --no-deps runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p3_tail_localization.py \
+            --broker mosquitto --round-index 2 --out /results/p3_round_2.json
+          cp results/p3_round_2.json "$GATE/p3_round_2.json"
+
+      - name: Independently localize source tail
+        run: |
+          python replaymark_verification/verify_s2p3_tail_localization.py \
+            --round "$GATE/p3_round_0.json" \
+            --round "$GATE/p3_round_1.json" \
+            --round "$GATE/p3_round_2.json" \
+            --device-time-info "$GATE/device_time_round_0.json" \
+            --device-time-info "$GATE/device_time_round_1.json" \
+            --device-time-info "$GATE/device_time_round_2.json" \
+            --out "$GATE/p3_final_verification.json"
+
+      - name: Seal first complete P3 characterization
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          gate=Path(os.environ["GATE"])
+          report=json.loads((gate/"p3_final_verification.json").read_text())
+          sci=report["scientific"]
+          seal={
+            "schema":"replaymark.s2p3-first-complete-tail-localization-seal.v1",
+            "head":os.environ["GITHUB_SHA"],
+            "protocol_head":"496ceaead74df882e91b6c86670cc62329e6b88e",
+            "q2_failure_seal_head":"0b24288d85958fd7b4f3dcd418fd7dda85bd4efc",
+            "scientific_verdict":sci["scientific_verdict"],
+            "localization_classification":sci["localization_classification"],
+            "rows":sci["rows"],
+            "clock_domain_valid":sci["clock_domain_valid"],
+            "W_star":None,
+            "D_star":None,
+            "shifted_target_executed":False,
+            "q2_rehabilitated":False,
+          }
+          (gate/"P3_EXECUTION_SEAL.json").write_text(json.dumps(seal,indent=2,sort_keys=True)+"\n")
+          for src in [
+            "replaymark/S2P3_EMBEDDED_TIMESTAMP_TAIL_LOCALIZATION.json",
+            "replaymark/S2P3_EMBEDDED_TIMESTAMP_TAIL_LOCALIZATION.md",
+            "replaymark/S2P3_EMBEDDED_TIMESTAMP_TAIL_LOCALIZATION_EXECUTION.md",
+            "agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p3_tail_localization.py",
+            "replaymark_verification/verify_s2p3_tail_localization.py",
+          ]:
+            p=Path(src); (gate/p.name).write_bytes(p.read_bytes())
+          (gate/"SEAL_COMMIT.txt").write_text(subprocess.check_output(["git","show","--no-patch","--format=fuller","HEAD"],text=True))
+          sums=[]
+          for p in sorted(gate.iterdir()):
+            if p.is_file():
+              sums.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n")
+          (gate/"SHA256SUMS").write_text("".join(sums))
+          print(json.dumps(seal,indent=2,sort_keys=True))
+          PY
+
+      - name: Upload first complete P3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p3-embedded-tail-localization
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Cleanup live services
+        if: always()
+        working-directory: ${{ env.LAB }}
+        run: docker compose down -v --remove-orphans || true
+
+      - name: Enforce P3 scientific validity
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ["GATE"])/"p3_final_verification.json").read_text())
+          if r.get("verdict") != "PASS":
+              raise SystemExit("P3 scientific characterization invalid")
+          print("P3 scientific characterization PASS:", r["scientific"]["localization_classification"])
+          PY
