@@ -1,0 +1,305 @@
+name: ReplayMark E3b runtime cost characterization
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-e3b-cost-characterization
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e3b-runtime-cost-characterization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile cost increment
+        run: |
+          python -m py_compile \
+            replaymark_verification/runtime_cost_measurement.py \
+            replaymark_verification/verify_runtime_cost_measurement.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_cost.py
+
+      - name: Verify all frozen runtime authorities remain byte-immutable
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          expected = {
+              "agentmark_e3b_lab/e3_mqtt/app/ladder.py": "fcc1768544714f1b11a497a856f8e18d4d2f07dd",
+              "agentmark_e3b_lab/e3_mqtt/app/device.py": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+              "agentmark_e3b_lab/e3_mqtt/app/experiment.py": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+              "agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py": "1f8f689f393f9a547cbd9a76736389096521e2ca",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py": "fb7bbd8c94b3584099e0530033f9e404fabf71af",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py": "7f05d6f2148ba6af7a37d89fc8648664c5150a86",
+              "agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py": "5b64ea546c8c82f4346aae8b652bb10e1c669f7d",
+              "replaymark_oracle/e3b_integrated_runtime_oracle.py": "9a9ebb86b7a82bdff3de6603235824fd0971e23b",
+              "replaymark_verification/verify_runtime_e3b_integrated_oracle.py": "e8373ecb07f0b37dabfe306638d8ad93268bacf2",
+              "replaymark/runtime_e3b_observation.py": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+              "replaymark/runtime_e3b_action.py": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+              "replaymark/runtime_e3b_correlation.py": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+              "replaymark/runtime_e3b_bridge.py": "79df33b8fe2f2535f515637b0c7c6129039e2c7f",
+          }
+          for name, want in expected.items():
+              body = Path(name).read_bytes()
+              got = hashlib.sha1(
+                  b"blob " + str(len(body)).encode("ascii") + b"\0" + body
+              ).hexdigest()
+              if got != want:
+                  raise SystemExit(f"frozen authority drift: {name}: {got} != {want}")
+          print("RUNTIME_COST_FROZEN_AUTHORITIES: PASS")
+          PY
+
+      - name: Verify measurement mechanics
+        run: |
+          mkdir -p /tmp/replaymark-e3b-cost
+          python replaymark_verification/verify_runtime_cost_measurement.py \
+            --out /tmp/replaymark-e3b-cost/measurement_self_gate.json
+
+      - name: Reverify independent integrated literal oracle
+        run: |
+          python replaymark_verification/verify_runtime_e3b_integrated_oracle.py \
+            --out /tmp/replaymark-e3b-cost/integrated_oracle_gate.json
+
+      - name: Verify semantic seed remains frozen
+        run: python replaymark/verify_seed.py
+
+      - name: Reverify CompiledContract API freeze
+        run: python replaymark_verification/verify_compiled_contract_api.py
+
+      - name: Reverify E3b observation realization
+        run: |
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-e3b-cost/runtime_observation_gate.json
+
+      - name: Reverify E3b historical-action realization
+        run: |
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out /tmp/replaymark-e3b-cost/runtime_action_gate.json
+
+      - name: Reverify E3b same-task correlation
+        run: |
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out /tmp/replaymark-e3b-cost/same_task_gate.json
+
+      - name: Reverify concrete contract packaging
+        run: |
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-e3b-cost/concrete_contract_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-e3b-cost/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-e3b-cost/rstar_gate.json
+
+      - name: Reverify E3b shadow runtime bridge
+        run: |
+          python replaymark_verification/verify_runtime_e3b_bridge.py \
+            --out /tmp/replaymark-e3b-cost/shadow_bridge_gate.json
+
+      - name: Real Mosquitto conformance precondition and cost characterization
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f results/e3b_r1_shadow_hook.json
+          rm -f results/e3b_integrated_frozen_runtime_conformance.json
+          rm -f results/e3b_runtime_cost_characterization.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+
+          docker compose run --rm runner_shadow
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py \
+              --broker mosquitto \
+              --tasks 64 \
+              --wave-size 16 \
+              --wave-period-ms 300 \
+              --verify-floor-ms 100 \
+              --source-guard-ms 20 \
+              --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 \
+              --post-completion-gap-ms 20 \
+              --trials 3 \
+              --out /results/e3b_integrated_frozen_runtime_conformance.json
+
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_cost.py \
+              --broker mosquitto \
+              --tasks 64 \
+              --wave-size 16 \
+              --wave-period-ms 300 \
+              --verify-floor-ms 100 \
+              --source-guard-ms 20 \
+              --changed-delay-floor-ms 150 \
+              --target-margin-ms 50 \
+              --post-completion-gap-ms 20 \
+              --rounds 240 \
+              --inner 8 \
+              --authority-head "$GITHUB_SHA" \
+              --out /results/e3b_runtime_cost_characterization.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          shadow = json.loads(Path("results/e3b_r1_shadow_hook.json").read_text())
+          assert shadow["schema"] == "replaymark.runtime-e3b-r1-shadow-hook-live.v2"
+          assert shadow["promotion_pass"] is True
+          assert shadow["verdict"] == "PASS"
+
+          integrated = json.loads(
+              Path("results/e3b_integrated_frozen_runtime_conformance.json").read_text()
+          )
+          assert integrated["schema"] == "replaymark.runtime-e3b-integrated-frozen-conformance.v1"
+          assert integrated["promotion_pass"] is True
+          assert integrated["coverage"]["task_rows"] == 192
+          assert integrated["coverage"]["all_task_rows_pass"] is True
+
+          cost = json.loads(
+              Path("results/e3b_runtime_cost_characterization.json").read_text()
+          )
+          assert cost["schema"] == "replaymark.runtime-e3b-cost-characterization.v1"
+          assert cost["authority_head"]
+          assert cost["broker_version_sys"] == "mosquitto version 2.1.2"
+          assert cost["promotion_pass"] is True
+          assert cost["verdict"] == "PASS"
+          assert cost["live_corpus"]["negative_live_cases"] == 64
+          assert cost["live_corpus"]["positive_definition_derived_cases"] == 64
+          assert cost["semantic_identity"]["stable"] is True
+          assert cost["policy_boundary"]["optimization"] == "NOT_IMPLEMENTED"
+          assert cost["measurement_validity"]["fixed_latency_promotion_threshold"] is False
+          assert set(cost["task_count_scaling"]) == {
+              "certificate_object",
+              "certificate_plus_fingerprint",
+          }
+          for outcome in ("live_negative", "derived_positive"):
+              stages = cost["offline_stage_latency"][outcome]
+              assert stages["full_offline_pipeline"]["samples"] == 240
+              assert stages["contract_fingerprint"]["samples"] == 240
+          print(json.dumps({
+              "promotion_pass": True,
+              "contract": cost["frozen_authorities"]["contract_fingerprint"],
+              "negative_full_p50_us": cost["offline_stage_latency"]["live_negative"]["full_offline_pipeline"]["p50_us"],
+              "negative_full_p99_us": cost["offline_stage_latency"]["live_negative"]["full_offline_pipeline"]["p99_us"],
+              "positive_full_p50_us": cost["offline_stage_latency"]["derived_positive"]["full_offline_pipeline"]["p50_us"],
+              "positive_full_p99_us": cost["offline_stage_latency"]["derived_positive"]["full_offline_pipeline"]["p99_us"],
+          }, sort_keys=True))
+          PY
+
+          cp results/e3b_r1_shadow_hook.json \
+            /tmp/replaymark-e3b-cost/r1_shadow_live_gate.json
+          cp results/e3b_integrated_frozen_runtime_conformance.json \
+            /tmp/replaymark-e3b-cost/integrated_runtime_conformance.json
+          cp results/e3b_runtime_cost_characterization.json \
+            /tmp/replaymark-e3b-cost/runtime_cost_characterization.json
+
+      - name: Seal Runtime Cost Characterization
+        env:
+          GATE_DIR: /tmp/replaymark-e3b-cost
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected = (
+              "measurement_self_gate.json",
+              "integrated_oracle_gate.json",
+              "runtime_observation_gate.json",
+              "runtime_action_gate.json",
+              "same_task_gate.json",
+              "concrete_contract_gate.json",
+              "adjudicator_gate.json",
+              "rstar_gate.json",
+              "shadow_bridge_gate.json",
+              "r1_shadow_live_gate.json",
+              "integrated_runtime_conformance.json",
+              "runtime_cost_characterization.json",
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing/empty gate output: {path}")
+              parsed = json.loads(path.read_text())
+              if parsed.get("verdict") != "PASS":
+                  raise SystemExit(f"gate is not PASS: {name}: {parsed.get('verdict')}")
+
+          cost = json.loads(
+              (gate_dir / "runtime_cost_characterization.json").read_text()
+          )
+          if cost.get("promotion_pass") is not True:
+              raise SystemExit("runtime cost characterization failed")
+          if cost["semantic_identity"]["stable"] is not True:
+              raise SystemExit("semantic identity changed during benchmark")
+          if cost["policy_boundary"]["optimization"] != "NOT_IMPLEMENTED":
+              raise SystemExit("cost increment illegally performed optimization")
+
+          sources = (
+              Path("replaymark_verification/runtime_cost_measurement.py"),
+              Path("replaymark_verification/verify_runtime_cost_measurement.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_runtime_cost.py"),
+              Path("replaymark/E3B_RUNTIME_COST_CHARACTERIZATION.md"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/ladder.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_integrated_conformance.py"),
+              Path("replaymark/runtime_e3b_observation.py"),
+              Path("replaymark/runtime_e3b_action.py"),
+              Path("replaymark/runtime_e3b_correlation.py"),
+              Path("replaymark/runtime_e3b_bridge.py"),
+          )
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          (gate_dir / "GATE_STATUS").write_text(
+              "schema=replaymark.runtime-e3b-cost-characterization-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              "integrated_frozen_runtime_conformance=PASS\n"
+              "r1_noninterference=PASS\n"
+              "runtime_cost_measurement_mechanics=PASS\n"
+              "runtime_cost_characterization=PASS\n"
+              "performance_threshold=NONE_DESCRIPTIVE_ONLY\n"
+              "execution_policy=NOT_IMPLEMENTED\n"
+              "selective_reuse_intervention=NOT_IMPLEMENTED\n"
+              "optimization=NOT_IMPLEMENTED\n",
+              encoding="utf-8",
+          )
+          (gate_dir / "SOURCE_SHA256SUMS").write_text(
+              "".join(f"{digest(path)}  {path.as_posix()}\n" for path in sources),
+              encoding="utf-8",
+          )
+          (gate_dir / "GATE_SHA256SUMS").write_text(
+              "".join(f"{digest(gate_dir / name)}  {name}\n" for name in expected),
+              encoding="utf-8",
+          )
+          print(
+              "SEALED Runtime Cost Characterization "
+              f"head={os.environ['GITHUB_SHA']} "
+              f"contract={cost['frozen_authorities']['contract_fingerprint']}"
+          )
+          PY
+
+      - name: Upload sealed runtime cost artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-runtime-e3b-cost-characterization
+          path: /tmp/replaymark-e3b-cost
+          if-no-files-found: error
