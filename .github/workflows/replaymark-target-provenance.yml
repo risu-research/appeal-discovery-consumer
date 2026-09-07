@@ -1,0 +1,89 @@
+name: ReplayMark target provenance
+
+on:
+  push:
+    branches:
+      - replaymark-target-provenance
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify compiler-observed target provenance
+        run: |
+          mkdir -p /tmp/replaymark-target-provenance
+          python replaymark_verification/verify_target_provenance.py \
+            --out /tmp/replaymark-target-provenance/target_provenance_gate.json
+
+      - name: Reverify bounded q compiler
+        run: |
+          python replaymark_verification/verify_bounded_q.py \
+            > /tmp/replaymark-target-provenance/q_gate.json
+
+      - name: Reverify production predictive witnesses
+        run: |
+          python replaymark_verification/verify_predictive_witness.py \
+            --out /tmp/replaymark-target-provenance/predictive_witness_gate.json
+
+      - name: Reverify compiler-owned evidence semantics closure
+        run: |
+          python replaymark_verification/verify_evidence_semantics.py \
+            --out /tmp/replaymark-target-provenance/evidence_semantics_gate.json
+
+      - name: Reverify q evidence image
+        run: |
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-target-provenance/evidence_image_gate.json
+
+      - name: Reverify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-target-provenance/support_envelope_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-target-provenance/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-target-provenance/rstar_gate.json
+
+      - name: Seal target-provenance gate
+        run: |
+          sha256sum \
+            replaymark/target_provenance.py \
+            replaymark/q_compiler.py \
+            replaymark_oracle/target_provenance_oracle.py \
+            replaymark_verification/verify_target_provenance.py \
+            replaymark/TARGET_PROVENANCE.md \
+            replaymark/SEMANTIC_BOUNDARY.md \
+            /tmp/replaymark-target-provenance/*.json \
+            > /tmp/replaymark-target-provenance/SHA256SUMS
+          grep -q '"verdict": "PASS"' /tmp/replaymark-target-provenance/target_provenance_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-target-provenance/predictive_witness_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-target-provenance/evidence_semantics_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-target-provenance/evidence_image_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-target-provenance/support_envelope_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-target-provenance/adjudicator_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-target-provenance/rstar_gate.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-target-provenance-gate
+          path: /tmp/replaymark-target-provenance
+          if-no-files-found: error
