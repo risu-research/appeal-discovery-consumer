@@ -1,0 +1,193 @@
+name: ReplayMark Gate S2-Q source-only calibration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2q-source-calibration
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2q-source-calibration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GATE_DIR: /tmp/replaymark-gate-s2q
+      S2P_HEAD: ce92490e546e25cae980b7c84806ff655f2c947d
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile S2-Q increment
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q_source_calibration.py \
+            replaymark_verification/verify_s2q_source_calibration.py
+
+      - name: Verify exact prospective S2-Q boundary
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE_DIR"
+          python replaymark_verification/verify_s2q_source_calibration.py \
+            --preflight-only \
+            --out "$GATE_DIR/s2q_preflight.json"
+
+      - name: Run first complete source-only calibration on real Mosquitto
+        run: |
+          set -euo pipefail
+          mkdir -p agentmark_e3b_lab/e3_mqtt/results
+          rm -f agentmark_e3b_lab/e3_mqtt/results/replaymark_s2q_source_calibration.json
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q_source_calibration.py \
+              --broker mosquitto \
+              --port 1883 \
+              --replicates 3 \
+              --tasks 192 \
+              --wave-size 32 \
+              --wave-period-ms 300 \
+              --verify-ms 100 \
+              --task-timeout-ms 1000 \
+              --out /results/replaymark_s2q_source_calibration.json
+          popd >/dev/null
+          cp agentmark_e3b_lab/e3_mqtt/results/replaymark_s2q_source_calibration.json \
+            "$GATE_DIR/source_calibration.json"
+
+      - name: Independently recompute source qualification and D star
+        run: |
+          set -euo pipefail
+          python replaymark_verification/verify_s2q_source_calibration.py \
+            --result "$GATE_DIR/source_calibration.json" \
+            --out "$GATE_DIR/s2q_verification.json"
+
+      - name: Seal first complete calibration artifact
+        if: always()
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import subprocess
+
+          gate = Path(os.environ["GATE_DIR"])
+          result_path = gate / "source_calibration.json"
+          verify_path = gate / "s2q_verification.json"
+          if not result_path.is_file() or not verify_path.is_file():
+              (gate / "GATE_STATUS").write_text(
+                  "schema=replaymark.s2q-source-calibration-gate.v1\n"
+                  f"head={os.environ['GITHUB_SHA']}\n"
+                  "complete_report=NO\n"
+                  "scientific_verdict=NOT_AVAILABLE\n"
+                  "target_executed=NO\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit(0)
+
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          verification = json.loads(verify_path.read_text(encoding="utf-8"))
+          scientific = verification.get("scientific", {})
+          verdict = verification.get("verdict", "FAIL")
+          seal = {
+              "schema": "replaymark.s2q-first-complete-calibration-seal.v1",
+              "head": os.environ["GITHUB_SHA"],
+              "s2p_head": os.environ["S2P_HEAD"],
+              "complete_report": True,
+              "scientific_verdict": verdict,
+              "source_rows": scientific.get("source_rows"),
+              "pooled_median_source_completion_ms": scientific.get(
+                  "pooled_median_source_completion_ms"
+              ),
+              "pooled_completion_p99_ms": scientific.get("pooled_completion_p99_ms"),
+              "D_star_ms": scientific.get("D_star_ms"),
+              "source_result_sha256": scientific.get("result_sha256"),
+              "shifted_target_executed": False,
+              "act2_candidate_constructed": False,
+              "fallback": "ABSENT",
+              "regeneration": "ABSENT",
+          }
+          (gate / "S2Q_CALIBRATION_SEAL.json").write_text(
+              json.dumps(seal, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          status = (
+              "schema=replaymark.s2q-source-calibration-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              f"s2p_head={os.environ['S2P_HEAD']}\n"
+              "complete_report=YES\n"
+              f"scientific_verdict={verdict}\n"
+              f"D_star_ms={scientific.get('D_star_ms')}\n"
+              "target_executed=NO\n"
+              "act2_candidate_constructed=NO\n"
+              "runtime_micro_optimization=FROZEN\n"
+              "fallback=ABSENT\n"
+              "regeneration=ABSENT\n"
+          )
+          (gate / "GATE_STATUS").write_text(status, encoding="utf-8")
+
+          for path in (
+              Path("replaymark/S2_MIXED_CAPSTONE_PROTOCOL.json"),
+              Path("replaymark/S2Q_SOURCE_ONLY_CALIBRATION.md"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q_source_calibration.py"),
+              Path("replaymark_verification/verify_s2q_source_calibration.py"),
+          ):
+              (gate / path.name).write_bytes(path.read_bytes())
+          (gate / "SEAL_COMMIT.txt").write_text(
+              subprocess.check_output(
+                  ["git", "show", "--no-patch", "--format=fuller", "HEAD"],
+                  text=True,
+              ),
+              encoding="utf-8",
+          )
+
+          files = sorted(p for p in gate.iterdir() if p.is_file())
+          sums = []
+          for path in files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              sums.append(f"{digest}  {path.name}\n")
+          (gate / "SHA256SUMS").write_text("".join(sums), encoding="utf-8")
+          print(json.dumps(seal, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload first complete S2-Q calibration artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2q-source-only-calibration
+          path: ${{ env.GATE_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Enforce S2-Q scientific verdict
+        if: always()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import os
+
+          path = Path(os.environ["GATE_DIR"]) / "s2q_verification.json"
+          if not path.is_file():
+              raise SystemExit("S2-Q did not produce a complete verification report")
+          report = json.loads(path.read_text(encoding="utf-8"))
+          if report.get("verdict") != "PASS":
+              raise SystemExit("S2-Q complete calibration is a scientific qualification failure")
+          print(
+              "GATE_S2Q_SOURCE_ONLY_CALIBRATION: PASS "
+              f"head={os.environ['GITHUB_SHA']} "
+              f"D_star_ms={report['scientific']['D_star_ms']}"
+          )
+          PY
