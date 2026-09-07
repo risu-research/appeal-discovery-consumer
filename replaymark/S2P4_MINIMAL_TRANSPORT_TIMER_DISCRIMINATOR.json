@@ -1,0 +1,95 @@
+{
+  "anti_fishing": {
+    "D_star_forbidden": true,
+    "P3_not_reinterpreted": true,
+    "Q2_not_rehabilitated": true,
+    "W_star_forbidden": true,
+    "classification_thresholds_frozen_here": true,
+    "first_complete_P4_execution_authoritative": true,
+    "later_exact_repeats_replication_only": true,
+    "target_forbidden": true
+  },
+  "authorities": {
+    "mosquitto_image": "eclipse-mosquitto:2.1.2-alpine",
+    "p3_execution_head": "8378113f4392a69c282f402fe3ef4fd0c93738f3",
+    "p3_protocol_head": "496ceaead74df882e91b6c86670cc62329e6b88e",
+    "p3_result_seal_head": "cbd39120e875aa6773c931c4f7aaa023835199a2",
+    "paho_requirement": "paho-mqtt==2.1.0",
+    "q2_failure_seal_head": "0b24288d85958fd7b4f3dcd418fd7dda85bd4efc"
+  },
+  "classification": {
+    "AMBIGUOUS": {
+      "condition": "neither rule holds",
+      "next": "stop and reassess; do not target-probe or retune the classifier"
+    },
+    "SELF_ECHO_CLEAN": {
+      "condition": "both self_echo_receive_latency_ms and puback_latency_ms have p99 < 20 ms AND fewer than 0.01 of rows exceed 30 ms",
+      "next": "device/two-connection path remains implicated; use one explicitly paired two-client relay discriminator, not broader transport tracing"
+    },
+    "SELF_ECHO_REPRODUCES_40MS_STRUCTURE": {
+      "condition": "for self_echo_receive_latency_ms OR puback_latency_ms: at least 0.10 of all complete rows lie in [35,45] ms AND that metric p95 >= 35 ms",
+      "next": "treat device logic as unnecessary to reproduce the timer structure; freeze a new boundary-complete source qualification based on semantic deadline completeness rather than the old 80-ms slack proxy"
+    }
+  },
+  "execution": {
+    "act2_candidate_constructed": false,
+    "all_cells_required": true,
+    "broker_restart_per_round": true,
+    "device_service_started": false,
+    "fresh_topic_namespace_per_cell": true,
+    "measurements": [
+      "offer_to_task_start_ms",
+      "publish_call_overhead_ms",
+      "puback_latency_ms",
+      "self_echo_receive_latency_ms",
+      "self_echo_after_publish_ms",
+      "tcp_nodelay_value",
+      "TcpExtDelayedACKs_before",
+      "TcpExtDelayedACKs_after"
+    ],
+    "no_early_stop": true,
+    "properties": null,
+    "qos": 1,
+    "retain": false,
+    "rounds": 3,
+    "schedule": [[16,8,4],[8,4,16],[4,16,8]],
+    "shifted_target_executed": false,
+    "single_paho_connection": true,
+    "source_only": true,
+    "task_timeout_ms": 1000,
+    "tasks_per_cell": 192,
+    "total_rows": 1728,
+    "wave_period_ms": 300.0,
+    "waves": [16,8,4]
+  },
+  "gate": "S2P4_MINIMAL_TRANSPORT_TIMER_DISCRIMINATOR_PROTOCOL",
+  "kernel_timer_candidate": {
+    "basis": "Linux TCP_DELACK_MIN is HZ/25 for HZ>=100; this is a mechanism-motivated diagnostic candidate, not a claim that delayed ACK is the cause.",
+    "candidate_quantum_ms": 40.0,
+    "long_latency_threshold_ms": 30.0,
+    "quantized_window_ms": [35.0,45.0]
+  },
+  "macro_rule": {
+    "no_device_code_change": true,
+    "no_ebpf": true,
+    "no_kernel_tuning": true,
+    "no_packet_tracing": true,
+    "no_qos_change": true,
+    "no_socket_option_change": true,
+    "purpose": "minimal discriminator only; do not turn the replay paper into a transport-debugging project"
+  },
+  "next_gate": "S2P4E_MINIMAL_TRANSPORT_TIMER_DISCRIMINATOR_EXECUTION",
+  "non_claims": [
+    "TCP delayed ACK cause established",
+    "Nagle cause established",
+    "MQTT cause established",
+    "broker cause established",
+    "Paho cause established",
+    "Q2 rehabilitation",
+    "target mixture guarantee",
+    "new ReplayMark semantic theorem"
+  ],
+  "schema": "replaymark.s2p4-minimal-transport-timer-discriminator-protocol.v1",
+  "scientific_question": "Does the approximately 40-ms quantized timing structure observed in P3 remain when the frozen device process and two-connection command/state path are removed, leaving only one Paho MQTT client and the same real Mosquitto broker in a QoS-1 self-echo path?",
+  "status": "FROZEN_AFTER_P3_MIXED_BEFORE_P4_EXECUTION_AND_BEFORE_ANY_TARGET_OUTCOME"
+}
