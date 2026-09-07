@@ -1,0 +1,335 @@
+name: ReplayMark Gate S2-Q2 source load envelope and holdout
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2q2-source-load-envelope
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2q2-source-load-envelope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GATE_DIR: /tmp/replaymark-gate-s2q2
+      RESULT_DIR: agentmark_e3b_lab/e3_mqtt/results
+      P2_HEAD: 22ec2da2e62c1fa7e9d1a5e02ff676188d90ab5e
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile Q2 increment
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py \
+            replaymark_verification/verify_s2q2_source_load_envelope.py
+
+      - name: Verify exact prospective Q2 boundary
+        run: |
+          set -euo pipefail
+          mkdir -p "$GATE_DIR" "$RESULT_DIR"
+          rm -f \
+            "$RESULT_DIR"/q2_screen_round_*.json \
+            "$RESULT_DIR"/q2_holdout_*.json \
+            "$RESULT_DIR"/q2_screening_selection_seal.json
+          python replaymark_verification/verify_s2q2_source_load_envelope.py \
+            --preflight-only \
+            --out "$GATE_DIR/q2_preflight.json"
+
+      - name: Screening round 0 - 16 8 4
+        run: |
+          set -euo pipefail
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py \
+              --broker mosquitto \
+              --port 1883 \
+              --mode screening-round \
+              --round-index 0 \
+              --out /results/q2_screen_round_0.json
+          popd >/dev/null
+          cp "$RESULT_DIR/q2_screen_round_0.json" "$GATE_DIR/q2_screen_round_0.json"
+
+      - name: Screening round 1 - 8 4 16
+        run: |
+          set -euo pipefail
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py \
+              --broker mosquitto \
+              --port 1883 \
+              --mode screening-round \
+              --round-index 1 \
+              --out /results/q2_screen_round_1.json
+          popd >/dev/null
+          cp "$RESULT_DIR/q2_screen_round_1.json" "$GATE_DIR/q2_screen_round_1.json"
+
+      - name: Screening round 2 - 4 16 8
+        run: |
+          set -euo pipefail
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py \
+              --broker mosquitto \
+              --port 1883 \
+              --mode screening-round \
+              --round-index 2 \
+              --out /results/q2_screen_round_2.json
+          popd >/dev/null
+          cp "$RESULT_DIR/q2_screen_round_2.json" "$GATE_DIR/q2_screen_round_2.json"
+
+      - name: Independently select W star from all frozen screening rows
+        id: select
+        run: |
+          set -euo pipefail
+          python replaymark_verification/verify_s2q2_source_load_envelope.py \
+            --screening-dir "$GATE_DIR" \
+            --selection-seal-out "$GATE_DIR/q2_screening_selection_seal.json" \
+            --out "$GATE_DIR/q2_screening_verification.json"
+          cp "$GATE_DIR/q2_screening_selection_seal.json" \
+            "$RESULT_DIR/q2_screening_selection_seal.json"
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import os
+
+          report = json.loads(
+              Path(os.environ["GATE_DIR"], "q2_screening_verification.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          w_star = report["screening"]["W_star_screen"]
+          if report.get("verdict") != "PASS":
+              w_star = None
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"w_star={'' if w_star is None else w_star}\n")
+          print(f"screening_verdict={report.get('verdict')} W_star={w_star}")
+          PY
+
+      - name: Holdout replicate 0
+        if: steps.select.outputs.w_star != ''
+        run: |
+          set -euo pipefail
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py \
+              --broker mosquitto \
+              --port 1883 \
+              --mode holdout \
+              --holdout-replicate 0 \
+              --selection-seal /results/q2_screening_selection_seal.json \
+              --out /results/q2_holdout_0.json
+          popd >/dev/null
+          cp "$RESULT_DIR/q2_holdout_0.json" "$GATE_DIR/q2_holdout_0.json"
+
+      - name: Holdout replicate 1
+        if: steps.select.outputs.w_star != ''
+        run: |
+          set -euo pipefail
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py \
+              --broker mosquitto \
+              --port 1883 \
+              --mode holdout \
+              --holdout-replicate 1 \
+              --selection-seal /results/q2_screening_selection_seal.json \
+              --out /results/q2_holdout_1.json
+          popd >/dev/null
+          cp "$RESULT_DIR/q2_holdout_1.json" "$GATE_DIR/q2_holdout_1.json"
+
+      - name: Holdout replicate 2
+        if: steps.select.outputs.w_star != ''
+        run: |
+          set -euo pipefail
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow \
+            python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py \
+              --broker mosquitto \
+              --port 1883 \
+              --mode holdout \
+              --holdout-replicate 2 \
+              --selection-seal /results/q2_screening_selection_seal.json \
+              --out /results/q2_holdout_2.json
+          popd >/dev/null
+          cp "$RESULT_DIR/q2_holdout_2.json" "$GATE_DIR/q2_holdout_2.json"
+
+      - name: Independently recompute holdout qualification and D star
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$GATE_DIR/q2_screening_selection_seal.json" ]]; then
+            echo "selection seal missing; final report is incomplete"
+            exit 0
+          fi
+          python replaymark_verification/verify_s2q2_source_load_envelope.py \
+            --screening-dir "$GATE_DIR" \
+            --selection-seal "$GATE_DIR/q2_screening_selection_seal.json" \
+            --holdout-dir "$GATE_DIR" \
+            --out "$GATE_DIR/q2_final_verification.json"
+
+      - name: Seal first complete Q2 artifact
+        if: always()
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import subprocess
+
+          root = Path(".")
+          gate = Path(os.environ["GATE_DIR"])
+          final_path = gate / "q2_final_verification.json"
+
+          if final_path.is_file():
+              report = json.loads(final_path.read_text(encoding="utf-8"))
+              complete = True
+              verdict = report.get("verdict", "FAIL")
+              w_star = report.get("W_star_screen")
+              d_star = report.get("D_star_ms")
+              holdout = report.get("holdout", {})
+              seal = {
+                  "schema": "replaymark.s2q2-first-complete-source-envelope-seal.v1",
+                  "head": os.environ["GITHUB_SHA"],
+                  "p2_head": os.environ["P2_HEAD"],
+                  "complete_report": True,
+                  "scientific_verdict": verdict,
+                  "W_star_screen": w_star,
+                  "D_star_ms": d_star,
+                  "screening_source_rows": report.get("screening", {}).get(
+                      "screening_source_rows"
+                  ),
+                  "holdout_rows": holdout.get("rows"),
+                  "screening_result_sha256s": report.get("screening", {}).get(
+                      "screening_result_sha256s"
+                  ),
+                  "selection_seal_sha256": report.get("selection_seal_sha256"),
+                  "holdout_result_sha256s": holdout.get("result_sha256s"),
+                  "screening_rows_used_in_D_star_estimate": report.get(
+                      "screening_rows_used_in_D_star_estimate"
+                  ),
+                  "holdout_rows_used_in_D_star_estimate": report.get(
+                      "holdout_rows_used_in_D_star_estimate"
+                  ),
+                  "shifted_target_executed": False,
+                  "act2_candidate_constructed": False,
+                  "fallback": "ABSENT",
+                  "regeneration": "ABSENT",
+              }
+              (gate / "Q2_EXECUTION_SEAL.json").write_text(
+                  json.dumps(seal, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+          else:
+              complete = False
+              verdict = "NOT_AVAILABLE"
+              w_star = None
+              d_star = None
+
+          status = (
+              "schema=replaymark.s2q2-source-load-envelope-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              f"p2_head={os.environ['P2_HEAD']}\n"
+              f"complete_report={'YES' if complete else 'NO'}\n"
+              f"scientific_verdict={verdict}\n"
+              f"W_star={w_star}\n"
+              f"D_star_ms={d_star}\n"
+              "target_executed=NO\n"
+              "act2_candidate_constructed=NO\n"
+              "runtime_micro_optimization=FROZEN\n"
+              "fallback=ABSENT\n"
+              "regeneration=ABSENT\n"
+          )
+          (gate / "GATE_STATUS").write_text(status, encoding="utf-8")
+
+          for path in (
+              root / "replaymark" / "S2P2_SOURCE_QUALIFIED_LOAD_ENVELOPE.json",
+              root / "replaymark" / "S2Q2_SOURCE_LOAD_ENVELOPE_AND_HOLDOUT.md",
+              root / "agentmark_e3b_lab" / "e3_mqtt" / "app"
+              / "replaymark_s2q2_source_load_envelope.py",
+              root / "replaymark_verification"
+              / "verify_s2q2_source_load_envelope.py",
+          ):
+              if path.is_file():
+                  (gate / path.name).write_bytes(path.read_bytes())
+
+          (gate / "SEAL_COMMIT.txt").write_text(
+              subprocess.check_output(
+                  ["git", "show", "--no-patch", "--format=fuller", "HEAD"],
+                  text=True,
+              ),
+              encoding="utf-8",
+          )
+
+          files = sorted(p for p in gate.iterdir() if p.is_file())
+          sums = []
+          for path in files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              sums.append(f"{digest}  {path.name}\n")
+          (gate / "SHA256SUMS").write_text("".join(sums), encoding="utf-8")
+          print((gate / "GATE_STATUS").read_text(encoding="utf-8"))
+          PY
+
+      - name: Upload first complete Q2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2q2-source-load-envelope
+          path: ${{ env.GATE_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Cleanup live services
+        if: always()
+        run: |
+          pushd agentmark_e3b_lab/e3_mqtt >/dev/null
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          popd >/dev/null
+
+      - name: Enforce Q2 scientific verdict
+        if: always()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import os
+
+          path = Path(os.environ["GATE_DIR"]) / "q2_final_verification.json"
+          if not path.is_file():
+              raise SystemExit("Q2 did not produce a complete final verification report")
+          report = json.loads(path.read_text(encoding="utf-8"))
+          if report.get("verdict") != "PASS":
+              raise SystemExit(
+                  "Q2 first complete execution is a scientific qualification failure"
+              )
+          print(
+              "GATE_S2Q2_SOURCE_LOAD_ENVELOPE: PASS "
+              f"head={os.environ['GITHUB_SHA']} "
+              f"W_star={report['W_star_screen']} "
+              f"D_star_ms={report['D_star_ms']}"
+          )
+          PY
