@@ -1,0 +1,11 @@
+FROM python:3.13-slim
+WORKDIR /workspace
+COPY agentmark_e3b_lab/e3_mqtt/app/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY replaymark /workspace/replaymark
+COPY replaymark_oracle /workspace/replaymark_oracle
+COPY replaymark_verification /workspace/replaymark_verification
+COPY agentmark_e3b_lab /workspace/agentmark_e3b_lab
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/workspace:/workspace/agentmark_e3b_lab:/workspace/agentmark_e3b_lab/e3_mqtt/app
+CMD ["python", "/workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py"]

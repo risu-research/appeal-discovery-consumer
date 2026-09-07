@@ -27,3 +27,11 @@ services:
     environment: {BROKER_HOST: mosquitto, BROKER_PORT: "1883"}
     volumes: ["./results:/results"]
     depends_on: {mosquitto: {condition: service_healthy}, device: {condition: service_started}}
+  runner_shadow:
+    build:
+      context: ../..
+      dockerfile: agentmark_e3b_lab/e3_mqtt/app/Dockerfile.shadow
+    command: ["python", "/workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py", "--broker", "mosquitto", "--tasks", "64", "--wave-size", "16", "--wave-period-ms", "300", "--verify-floor-ms", "100", "--source-guard-ms", "20", "--changed-delay-floor-ms", "150", "--target-margin-ms", "50", "--post-completion-gap-ms", "20", "--paired-trials", "3", "--out", "/results/e3b_r1_shadow_hook.json"]
+    environment: {BROKER_HOST: mosquitto, BROKER_PORT: "1883"}
+    volumes: ["./results:/results"]
+    depends_on: {mosquitto: {condition: service_healthy}, device: {condition: service_started}}

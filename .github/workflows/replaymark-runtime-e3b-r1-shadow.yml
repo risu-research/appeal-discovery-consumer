@@ -1,0 +1,212 @@
+name: ReplayMark E3b R1 non-interfering shadow hook
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-e3b-r1-shadow-hook
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e3b-r1-shadow-hook-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile shadow integration
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py \
+            replaymark/runtime_e3b_bridge.py \
+            replaymark/runtime_e3b_correlation.py \
+            replaymark/runtime_e3b_observation.py \
+            replaymark/runtime_e3b_action.py
+
+      - name: Verify frozen R1 and capture authorities are byte-immutable
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          expected = {
+              "agentmark_e3b_lab/e3_mqtt/app/ladder.py": "fcc1768544714f1b11a497a856f8e18d4d2f07dd",
+              "agentmark_e3b_lab/e3_mqtt/app/device.py": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+              "agentmark_e3b_lab/e3_mqtt/app/experiment.py": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+              "agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py": "1f8f689f393f9a547cbd9a76736389096521e2ca",
+          }
+          for name, want in expected.items():
+              body = Path(name).read_bytes()
+              got = hashlib.sha1(
+                  b"blob " + str(len(body)).encode("ascii") + b"\0" + body
+              ).hexdigest()
+              if got != want:
+                  raise SystemExit(f"frozen source drift: {name}: {got} != {want}")
+          print("FROZEN_R1_CAPTURE_AUTHORITIES: PASS")
+          PY
+
+      - name: Verify semantic seed remains frozen
+        run: python replaymark/verify_seed.py
+
+      - name: Reverify CompiledContract API freeze
+        run: python replaymark_verification/verify_compiled_contract_api.py
+
+      - name: Reverify E3b observation realization
+        run: |
+          mkdir -p /tmp/replaymark-e3b-r1-shadow
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-e3b-r1-shadow/runtime_observation_gate.json
+
+      - name: Reverify E3b historical-action realization
+        run: |
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out /tmp/replaymark-e3b-r1-shadow/runtime_action_gate.json
+
+      - name: Reverify E3b same-task correlation
+        run: |
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out /tmp/replaymark-e3b-r1-shadow/same_task_gate.json
+
+      - name: Reverify concrete contract packaging
+        run: |
+          python replaymark_verification/verify_compiled_contract_packaging.py \
+            --out /tmp/replaymark-e3b-r1-shadow/concrete_contract_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-e3b-r1-shadow/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-e3b-r1-shadow/rstar_gate.json
+
+      - name: Reverify E3b shadow runtime bridge
+        run: |
+          python replaymark_verification/verify_runtime_e3b_bridge.py \
+            --out /tmp/replaymark-e3b-r1-shadow/shadow_bridge_gate.json
+
+      - name: Real Mosquitto paired R1 baseline versus shadow
+        working-directory: agentmark_e3b_lab/e3_mqtt
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          rm -f results/e3b_r1_shadow_hook.json
+          docker compose down -v --remove-orphans >/dev/null 2>&1 || true
+          cleanup(){ docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker compose up -d --build mosquitto device
+          docker compose run --rm runner_shadow
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('results/e3b_r1_shadow_hook.json')
+          d=json.loads(p.read_text())
+          assert d['schema']=='replaymark.runtime-e3b-r1-shadow-hook-live.v1'
+          assert d['broker_version_sys']=='mosquitto version 2.1.2'
+          assert d['verdict']=='PASS'
+          assert d['promotion_pass'] is True
+          assert d['noninterference_contract']['canonical_ladder_source_modified'] is False
+          assert d['noninterference_contract']['semantic_certification_during_network_execution'] is False
+          for trial in d['trials']:
+              assert all(trial['checks'].values()), trial
+              assert trial['verdict_counts']=={'INVALID': d['parameters']['tasks']}
+              assert trial['reuse_disposition_counts']=={'DO_NOT_REUSE': d['parameters']['tasks']}
+              assert trial['token_counts']=={'not_visible_by_deadline': d['parameters']['tasks']}
+          print(json.dumps({'promotion_pass':True,'broker':d['broker_version_sys'],'contract':d['contract_fingerprint'],'trials':len(d['trials'])},sort_keys=True))
+          PY
+          cp results/e3b_r1_shadow_hook.json /tmp/replaymark-e3b-r1-shadow/r1_shadow_live_gate.json
+
+      - name: Seal R1 shadow hook gate
+        env:
+          GATE_DIR: /tmp/replaymark-e3b-r1-shadow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          gate_dir=Path(os.environ['GATE_DIR'])
+          expected=(
+              'runtime_observation_gate.json',
+              'runtime_action_gate.json',
+              'same_task_gate.json',
+              'concrete_contract_gate.json',
+              'adjudicator_gate.json',
+              'rstar_gate.json',
+              'shadow_bridge_gate.json',
+              'r1_shadow_live_gate.json',
+          )
+          for name in expected:
+              path=gate_dir/name
+              if not path.is_file() or path.stat().st_size==0:
+                  raise SystemExit(f'missing/empty gate output: {path}')
+              parsed=json.loads(path.read_text())
+              verdict=parsed.get('verdict')
+              if verdict!='PASS':
+                  raise SystemExit(f'gate is not PASS: {name}: {verdict}')
+          live=json.loads((gate_dir/'r1_shadow_live_gate.json').read_text())
+          if live.get('promotion_pass') is not True:
+              raise SystemExit('R1 shadow live promotion failed')
+
+          sources=(
+              Path('agentmark_e3b_lab/e3_mqtt/app/ladder.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/ladder_v2.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/experiment.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/device.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/replaymark_shadow_live.py'),
+              Path('agentmark_e3b_lab/e3_mqtt/app/Dockerfile.shadow'),
+              Path('agentmark_e3b_lab/e3_mqtt/compose.yaml'),
+              Path('replaymark/E3B_R1_NONINTERFERING_SHADOW.md'),
+              Path('replaymark/runtime_e3b_bridge.py'),
+              Path('replaymark/runtime_e3b_correlation.py'),
+              Path('replaymark/runtime_e3b_observation.py'),
+              Path('replaymark/runtime_e3b_action.py'),
+          )
+          def digest(path:Path)->str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          for path in sources:
+              if not path.is_file() or path.stat().st_size==0:
+                  raise SystemExit(f'missing source authority: {path}')
+
+          (gate_dir/'GATE_STATUS').write_text(
+              'schema=replaymark.runtime-e3b-r1-shadow-hook-gate.v1\n'
+              f"head={os.environ['GITHUB_SHA']}\n"
+              'runtime_boundary=PASS\n'
+              'e3b_observation_realization=PASS\n'
+              'e3b_historical_action_realization=PASS\n'
+              'e3b_same_task_correlation=PASS\n'
+              'runtime_reuse_bridge=PASS\n'
+              'r1_shadow_hook=PASS\n'
+              'r1_byte_event_workload_noninterference=PASS\n'
+              'execution_policy=NOT_IMPLEMENTED\n'
+              'latency_promotion=NOT_IMPLEMENTED\n',
+              encoding='utf-8',
+          )
+          (gate_dir/'SOURCE_SHA256SUMS').write_text(
+              ''.join(f'{digest(path)}  {path.as_posix()}\n' for path in sources),
+              encoding='utf-8',
+          )
+          (gate_dir/'GATE_SHA256SUMS').write_text(
+              ''.join(f'{digest(gate_dir/name)}  {name}\n' for name in expected),
+              encoding='utf-8',
+          )
+          print(f"SEALED E3b R1 shadow hook gate for {os.environ['GITHUB_SHA']}")
+          PY
+
+      - name: Upload sealed R1 shadow hook artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-runtime-e3b-r1-shadow-hook-gate
+          path: /tmp/replaymark-e3b-r1-shadow
+          if-no-files-found: error
