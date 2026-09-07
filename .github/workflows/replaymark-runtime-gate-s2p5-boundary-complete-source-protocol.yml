@@ -1,0 +1,38 @@
+name: ReplayMark Gate S2-P5 boundary-complete source qualification protocol freeze
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p5-boundary-complete-source-protocol
+permissions:
+  contents: read
+jobs:
+  gate-s2p5-protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GATE: /tmp/replaymark-s2p5-protocol
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 2}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Static compile P5 verifier
+        run: python -m py_compile replaymark_verification/verify_s2p5_boundary_complete_source_protocol.py
+      - name: Verify prospective P5 freeze
+        run: |
+          mkdir -p "$GATE"
+          python replaymark_verification/verify_s2p5_boundary_complete_source_protocol.py --out "$GATE/p5_protocol_gate.json"
+      - name: Seal P5 protocol
+        run: |
+          cp replaymark/S2P5_BOUNDARY_COMPLETE_SOURCE_QUALIFICATION.json "$GATE/"
+          cp replaymark/S2P5_BOUNDARY_COMPLETE_SOURCE_QUALIFICATION.md "$GATE/"
+          git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
+          (cd "$GATE" && sha256sum * > SHA256SUMS)
+      - name: Upload P5 protocol seal
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p5-boundary-complete-source-protocol
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90

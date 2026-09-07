@@ -1,0 +1,93 @@
+{
+  "anti_fishing": {
+    "all_candidates_must_run": true,
+    "candidate_set_and_order_frozen": true,
+    "fresh_holdout_required": true,
+    "holdout_failure_no_same_generation_fallback": true,
+    "p99_cannot_be_reintroduced_as_hidden_promotion_criterion": true,
+    "q1_q2_failures_remain_authoritative": true,
+    "screening_rows_cannot_estimate_D_star": true,
+    "target_forbidden_until_W_star_and_D_star_sealed": true,
+    "target_outcomes_cannot_influence_source_qualification": true
+  },
+  "authorities": {
+    "frozen_observation_realizer_blob": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+    "frozen_q2_source_runner_blob": "c263486aaf2d7dde05dd557e22a2324024c7575e",
+    "p4_result_seal_head": "dce36dc9303bb6c31b074ea48ac79f5a76ea891b",
+    "q1_failed_head": "2a7e994810ae9c88d626d50fea1b06a7eb3550b5",
+    "q2_failed_execution_head": "79577a00e78aa61a5d92c6d608a9f64601bdb1d9",
+    "q2_failure_seal_head": "0b24288d85958fd7b4f3dcd418fd7dda85bd4efc",
+    "s1_execution_admission_head": "c93c8574eb62cb4dcde94890fdfc8f939b41e00a",
+    "s2p_v1_policy_assignment_schedule_sha256": "ec91b78a6720ef9b4e83da12f9b8cf37c1d05028bb6ebaf0e4c6a274ff372d1e"
+  },
+  "boundary_complete_source_qualification": {
+    "candidate_pass_iff": [
+      "all 576 expected rows are present",
+      "all rows are structurally valid source-only ACT1 observations",
+      "all tasks complete by the frozen task timeout",
+      "every required source state observation is visible by the inherited 100-ms verify deadline",
+      "no task is excluded"
+    ],
+    "candidate_selection": "W_star_screen = maximum numeric candidate in [16,8,4] that satisfies every boundary-completeness criterion; fail if none qualify",
+    "descriptive_only_metrics": [
+      "completion p50",
+      "completion p95",
+      "completion p99",
+      "completion max",
+      "scheduler start lateness"
+    ],
+    "old_80ms_p99_rule": "REMOVED_FROM_PROMOTION_IN_THIS_NEW_PROTOCOL_GENERATION_AND_REPORTED_DESCRIPTIVELY_ONLY",
+    "semantic_basis": "The frozen E3b observation realizer requires a complete snapshot closed at/after the verify deadline and selects events in the inclusive [command_publish_mono_ns, verify_deadline_mono_ns] interval; it contains no 20-ms slack or p99 requirement."
+  },
+  "dstar_seal": {
+    "computed_only_after_fresh_holdout_pass": true,
+    "data_source": "only 576 fresh holdout source completion offsets at W_star_screen",
+    "definition": "D_star_ms = floor((100.0 - pooled_median_holdout_completion_ms) + 0.5)",
+    "must_satisfy_max_exclusive_ms": 100,
+    "must_satisfy_min_ms": 1,
+    "screening_rows_forbidden_from_estimate": true,
+    "target_blind": true
+  },
+  "fresh_holdout": {
+    "failure_rule": "If any holdout boundary-completeness condition fails, this protocol generation fails before target execution; do not fall back to a lower candidate.",
+    "fresh_broker_device_lifecycle_per_replicate": true,
+    "fresh_namespace_per_replicate": true,
+    "qualification_identical_to_screening_except_candidate_selection": true,
+    "replicates": 3,
+    "rows": 576,
+    "tasks_per_replicate": 192,
+    "wave_size": "exact W_star_screen"
+  },
+  "gate": "S2P5_BOUNDARY_COMPLETE_SOURCE_QUALIFICATION_PROTOCOL",
+  "inheritance": {
+    "candidate_waves": [16, 8, 4],
+    "screening_rounds": 3,
+    "screening_schedule": [[16,8,4],[8,4,16],[4,16,8]],
+    "source_state_delay_ms": 0,
+    "task_timeout_ms": 1000,
+    "tasks_per_candidate_replicate": 192,
+    "target_policy_assignment_schedule_unchanged": true,
+    "target_trials_if_later_admitted": 6,
+    "verify_deadline_ms": 100.0,
+    "wave_period_ms": 300.0
+  },
+  "measurement_reuse": {
+    "new_source_runner_allowed": false,
+    "runner_path": "agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py",
+    "runner_blob_must_equal": "c263486aaf2d7dde05dd557e22a2324024c7575e",
+    "reason": "Change only the prospectively declared scientific qualification rule; do not change the source measurement primitive."
+  },
+  "next_gate": "S2Q3_BOUNDARY_COMPLETE_SOURCE_SCREEN_HOLDOUT_AND_DSTAR_SEAL",
+  "non_claims": [
+    "Q1 or Q2 was actually a PASS",
+    "the old 80-ms p99 criterion was incorrect for every systems experiment",
+    "P4 identified the exact transport cause",
+    "a mixed target outcome is guaranteed",
+    "W_star is a global throughput optimum",
+    "D_star is optimal",
+    "new ReplayMark semantic theorem"
+  ],
+  "schema": "replaymark.s2p5-boundary-complete-source-qualification-protocol.v1",
+  "scientific_question": "At what predeclared offered load is the actual frozen ReplayMark source evidence requirement—complete expected observation by the 100-ms semantic boundary—satisfied on fresh source data, without imposing the non-semantic 80-ms p99 slack proxy?",
+  "status": "FROZEN_AFTER_P4_BEFORE_FRESH_P5_SOURCE_OR_ANY_SHIFTED_TARGET_OUTCOME"
+}
