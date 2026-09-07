@@ -1,0 +1,80 @@
+name: ReplayMark predictive witness
+
+on:
+  push:
+    branches:
+      - replaymark-predictive-witness
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify bounded q compiler
+        run: python replaymark_verification/verify_bounded_q.py > /tmp/q_gate.json
+
+      - name: Verify production predictive witnesses
+        run: |
+          mkdir -p /tmp/replaymark-predictive-witness
+          python replaymark_verification/verify_predictive_witness.py \
+            --out /tmp/replaymark-predictive-witness/predictive_witness_gate.json
+
+      - name: Reverify compiler-owned evidence semantics closure
+        run: |
+          python replaymark_verification/verify_evidence_semantics.py \
+            --out /tmp/replaymark-predictive-witness/evidence_semantics_gate.json
+
+      - name: Reverify q evidence image
+        run: |
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-predictive-witness/evidence_image_gate.json
+
+      - name: Reverify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-predictive-witness/support_envelope_gate.json
+
+      - name: Reverify three-valued adjudicator
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-predictive-witness/adjudicator_gate.json
+
+      - name: Reverify Rstar maximal certified reuse
+        run: |
+          python replaymark_verification/verify_rstar.py \
+            --out /tmp/replaymark-predictive-witness/rstar_gate.json
+
+      - name: Seal predictive-witness gate
+        run: |
+          cp /tmp/q_gate.json /tmp/replaymark-predictive-witness/q_gate.json
+          sha256sum \
+            replaymark/predictive_witness.py \
+            replaymark_oracle/definition_q_oracle.py \
+            replaymark_verification/verify_predictive_witness.py \
+            replaymark/WITNESS_SEMANTICS_SPLIT.md \
+            /tmp/replaymark-predictive-witness/*.json \
+            > /tmp/replaymark-predictive-witness/SHA256SUMS
+          grep -q '"verdict": "PASS"' /tmp/replaymark-predictive-witness/predictive_witness_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-predictive-witness/evidence_semantics_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-predictive-witness/evidence_image_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-predictive-witness/support_envelope_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-predictive-witness/adjudicator_gate.json
+          grep -q '"verdict": "PASS"' /tmp/replaymark-predictive-witness/rstar_gate.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-predictive-witness-gate
+          path: /tmp/replaymark-predictive-witness
+          if-no-files-found: error
