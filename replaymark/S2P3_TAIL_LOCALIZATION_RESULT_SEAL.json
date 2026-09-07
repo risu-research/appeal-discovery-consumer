@@ -1,0 +1,125 @@
+{
+  "artifact_authority": {
+    "id": 10032248216,
+    "name": "replaymark-gate-s2p3-embedded-tail-localization",
+    "sha256": "44e1320f22aac6e152030c582b6fa2dee3411d8d6803e78c1fb363f7d15fcf4f",
+    "size_bytes": 184825
+  },
+  "execution_authority": {
+    "commit": "8378113f4392a69c282f402fe3ef4fd0c93738f3",
+    "job": 101859086158,
+    "parent_protocol": "496ceaead74df882e91b6c86670cc62329e6b88e",
+    "run": 34159820966,
+    "tree": "6170edc3ef0253730d9244107d9b25dd848a5260"
+  },
+  "frozen_prior": {
+    "q2_failure_seal_head": "0b24288d85958fd7b4f3dcd418fd7dda85bd4efc",
+    "q2_rehabilitated": false,
+    "q2_W_star": null,
+    "q2_D_star": null
+  },
+  "scientific_result": {
+    "scientific_verdict": "PASS",
+    "localization_classification": "MIXED_OR_UNLOCALIZED",
+    "rows": 1728,
+    "unique_devices": 1728,
+    "clock_domain_valid": true,
+    "max_additive_identity_error_ms": 1.4210854715202004e-14,
+    "shifted_target_executed": false,
+    "W_star": null,
+    "D_star": null,
+    "pooled": {
+      "visible_by_100ms": 1722,
+      "end_to_end_completion_ms": {
+        "p50": 5.553305,
+        "p95": 45.2469577,
+        "p99": 83.47056386,
+        "max": 123.401504
+      },
+      "forward_plus_device_ms": {
+        "p50": 1.0200695,
+        "p95": 41.3717769,
+        "p99": 82.56624778,
+        "max": 83.15977
+      },
+      "post_device_observation_ms": {
+        "p50": 3.0559985,
+        "p95": 41.54598065,
+        "p99": 42.08291311,
+        "max": 81.789248
+      },
+      "puback_latency_ms": {
+        "p50": 1.7101265,
+        "p95": 41.6740354,
+        "p99": 42.57891698,
+        "max": 43.913279
+      },
+      "scheduler_start_lateness_ms": {
+        "p99": 0.75376607,
+        "max": 1.14025
+      },
+      "tail": {
+        "rows": 87,
+        "median_forward_plus_device_fraction": 0.8555769148704297,
+        "median_post_device_observation_fraction": 0.14441059572972575
+      }
+    },
+    "per_wave": {
+      "16": {
+        "visible_by_100ms": 576,
+        "end_to_end_p99_ms": 85.06124175,
+        "forward_plus_device_p99_ms": 82.82865675,
+        "post_device_observation_p99_ms": 41.99438475,
+        "puback_p99_ms": 42.557413,
+        "tail_median_forward_fraction": 0.9457773839705511,
+        "tail_median_post_fraction": 0.054210223030896676
+      },
+      "8": {
+        "visible_by_100ms": 570,
+        "end_to_end_p99_ms": 93.32458375,
+        "forward_plus_device_p99_ms": 82.56541275,
+        "post_device_observation_p99_ms": 42.06368875,
+        "puback_p99_ms": 43.08144325,
+        "tail_median_forward_fraction": 0.6660129499646009,
+        "tail_median_post_fraction": 0.3339819330749417
+      },
+      "4": {
+        "visible_by_100ms": 576,
+        "end_to_end_p99_ms": 53.18639925,
+        "forward_plus_device_p99_ms": 41.485024,
+        "post_device_observation_p99_ms": 42.20072975,
+        "puback_p99_ms": 42.202819,
+        "tail_median_forward_fraction": 0.01699523534000947,
+        "tail_median_post_fraction": 0.9829289762985756
+      }
+    }
+  },
+  "interpretation_boundary": {
+    "established": [
+      "simple scheduler-start lateness is not the dominant observed tail",
+      "the tail is not exclusively post-device",
+      "the tail is not exclusively pre-device",
+      "tail location changes with the frozen offered-wave condition",
+      "an approximately 40-to-42-ms scale appears in multiple independently measured segments"
+    ],
+    "not_established": [
+      "TCP or Nagle causation",
+      "delayed-ACK causation",
+      "MQTT implementation causation",
+      "kernel causation",
+      "broker causation",
+      "device causation",
+      "permission to alter Q2 or its 80-ms criterion",
+      "permission to execute the shifted target"
+    ]
+  },
+  "anti_repair": {
+    "P3_rerun_for_preferred_classification_forbidden": true,
+    "Q2_rehabilitation_forbidden": true,
+    "derive_D_star_from_P3_forbidden": true,
+    "select_W_star_from_P3_forbidden": true,
+    "target_probe_from_P3_forbidden": true
+  },
+  "schema": "replaymark.s2p3-tail-localization-result-seal.v1",
+  "status": "FROZEN_FIRST_COMPLETE_P3_PASS"
+}
