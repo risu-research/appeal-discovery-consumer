@@ -1,0 +1,91 @@
+{
+  "anti_repair": {
+    "derive_D_star_after_failed_screening_forbidden": true,
+    "lower_wave_fallback_in_same_generation_forbidden": true,
+    "rerun_for_promotion_forbidden": true,
+    "retune_p99_threshold_in_same_generation_forbidden": true,
+    "target_probe_after_failed_screening_forbidden": true,
+    "wave_candidate_insertion_in_same_generation_forbidden": true
+  },
+  "artifact_authority": {
+    "id": 10031766440,
+    "name": "replaymark-gate-s2q2-source-load-envelope",
+    "sha256": "159abbf5e99ecd8ec4e051824cfb63fd59918ac539009821447d89e616377cdd",
+    "size_bytes": 120966
+  },
+  "execution_authority": {
+    "commit": "79577a00e78aa61a5d92c6d608a9f64601bdb1d9",
+    "job": 101854698171,
+    "parent_p2": "22ec2da2e62c1fa7e9d1a5e02ff676188d90ab5e",
+    "run": 34158327040,
+    "tree": "96cbeb1e54399cd397c55128b30675e7c416d4e9",
+    "workflow": ".github/workflows/replaymark-runtime-gate-s2q2-source-load-envelope.yml"
+  },
+  "frozen_source_blobs": {
+    ".github/workflows/replaymark-runtime-gate-s2q2-source-load-envelope.yml": "5364e67e3d46712aa07fedf8dae8f2b71e617a48",
+    "agentmark_e3b_lab/e3_mqtt/app/replaymark_s2q2_source_load_envelope.py": "c263486aaf2d7dde05dd557e22a2324024c7575e",
+    "replaymark/S2Q2_SOURCE_LOAD_ENVELOPE_AND_HOLDOUT.md": "0c460e21af6597b195cb05d02b626dbf737746a1",
+    "replaymark_verification/verify_s2q2_source_load_envelope.py": "1fd15ec2781dcfce5d1c7df4e23ffc7dd1ab7e66"
+  },
+  "p2_protocol": {
+    "blob": "c7e3103adfe2a3803e506e7c20674ad32edb058f",
+    "sha256": "61ee2e24c8430f2d49da9d772ac1aeb195e925402aee5383b655e24d332cb5b4"
+  },
+  "preflight": {
+    "caller_supplied_holdout_W_star": false,
+    "declared_files_only": true,
+    "exact_p2_parent": true,
+    "frozen_p2_q1_authority_files": 8,
+    "runner_semantic_oracle_imports": 0,
+    "runtime_micro_optimization": "FROZEN",
+    "s0_frozen_blob_matches": 37,
+    "shifted_target_code_path_added": false
+  },
+  "scientific_result": {
+    "D_star_ms": null,
+    "W_star_screen": null,
+    "act2_candidate_constructed": false,
+    "candidate_16": {
+      "all_576_complete": true,
+      "all_576_visible_by_100ms": true,
+      "pooled_median_ms": 7.2338205,
+      "pooled_p99_ms": 84.45775574999999,
+      "qualifies": false,
+      "replicate_p99_ms": [85.06435479, 84.26182306999999, 48.05237987]
+    },
+    "candidate_4": {
+      "all_576_complete": true,
+      "all_576_visible_by_100ms": true,
+      "pooled_median_ms": 41.070053,
+      "pooled_p99_ms": 82.66091325,
+      "qualifies": false,
+      "replicate_p99_ms": [46.34545762000013, 82.56370926999999, 82.96324296]
+    },
+    "candidate_8": {
+      "all_576_complete": true,
+      "all_576_visible_by_100ms": false,
+      "pooled_median_ms": 3.4840475,
+      "pooled_p99_ms": 123.66788775,
+      "qualifies": false,
+      "replicate_p99_ms": [123.68336576, 123.9711231, 82.79958565],
+      "visible_by_100ms": 566
+    },
+    "holdout_admitted": false,
+    "holdout_rows": 0,
+    "reason": "no predeclared candidate in {16,8,4} satisfied every frozen P2 source qualification criterion",
+    "screening_candidate_namespaces_fresh": true,
+    "screening_result_sha256s": {
+      "round_0": "cb438749c599080b280768d48172d8fe57e86b4b8013779e42ac1150dfea838f",
+      "round_1": "044f36d956b56e72ab5a2233e9ed7826f94bf65e56cdd429b2b6014e75562964",
+      "round_2": "2c7c6264714af8b4f4c90f3eea22b006f1470155b71e89195f9592dad94e5d51"
+    },
+    "screening_rounds_structurally_valid": true,
+    "screening_rows": 1728,
+    "screening_rows_used_in_D_star_estimate": 0,
+    "selection_seal_sha256": "2d10d33be500a7a1c744767b57213c37b14b4e45c870ab517c2cba00c55d53a5",
+    "shifted_target_executed": false,
+    "verdict": "FAIL"
+  },
+  "schema": "replaymark.s2q2-source-load-envelope-failure-seal.v1",
+  "status": "FROZEN_COMPLETE_SCIENTIFIC_FAILURE"
+}
