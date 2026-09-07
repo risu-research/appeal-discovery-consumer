@@ -1,0 +1,75 @@
+name: ReplayMark Gate S2-P4 minimal transport-timer discriminator execution
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p4-minimal-transport-timer-execution
+permissions:
+  contents: read
+jobs:
+  gate-s2p4-execution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      LAB: agentmark_e3b_lab/e3_mqtt
+      GATE: /tmp/replaymark-s2p4-execution
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 2}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Static compile P4 execution
+        run: python -m py_compile agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p4_self_echo.py replaymark_verification/verify_s2p4_minimal_transport_timer_execution.py
+      - name: Verify exact prospective P4 execution boundary
+        run: |
+          mkdir -p "$GATE"
+          python replaymark_verification/verify_s2p4_minimal_transport_timer_execution.py --preflight-only --out "$GATE/p4_preflight.json"
+      - name: Build frozen runner environment
+        working-directory: ${{ env.LAB }}
+        run: docker compose build runner_shadow
+      - name: P4 round 0
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose down -v --remove-orphans || true
+          docker compose up -d mosquitto
+          sleep 1
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p4_self_echo.py --broker mosquitto --round-index 0 --out /results/p4_round_0.json
+          cp results/p4_round_0.json "$GATE/"
+      - name: P4 round 1
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose down -v --remove-orphans || true
+          docker compose up -d mosquitto
+          sleep 1
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p4_self_echo.py --broker mosquitto --round-index 1 --out /results/p4_round_1.json
+          cp results/p4_round_1.json "$GATE/"
+      - name: P4 round 2
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker compose down -v --remove-orphans || true
+          docker compose up -d mosquitto
+          sleep 1
+          docker compose run --rm --no-deps runner_shadow python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s2p4_self_echo.py --broker mosquitto --round-index 2 --out /results/p4_round_2.json
+          cp results/p4_round_2.json "$GATE/"
+      - name: Independently classify P4 result
+        run: python replaymark_verification/verify_s2p4_minimal_transport_timer_execution.py --round "$GATE/p4_round_0.json" --round "$GATE/p4_round_1.json" --round "$GATE/p4_round_2.json" --out "$GATE/p4_final_verification.json"
+      - name: Seal first complete P4 evidence
+        run: |
+          cp replaymark/S2P4_MINIMAL_TRANSPORT_TIMER_DISCRIMINATOR.json "$GATE/"
+          cp replaymark/S2P4_MINIMAL_TRANSPORT_TIMER_EXECUTION.md "$GATE/"
+          git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
+          (cd "$GATE" && sha256sum * > SHA256SUMS)
+      - name: Upload first complete P4 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p4-minimal-transport-timer
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Cleanup
+        if: always()
+        working-directory: ${{ env.LAB }}
+        run: docker compose down -v --remove-orphans || true
+      - name: Enforce scientific validity
+        run: python -c 'import json,os; r=json.load(open(os.path.join(os.environ["GATE"],"p4_final_verification.json"))); assert r["verdict"]=="PASS"; print(r["scientific"]["classification"])'
