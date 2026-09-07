@@ -100,12 +100,22 @@ class E3bShadowRuntimeReuseCertificate:
             raise ValueError("semantic certificate contract binding disagrees with chain")
         if semantic.claim_fingerprint != self.claim_fingerprint:
             raise ValueError("semantic certificate claim binding disagrees with chain")
-        if semantic.observation.fingerprint() != pair.observation.fingerprint():
+
+        # Production bridge construction passes the exact frozen realized objects
+        # from ``pair`` into ``semantic``. Object identity therefore proves this
+        # local equality without reserializing and rehashing the same immutable
+        # value twice. Detached/reloaded objects retain the original content-
+        # addressed verification path and fail closed on disagreement.
+        if (
+            semantic.observation is not pair.observation
+            and semantic.observation.fingerprint() != pair.observation.fingerprint()
+        ):
             raise ValueError(
                 "semantic certificate is bound to a different realized observation"
             )
         if (
-            semantic.historical_action.fingerprint()
+            semantic.historical_action is not pair.historical_action
+            and semantic.historical_action.fingerprint()
             != pair.historical_action.fingerprint()
         ):
             raise ValueError(
