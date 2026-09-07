@@ -1,0 +1,63 @@
+name: ReplayMark three-valued adjudicator
+
+on:
+  push:
+    branches:
+      - replaymark-three-valued-adjudicator
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify bounded q compiler
+        run: python replaymark_verification/verify_bounded_q.py > /tmp/q_gate.json
+
+      - name: Verify q evidence image
+        run: |
+          mkdir -p /tmp/replaymark-three-valued-adjudicator
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-three-valued-adjudicator/evidence_image_gate.json
+
+      - name: Verify support envelope
+        run: |
+          python replaymark_verification/verify_support_envelope.py \
+            --out /tmp/replaymark-three-valued-adjudicator/support_envelope_gate.json
+
+      - name: Verify three-valued adjudicator against raw definition oracle
+        run: |
+          python replaymark_verification/verify_adjudicator.py \
+            --out /tmp/replaymark-three-valued-adjudicator/adjudicator_gate.json
+
+      - name: Seal adjudication gate
+        run: |
+          cp /tmp/q_gate.json /tmp/replaymark-three-valued-adjudicator/q_gate.json
+          sha256sum \
+            replaymark/adjudicator.py \
+            replaymark_oracle/adjudication_oracle.py \
+            replaymark_verification/verify_adjudicator.py \
+            /tmp/replaymark-three-valued-adjudicator/adjudicator_gate.json \
+            /tmp/replaymark-three-valued-adjudicator/support_envelope_gate.json \
+            /tmp/replaymark-three-valued-adjudicator/evidence_image_gate.json \
+            /tmp/replaymark-three-valued-adjudicator/q_gate.json \
+            > /tmp/replaymark-three-valued-adjudicator/SHA256SUMS
+          grep -q '"verdict": "PASS"' \
+            /tmp/replaymark-three-valued-adjudicator/adjudicator_gate.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-three-valued-adjudicator-gate
+          path: /tmp/replaymark-three-valued-adjudicator
+          if-no-files-found: error

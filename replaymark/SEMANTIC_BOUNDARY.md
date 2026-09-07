@@ -1,15 +1,22 @@
-# ReplayMark semantic boundary — support-envelope freeze
+# ReplayMark semantic boundary — three-valued adjudication freeze
 
-**Status:** bounded `q_{C,H}` compilation and q evidence-image compilation are frozen; exact deterministic `S_C^-(e)` / `S_C^+(e)` support-envelope compilation is implemented with an independent raw-definition oracle.  
+**Status:** bounded `q_{C,H}`, q evidence image, deterministic support envelope,
+and exact three-valued support adjudication are implemented with independent
+definition oracles.  
 **Original seed authority:** `replaymark-compiler-contract-seed@6da24cce48d1c2f6fe4bfabf4e01047e79b7e6eb`.  
 **Bounded-q authority:** `replaymark-bounded-q-compiler@b2b357ce009d26e56e4422a3d61aade57ca6064a`.  
 **Evidence-image authority:** `replaymark-q-evidence-image@f43c0c69b2eb8e62b762fec939386e82cc521b8a`.  
-**Current scope:** public semantic types, two-phase target semantics, bounded deterministic `q_{C,H}`, independent q oracle, extensional `q_{C,H}[Omega(e)]`, independent evidence-image oracle, and exact deterministic support envelopes.  
-**Still out of scope:** recorded-action adjudication, `VALID / INVALID / UNRESOLVED`, `CompiledContract` realization, maximal reuse guard `R*`, runtime gate insertion, replay/regeneration policy integration, BDD/bitset optimization, stochastic q compilation, and new live experiments.
+**Support-envelope authority:** `replaymark-support-envelope@c74929bf0a75a8a920fe951a18b694d82fc32e73`.  
+**Current scope:** semantic types, deterministic bounded predictive state,
+`q[Omega(e)]`, exact `S^- / S^+`, and `VALID / INVALID / UNRESOLVED` for one
+recorded claim-projected action.  
+**Still out of scope:** maximal reuse policy `R*`, `CompiledContract` concrete
+realization, runtime gate insertion, replay/regeneration policy integration,
+BDD/bitset optimization, stochastic q compilation, and new live experiments.
 
-## 1. Public semantic boundary remains small
+## 1. Public semantic boundary remains deliberately small
 
-The package root continues to export exactly six semantic types:
+The package root still exports exactly six semantic types:
 
 1. `ClaimSpec`
 2. `TargetModel`
@@ -18,28 +25,27 @@ The package root continues to export exactly six semantic types:
 5. `CompiledContract`
 6. `Verdict`
 
-Compiler stages, storage representations, runtime gates, substrate adapters, and
-verification oracles remain explicit submodules rather than public semantic
-types.
+Compiler stages, adjudicators, storage representations, adapters, and oracles are
+explicit submodules rather than additional root semantic types.
 
-The Replay-Sufficiency Factorization is now executable through:
+The executable Replay-Sufficiency Factorization now reaches:
 
-`claim -> projected actions -> q_{C,H} -> evidence image -> support envelope`
+`claim -> projected actions -> q_{C,H} -> evidence image -> support envelope -> three-valued adjudication`
 
-but **not yet** through adjudication or maximal certified reuse.
+but does **not** yet reach maximal certified reuse.
 
-## 2. Claim/action semantics
+## 2. Claim and recorded-action semantics
 
 `ClaimSpec` is normative: stable claim identity, exact consequential dimensions,
-claim-bound non-negative horizon, and consequence endpoint. Missing adapter
-coordinates fail closed rather than being guessed.
+claim-bound horizon, and consequence endpoint. Missing dimensions fail closed.
 
-`ProjectedAction` remains immutable and substrate-neutral. Home Assistant, MQTT,
-and thermostat vocabulary lives only in adapters/fixtures, not ReplayMark core.
+A recorded `ProjectedAction` may carry more adapter coordinates than the claim.
+Adjudication applies the exact sealed `ClaimSpec` before support membership is
+tested, so non-consequential coordinates cannot alter the scientific verdict.
 
-## 3. Two-phase `TargetModel`
+## 3. Two-phase target semantics
 
-One predictive step remains:
+One prediction step remains:
 
 ```text
 decision_state
@@ -48,10 +54,10 @@ post-decision state
     -- advance_distribution(future continuation) --> next decision_state
 ```
 
-This keeps current target evidence separate from future admitted continuation.
-Exact rational probabilities remain representable at the protocol boundary, but
-the production bounded-q compiler accepts only deterministic point masses until a
-stochastic finite-horizon compiler is independently proved.
+This prevents current evidence and future continuation from being conflated.
+Exact rational probabilities remain representable in `TargetModel`; production
+bounded-q compilation remains deterministic until a stochastic q compiler is
+separately proved.
 
 ## 4. Bounded `q_{C,H}`
 
@@ -63,160 +69,157 @@ and for `h >= 1`:
 
 `q_{C,h}(s) = (current output, q_{C,h-1}(next(s,u)) for every admitted u)`.
 
-Only `0..H` are computed; no hidden `H+1` convergence probe is allowed.
-`agentmark.minimize.quotient()` remains historical algorithmic precedent only,
-never ReplayMark `q_{C,H}`.
+Only layers `0..H` are computed. No hidden `H+1` convergence probe is permitted.
+The independent definition oracle enumerates continuation words and exact
+projected output-trace laws instead of reusing production refinement.
 
-The independent q oracle enumerates continuation words and exact projected
-output-trace laws rather than reusing production refinement.
+## 5. Evidence image
 
-## 5. Evidence semantics and evidence image
-
-Each `EvidenceSpec` token denotes exactly the nonempty finite set `Omega(e)` of
-target decision states/histories still compatible with retained evidence.
-
-The q evidence image is:
+Every `EvidenceSpec` token denotes the nonempty finite compatible-world set
+`Omega(e)`. The evidence image is:
 
 `I_{C,h}(e) := q_{C,h}[Omega(e)]`.
 
-Production maps each raw compatible state into an already-computed q block and
-seals the result to quotient, claim, evidence, and q depth. Unknown target states
-or deeper uncompiled layers fail closed.
+Production maps raw compatible worlds to already-computed q blocks and binds the
+artifact to quotient, claim, evidence, and depth. The independent oracle derives
+the q relation from the continuation-word definition and then takes the literal
+set image.
 
-The evidence-image oracle derives q from the independent definition oracle and
-then takes the literal set image of `Omega(e)`. It does not import production q
-or evidence-image code.
+## 6. Support envelope
 
-## 6. New stage: support envelope
-
-For every raw compatible world `w`, let `S_C(w)` be the positive support of its
-current `ClaimSpec`-projected target decision. Define:
+For raw compatible world `w`, let `S_C(w)` be its positive current projected
+support. The exact envelope is:
 
 `S_C^-(e) := intersection_{w in Omega(e)} S_C(w)`
 
 `S_C^+(e) := union_{w in Omega(e)} S_C(w)`.
 
-`S^-` is guaranteed support; `S^+` is possible support.
+`S^-` is guaranteed support and `S^+` is possible support.
 
-The current branch compiles exactly these two sets. It does **not** inspect a
-recorded action `z` and therefore does not produce a replay verdict.
+Because deterministic q layers refine `q_{C,0}`, current support is constant
+inside every valid q block. Production checks this invariant and can therefore
+compile exact envelopes from the sealed q/evidence artifacts without re-querying
+the target. The independent support oracle bypasses production q/evidence/support
+code and computes intersection/union directly over raw target worlds.
 
-## 7. Quotient-preservation bridge
+## 7. New stage: exact three-valued adjudication
 
-The production bounded-q pipeline is deterministic. Each raw world therefore has
-singleton current projected support `{z}`. Every q layer refines `q_{C,0}`, and
-`q_{C,0}` groups worlds by exactly that current projected action.
+Given recorded claim-projected action `z`, the adjudicator implements exactly:
 
-Therefore support is constant within every valid q block and:
+- `VALID` iff `z in S_C^-(e)`;
+- `INVALID` iff `z notin S_C^+(e)`;
+- `UNRESOLVED` iff `z in S_C^+(e) \\ S_C^-(e)`.
 
-`intersection_{w in Omega(e)} S_C(w)`
+These cases are mutually exclusive and exhaustive because `S^- subseteq S^+`.
 
-`= intersection_{q in q[Omega(e)]} S_C(q)`
+`UNRESOLVED` means semantic underdetermination under the current evidence. It is
+not an error, confidence level, or probabilistic guess.
 
-with the analogous equality for union.
+The adjudicator does not choose reuse or regeneration. Verdict and execution
+policy remain separate objects.
 
-Production derives one explicit support entry per q block and checks that all
-block members really share the same current projected action. A violation fails
-closed. This prevents an implementation shortcut from silently using q block IDs
-without proving that the support semantics survived quotienting.
+## 8. Production adjudication artifact
 
-## 8. Support-envelope artifact binding
+`replaymark/adjudicator.py` consumes:
 
-`replaymark/support_envelope.py` consumes only:
+- a sealed `SupportEnvelope`;
+- the exact `ClaimSpec` matching the envelope fingerprint;
+- one evidence token; and
+- one recorded `ProjectedAction`.
 
-- a sealed `BoundedQuotient`; and
-- a `QEvidenceImage` compiled from that exact quotient.
+Before membership testing it checks:
 
-It records quotient, claim, evidence, and evidence-image fingerprints; q depth;
-block-level projected supports; and token-level guaranteed/possible support.
+- nonempty q image;
+- nonempty `S^+`;
+- no duplicate support actions;
+- `S^- subseteq S^+`; and
+- exact claim-dimensionality of every support action.
 
-A foreign evidence image, unknown q block, malformed current-action table, or q
-block whose members disagree on current projected support is rejected.
+The returned immutable `Adjudication` records support-envelope, claim, and
+evidence fingerprints; q depth; evidence token; projected recorded action;
+membership in `S^-` and `S^+`; and the three-valued `Verdict`.
 
-No `VALID`, `INVALID`, `UNRESOLVED`, regeneration, or reuse method is exposed.
+The dataclass validates its own membership/verdict truth table. No replay policy
+method is exposed.
 
-## 9. Independent support definition oracle
+## 9. Completely independent adjudication oracle
 
-`replaymark_oracle/support_envelope_oracle.py` bypasses production q,
-evidence-image, and support-envelope code.
+`replaymark_oracle/adjudication_oracle.py` imports none of the production q,
+evidence-image, support-envelope, or adjudicator modules.
 
-For each raw `w in Omega(e)` it directly evaluates
-`TargetModel.current_distribution(w)`, retains only positive probability mass,
-projects each action through `ClaimSpec`, forms literal `S_C(w)`, and computes
-intersection/union.
+It directly evaluates each raw `w in Omega(e)` using
+`TargetModel.current_distribution(w)`, keeps positive-mass actions, applies the
+claim projection, and records whether each compatible world supports `z`.
 
-Because this definition depends only on support, not deterministic selection, the
-oracle can evaluate finite stochastic current decisions even though the current
-production q pipeline cannot. This preserves the theory's actual scope while
-keeping production claims narrower and proved.
+- all worlds support `z` -> `VALID`;
+- no worlds support `z` -> `INVALID`;
+- both supporting and excluding worlds exist -> `UNRESOLVED`.
+
+The raw supporting/excluding world sets exist only as oracle diagnostics.
+Production adjudication does not depend on them.
+
+The oracle can evaluate finite stochastic current supports. Production remains
+bounded by the deterministic q pipeline.
 
 ## 10. Canonical separating examples
 
-The Better Thermostat N2b pair demonstrates that predictive ambiguity and current
-support ambiguity are not the same thing:
+The Better Thermostat N2b pair has predictive image cardinality `1 -> 2 -> 2`
+for H=0,1,2, but both worlds currently support `SET_AWAY`; the recorded
+`SET_AWAY` is therefore `VALID` at every tested depth.
 
-- q evidence-image cardinality: `1 -> 2 -> 2` for depths 0, 1, 2;
-- support envelope at all three depths: `S^- = S^+ = {SET_AWAY}`.
+Evidence mixing one `SET_HOME` world and one at-target `NO_ACTION` world gives
+`S^- = empty`, `S^+ = {SET_HOME, NO_ACTION}`. Thus recorded `SET_HOME` and
+`NO_ACTION` are both `UNRESOLVED`, while recorded `SET_AWAY` is `INVALID`.
 
-Thus a longer consequence horizon can require more predictive target information
-while still leaving the current historical action support-certifiable.
+Stronger evidence selecting only the `SET_HOME` world makes `SET_HOME` `VALID`
+and `NO_ACTION` `INVALID`.
 
-A second thermostat evidence set admitting one non-target `SET_HOME` world and
-one at-target `NO_ACTION` world yields:
-
-- `S^- = empty`;
-- `S^+ = {NO_ACTION, SET_HOME}`.
-
-Stronger evidence selecting the non-target world yields the exact singleton
-`S^- = S^+ = {SET_HOME}`.
-
-The stochastic definition-only fixture uses supports `{A,B}` and `{B,C}` and
-returns exactly `S^-={B}`, `S^+={A,B,C}`.
+An oracle-only stochastic fixture with world supports `{A,B}` and `{B,C}` gives:
+`B -> VALID`, `A -> UNRESOLVED`, and an explicit zero-mass action
+`ZERO -> INVALID`.
 
 ## 11. Verification independence wall
 
-The layers remain deliberately distinct:
+The layers remain intentionally distinct:
 
-- production bounded q: `replaymark/q_compiler.py`;
-- q definition oracle: `replaymark_oracle/definition_q_oracle.py`;
+- production q: `replaymark/q_compiler.py`;
+- q oracle: `replaymark_oracle/definition_q_oracle.py`;
 - production evidence image: `replaymark/evidence_image.py`;
 - evidence-image oracle: `replaymark_oracle/evidence_image_oracle.py`;
 - production support envelope: `replaymark/support_envelope.py`;
-- raw-definition support oracle: `replaymark_oracle/support_envelope_oracle.py`;
-- historical/live scientific validators remain outside production.
+- raw support oracle: `replaymark_oracle/support_envelope_oracle.py`;
+- production adjudicator: `replaymark/adjudicator.py`;
+- raw adjudication oracle: `replaymark_oracle/adjudication_oracle.py`.
 
-Production support code does not import any oracle. The support oracle does not
-import production q/evidence/support compilers.
+Production adjudication imports the support artifact but no oracle. The
+adjudication oracle imports only the public semantic contracts and directly
+queries raw target semantics.
 
 ## 12. Admitted verification
 
-This branch is closed only if all prior gates remain green and the new gate also
-passes:
+This branch is closed only if all previous gates remain green and the new gate
+also passes:
 
-- production-vs-raw-definition agreement for thermostat support envelopes at q
-  depths 0, 1, 2;
-- exact N2b `1 -> 2 -> 2` predictive-image refinement with invariant singleton
-  current support;
-- exact overwritten-preset compression and at-target disagreement cases;
-- support-envelope monotonicity under stronger evidence;
-- stochastic `{A,B}` / `{B,C}` oracle overlap;
-- hard fingerprint binding between quotient and evidence image;
-- canonical recompilation stability;
-- exhaustive deterministic differential verification across all **5,832**
-  complete 3-state / 2-continuation / 2-output machines at H=2 and all seven
-  nonempty evidence subsets, for **40,824** production-vs-definition envelopes;
-- every strict nonempty evidence-refinement relation among those subsets,
-  totaling **69,984** monotonicity checks.
+- production-vs-raw-oracle agreement for thermostat VALID, INVALID, and
+  UNRESOLVED cases;
+- N2b `SET_AWAY` remaining VALID while predictive q image refines `1 -> 2 -> 2`;
+- exact mixed-world UNRESOLVED and outside-`S^+` INVALID cases;
+- stronger-evidence transition to exact VALID/INVALID outcomes;
+- invariance to extra non-claim recorded-action coordinates;
+- fail-closed foreign claim, missing required action dimensions, unknown evidence
+  token, and malformed `S^- not subseteq S^+` artifact;
+- stochastic oracle trichotomy with zero-mass exclusion; and
+- exhaustive differential verification over all **5,832** complete
+  3-state / 2-continuation / 2-output deterministic machines at H=2, all seven
+  nonempty evidence subsets, and both recorded output actions: **81,648** exact
+  production-vs-definition adjudications, with all three verdicts required to
+  occur.
 
-## 13. Next boundary, not crossed here
+## 13. Next boundary, deliberately not crossed here
 
-Only after this support-envelope stage is frozen may a later branch take a
-recorded projected action `z` and implement the exact trichotomy:
+Only after adjudication is frozen may a later branch implement the theorem-induced
+maximal certified reuse rule `R*`.
 
-- `z in S^-`;
-- `z notin S^+`;
-- `z in S^+ \\ S^-`.
-
-That is the natural `VALID / INVALID / UNRESOLVED` adjudication layer, but it must
-have its own independent oracle. The maximally permissive reuse rule `R*` remains
-one further step after adjudication rather than being smuggled into this branch.
+That next stage may map semantic verdicts into execution choices, but it must not
+retroactively alter the adjudication semantics frozen here. `CompiledContract`
+realization and live E3b intervention remain later steps.
