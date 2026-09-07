@@ -1,0 +1,141 @@
+name: ReplayMark E3b same-task correlation
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-e3b-same-task
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e3b-same-task-correlation-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile same-task increment
+        run: |
+          python -m py_compile \
+            replaymark/runtime_realization.py \
+            replaymark/runtime_e3b_observation.py \
+            replaymark/runtime_e3b_action.py \
+            replaymark/runtime_e3b_correlation.py \
+            replaymark_oracle/e3b_observation_oracle.py \
+            replaymark_oracle/e3b_action_oracle.py \
+            replaymark_oracle/e3b_correlation_oracle.py \
+            replaymark_verification/verify_runtime_realization_observation.py \
+            replaymark_verification/verify_runtime_realization_action.py \
+            replaymark_verification/verify_runtime_e3b_correlation.py
+
+      - name: Verify semantic seed remains frozen
+        run: python replaymark/verify_seed.py
+
+      - name: Reverify CompiledContract API freeze
+        run: python replaymark_verification/verify_compiled_contract_api.py
+
+      - name: Reverify E3b observation realization
+        run: |
+          mkdir -p /tmp/replaymark-e3b-same-task
+          python replaymark_verification/verify_runtime_realization_observation.py \
+            --out /tmp/replaymark-e3b-same-task/runtime_observation_gate.json
+
+      - name: Reverify E3b historical-action realization
+        run: |
+          python replaymark_verification/verify_runtime_realization_action.py \
+            --out /tmp/replaymark-e3b-same-task/runtime_action_gate.json
+
+      - name: Verify E3b same-task correlation
+        run: |
+          python replaymark_verification/verify_runtime_e3b_correlation.py \
+            --out /tmp/replaymark-e3b-same-task/same_task_gate.json
+
+      - name: Seal same-task gate
+        env:
+          GATE_DIR: /tmp/replaymark-e3b-same-task
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          gate_dir = Path(os.environ["GATE_DIR"])
+          expected = (
+              "runtime_observation_gate.json",
+              "runtime_action_gate.json",
+              "same_task_gate.json",
+          )
+          for name in expected:
+              path = gate_dir / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing/empty gate output: {path}")
+              parsed = json.loads(path.read_text(encoding="utf-8"))
+              if parsed.get("verdict") != "PASS":
+                  raise SystemExit(f"gate is not PASS: {name}")
+
+          same = json.loads((gate_dir / "same_task_gate.json").read_text(encoding="utf-8"))
+          if same.get("schema") != "replaymark.runtime-e3b-same-task-gate.v1":
+              raise SystemExit("unexpected E3b same-task gate schema")
+          if same.get("runtime_reuse_bridge") != "NOT_IMPLEMENTED":
+              raise SystemExit("same-task increment must not implement runtime reuse bridge")
+          if same.get("execution_policy") != "NOT_IMPLEMENTED":
+              raise SystemExit("same-task increment must not implement execution policy")
+
+          sources = (
+              Path("replaymark/runtime_realization.py"),
+              Path("replaymark/runtime_e3b_observation.py"),
+              Path("replaymark/runtime_e3b_action.py"),
+              Path("replaymark/runtime_e3b_correlation.py"),
+              Path("replaymark/E3B_SAME_TASK_CORRELATION.md"),
+              Path("replaymark_oracle/e3b_observation_oracle.py"),
+              Path("replaymark_oracle/e3b_action_oracle.py"),
+              Path("replaymark_oracle/e3b_correlation_oracle.py"),
+              Path("replaymark_verification/verify_runtime_realization_observation.py"),
+              Path("replaymark_verification/verify_runtime_realization_action.py"),
+              Path("replaymark_verification/verify_runtime_e3b_correlation.py"),
+              Path("replaymark/compiled_contract.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/ladder.py"),
+              Path("agentmark_e3b_lab/e3_mqtt/app/device.py"),
+          )
+          for path in sources:
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing/empty source authority: {path}")
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          (gate_dir / "GATE_STATUS").write_text(
+              "schema=replaymark.runtime-e3b-same-task-gate.v1\n"
+              f"head={os.environ['GITHUB_SHA']}\n"
+              "runtime_boundary=PASS\n"
+              "e3b_observation_realization=PASS\n"
+              "e3b_historical_action_realization=PASS\n"
+              "e3b_same_task_correlation=PASS\n"
+              "runtime_reuse_bridge=NOT_IMPLEMENTED\n"
+              "execution_policy=NOT_IMPLEMENTED\n",
+              encoding="utf-8",
+          )
+          (gate_dir / "SOURCE_SHA256SUMS").write_text(
+              "".join(f"{digest(path)}  {path.as_posix()}\n" for path in sources),
+              encoding="utf-8",
+          )
+          (gate_dir / "GATE_SHA256SUMS").write_text(
+              "".join(f"{digest(gate_dir / name)}  {name}\n" for name in expected),
+              encoding="utf-8",
+          )
+          print(f"SEALED E3b same-task gate for {os.environ['GITHUB_SHA']}")
+          PY
+
+      - name: Upload sealed same-task artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-runtime-e3b-same-task-gate
+          path: /tmp/replaymark-e3b-same-task
+          if-no-files-found: error
