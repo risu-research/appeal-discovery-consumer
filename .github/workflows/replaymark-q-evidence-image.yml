@@ -1,0 +1,51 @@
+name: ReplayMark q evidence image
+
+on:
+  push:
+    branches:
+      - replaymark-q-evidence-image
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify semantic seed
+        run: python replaymark/verify_seed.py
+
+      - name: Verify bounded q compiler
+        run: python replaymark_verification/verify_bounded_q.py > /tmp/q_gate.json
+
+      - name: Verify q evidence image against definition oracle
+        run: |
+          mkdir -p /tmp/replaymark-evidence-image
+          python replaymark_verification/verify_evidence_image.py \
+            --out /tmp/replaymark-evidence-image/evidence_image_gate.json
+
+      - name: Seal evidence-image gate
+        run: |
+          cp /tmp/q_gate.json /tmp/replaymark-evidence-image/q_gate.json
+          sha256sum \
+            replaymark/evidence_image.py \
+            replaymark_oracle/evidence_image_oracle.py \
+            replaymark_verification/verify_evidence_image.py \
+            /tmp/replaymark-evidence-image/evidence_image_gate.json \
+            /tmp/replaymark-evidence-image/q_gate.json \
+            > /tmp/replaymark-evidence-image/SHA256SUMS
+          grep -q '"verdict": "PASS"' \
+            /tmp/replaymark-evidence-image/evidence_image_gate.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-q-evidence-image-gate
+          path: /tmp/replaymark-evidence-image
+          if-no-files-found: error
