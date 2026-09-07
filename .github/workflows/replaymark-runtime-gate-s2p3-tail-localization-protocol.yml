@@ -1,0 +1,49 @@
+name: ReplayMark Gate S2-P3 embedded-timestamp tail localization protocol freeze
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - replaymark-runtime-gate-s2p3-embedded-tail-localization-protocol
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s2p3-protocol-freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Static compile P3 protocol verifier
+        run: |
+          python -m py_compile \
+            replaymark_verification/verify_s2p3_embedded_timestamp_tail_localization_protocol.py
+
+      - name: Verify prospective P3 protocol freeze
+        run: |
+          mkdir -p /tmp/replaymark-s2p3-protocol
+          python replaymark_verification/verify_s2p3_embedded_timestamp_tail_localization_protocol.py \
+            --out /tmp/replaymark-s2p3-protocol/p3_protocol_gate.json
+
+      - name: Seal P3 protocol
+        run: |
+          cp replaymark/S2P3_EMBEDDED_TIMESTAMP_TAIL_LOCALIZATION.json /tmp/replaymark-s2p3-protocol/
+          cp replaymark/S2P3_EMBEDDED_TIMESTAMP_TAIL_LOCALIZATION.md /tmp/replaymark-s2p3-protocol/
+          git show --no-patch --format=fuller HEAD > /tmp/replaymark-s2p3-protocol/SEAL_COMMIT.txt
+          sha256sum /tmp/replaymark-s2p3-protocol/* > /tmp/replaymark-s2p3-protocol/SHA256SUMS
+
+      - name: Upload P3 protocol seal
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s2p3-embedded-tail-localization-protocol
+          path: /tmp/replaymark-s2p3-protocol
+          if-no-files-found: error
+          retention-days: 90

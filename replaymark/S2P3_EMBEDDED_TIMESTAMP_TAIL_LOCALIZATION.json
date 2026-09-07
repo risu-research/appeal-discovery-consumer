@@ -1,0 +1,131 @@
+{
+  "anti_repair": {
+    "D_star_permitted": false,
+    "Q2_failure_remains_authoritative": true,
+    "first_complete_P3_execution_is_authoritative": true,
+    "later_exact_repeats_are_replication_only": true,
+    "no_80ms_threshold_relaxation": true,
+    "no_broker_version_change": true,
+    "no_candidate_insertion_after_freeze": true,
+    "no_device_code_change": true,
+    "no_new_W_star": true,
+    "no_qos_change": true,
+    "no_target_execution": true,
+    "no_target_informed_branching": true,
+    "no_wave_rehabilitation": true
+  },
+  "authorities": {
+    "device_blob": "27240e65cb8e1a7d788cc5dea8484cbad8ec6653",
+    "device_timestamp_field": "ts_mono_ns",
+    "experiment_blob": "a5c7483b198bc03f251d31b75750c27fad1f2d29",
+    "p2_protocol_head": "22ec2da2e62c1fa7e9d1a5e02ff676188d90ab5e",
+    "q2_artifact": {
+      "id": 10031766440,
+      "sha256": "159abbf5e99ecd8ec4e051824cfb63fd59918ac539009821447d89e616377cdd"
+    },
+    "q2_execution_head": "79577a00e78aa61a5d92c6d608a9f64601bdb1d9",
+    "q2_failure_seal_head": "0b24288d85958fd7b4f3dcd418fd7dda85bd4efc",
+    "q2_workflow_run": 34158327040
+  },
+  "claims_not_made": [
+    "TCP cause",
+    "MQTT cause",
+    "kernel scheduling cause",
+    "broker cause",
+    "global performance optimum",
+    "Q2 rehabilitation",
+    "target mixture guarantee",
+    "new ReplayMark semantic theorem"
+  ],
+  "clock_domain_qualification": {
+    "capture_device_time_namespace_link": true,
+    "capture_device_timens_offsets": true,
+    "capture_runner_time_namespace_link": true,
+    "capture_runner_timens_offsets": true,
+    "if_any_check_fails": "CLOCK_DOMAIN_INVALID; no cross-process segment attribution may be claimed",
+    "require_device_monotonic_offset_zero": true,
+    "require_device_timestamp_not_after_runner_receive_for_every_row": true,
+    "require_runner_monotonic_offset_zero": true
+  },
+  "decision_after_P3": {
+    "if_CLOCK_DOMAIN_INVALID": "do not use cross-process timestamp subtraction; fall back to explicit round-trip probes or an isolated execution environment",
+    "if_MIXED_OR_UNLOCALIZED": "use one further prospectively frozen minimal discriminator before any target experiment",
+    "if_POST_DEVICE_DOMINANT": "consider a new prospective boundary-aligned calibration protocol that stops treating the Q2 80-ms p99 guard as a source-device feasibility condition; do not alter Q2 retroactively",
+    "if_PRE_DEVICE_DOMINANT": "investigate offered-load/forward-path source feasibility before any target experiment"
+  },
+  "gate": "S2P3_EMBEDDED_TIMESTAMP_TAIL_LOCALIZATION_PROTOCOL",
+  "instrumentation": {
+    "additive_identity": "end_to_end_completion = publish_call_overhead + forward_plus_device + post_device_observation",
+    "device_payload_timestamp_must_not_be_synthesized": true,
+    "frozen_device_code_unchanged": true,
+    "required_raw_timestamps": [
+      "offer_mono_ns",
+      "task_start_mono_ns",
+      "act1_publish_call_mono_ns",
+      "act1_puback_mono_ns",
+      "device_state_publish_mono_ns_from_payload_ts_mono_ns",
+      "state_on_recv_mono_ns"
+    ],
+    "required_segments": {
+      "end_to_end_completion_ms": "state_on_recv - task_start",
+      "forward_plus_device_ms": "device_state_publish - act1_publish_call",
+      "post_device_observation_ms": "state_on_recv - device_state_publish",
+      "puback_latency_ms": "act1_puback - act1_publish_call",
+      "publish_call_overhead_ms": "act1_publish_call - task_start",
+      "scheduler_start_lateness_ms": "task_start - offer"
+    },
+    "runner_receive_timestamp_remains_observation_boundary": true
+  },
+  "macro_purpose": {
+    "avoid_kernel_or_packet_tracing_as_first_resort": true,
+    "avoid_load_hunting": true,
+    "avoid_target_probe": true,
+    "result_may_justify_a_later_boundary-aligned_protocol_but_does_not_change_Q2": true,
+    "use_already_emitted_frozen_device_timestamp": true
+  },
+  "next_gate": "S2P3E_EMBEDDED_TIMESTAMP_TAIL_LOCALIZATION_EXECUTION",
+  "reporting": {
+    "also_report_max": true,
+    "classification_is_diagnostic_not_promotion": true,
+    "descriptive_localization_rule": {
+      "CLOCK_DOMAIN_INVALID": "any clock-domain qualification fails",
+      "MIXED_OR_UNLOCALIZED": "all clock checks pass but neither dominance rule holds",
+      "POST_DEVICE_DOMINANT": "all clock checks pass AND pooled post-device p99 >= 4 * pooled forward+device p99 AND pooled top-tail median post-device fraction >= 0.75",
+      "PRE_DEVICE_DOMINANT": "all clock checks pass AND pooled forward+device p99 >= 4 * pooled post-device p99 AND pooled top-tail median forward+device fraction >= 0.75"
+    },
+    "quantiles": [50, 95, 99],
+    "report_all_rows_pooled": true,
+    "report_per_cell": true,
+    "report_per_wave_pooled": true,
+    "tail_definition": "per-cell top 5 percent of end_to_end_completion_ms, inclusive of the empirical p95 boundary",
+    "tail_fraction_metrics": [
+      "forward_plus_device_ms / end_to_end_completion_ms",
+      "post_device_observation_ms / end_to_end_completion_ms"
+    ]
+  },
+  "schema": "replaymark.s2p3-embedded-timestamp-tail-localization-protocol.v1",
+  "scientific_question": "Does the Q2 source completion tail arise predominantly before the frozen device publishes its state, or after device publication on the observation-return path?",
+  "source_only_execution": {
+    "act2_candidate_constructed": false,
+    "all_cells_required": true,
+    "broker_and_device_restart_per_round": true,
+    "cells": 9,
+    "fallback_or_regeneration": false,
+    "fresh_task_namespace_per_cell": true,
+    "no_early_stop": true,
+    "screening_schedule": [
+      {"ordered_wave_sizes": [16, 8, 4], "round": 0},
+      {"ordered_wave_sizes": [8, 4, 16], "round": 1},
+      {"ordered_wave_sizes": [4, 16, 8], "round": 2}
+    ],
+    "shifted_target_executed": false,
+    "state_delay_ms": 0,
+    "task_timeout_ms": 1000,
+    "tasks_per_cell": 192,
+    "total_rows": 1728,
+    "verify_ms": 100.0,
+    "wave_period_ms": 300.0,
+    "waves": [16, 8, 4]
+  },
+  "status": "FROZEN_BEFORE_P3_SOURCE_EXECUTION"
+}
