@@ -1,0 +1,81 @@
+name: ReplayMark Gate S3-C1 implementation conformance
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-gate-s3c1-implementation-conformance-v2
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s3c1-implementation-conformance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GATE: /tmp/replaymark-s3c1-implementation-conformance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch frozen cross-history queue authorities only
+        run: |
+          git fetch --no-tags --depth=1 origin 23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d
+          git fetch --no-tags --depth=1 origin ac20890bb4aa926e439802510de3723b74591c94
+
+      - name: Static compile frozen implementation candidate
+        run: |
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py \
+            agentmark_e3b_lab/e3_mqtt/app/s3c1_direct_native.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py \
+            replaymark_verification/verify_s3c1_paired_deployment.py \
+            replaymark_verification/verify_s3c1_implementation_conformance.py
+
+      - name: Reject Paho v2 ReasonCode integer coercion regression
+        run: |
+          set -euo pipefail
+          files=(
+            agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py
+          )
+          if grep -nF 'int(reason_code)' "${files[@]}"; then
+            echo 'Paho Callback API v2 ReasonCode must not be coerced with int()' >&2
+            exit 41
+          fi
+          test "$(grep -hFc 'reason_code != 0' "${files[@]}")" -eq 3
+
+      - name: Prove implementation conformance without live execution
+        run: |
+          mkdir -p "$GATE"
+          python replaymark_verification/verify_s3c1_implementation_conformance.py \
+            --out "$GATE/s3c1_implementation_conformance.json"
+
+      - name: Seal implementation-conformance evidence
+        if: always()
+        run: |
+          cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.json "$GATE/" || true
+          cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.md "$GATE/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py "$GATE/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/s3c1_direct_native.py "$GATE/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py "$GATE/" || true
+          cp replaymark_verification/verify_s3c1_paired_deployment.py "$GATE/" || true
+          cp replaymark_verification/verify_s3c1_implementation_conformance.py "$GATE/" || true
+          git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
+          git diff --name-status HEAD^ HEAD > "$GATE/IMPLEMENTATION_DELTA.txt"
+          sha256sum "$GATE"/* > "$GATE/SHA256SUMS"
+
+      - name: Upload implementation-conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s3c1-implementation-conformance-v2
+          path: ${{ env.GATE }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
