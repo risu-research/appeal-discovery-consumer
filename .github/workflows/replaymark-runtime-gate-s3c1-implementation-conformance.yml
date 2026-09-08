@@ -3,7 +3,7 @@ name: ReplayMark Gate S3-C1 implementation conformance
 on:
   push:
     branches:
-      - replaymark-runtime-gate-s3c1-implementation-conformance
+      - replaymark-runtime-gate-s3c1-implementation-conformance-v2
 
 permissions:
   contents: read
@@ -37,6 +37,19 @@ jobs:
             replaymark_verification/verify_s3c1_paired_deployment.py \
             replaymark_verification/verify_s3c1_implementation_conformance.py
 
+      - name: Reject Paho v2 ReasonCode integer coercion regression
+        run: |
+          set -euo pipefail
+          files=(
+            agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py
+          )
+          if grep -nF 'int(reason_code)' "${files[@]}"; then
+            echo 'Paho Callback API v2 ReasonCode must not be coerced with int()' >&2
+            exit 41
+          fi
+          test "$(grep -hFc 'reason_code != 0' "${files[@]}")" -eq 3
+
       - name: Prove implementation conformance without live execution
         run: |
           mkdir -p "$GATE"
@@ -61,7 +74,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: replaymark-gate-s3c1-implementation-conformance
+          name: replaymark-gate-s3c1-implementation-conformance-v2
           path: ${{ env.GATE }}
           if-no-files-found: error
           retention-days: 90
