@@ -144,7 +144,7 @@ class OnlineLedger:
             raise TimeoutError("online ledger subscriptions were not acknowledged")
 
     def _on_connect(self, c, _userdata, _flags, reason_code, _properties) -> None:
-        if int(reason_code) != 0:
+        if reason_code != 0:
             return
         c.subscribe(
             [
@@ -276,7 +276,7 @@ class PersistentArmCollector:
         self.port = port
 
     def _on_connect(self, c, _userdata, flags, reason_code, _properties) -> None:
-        if int(reason_code) != 0:
+        if reason_code != 0:
             return
         if self._prime:
             c.subscribe([(topic, 1) for topic in self.filters])
