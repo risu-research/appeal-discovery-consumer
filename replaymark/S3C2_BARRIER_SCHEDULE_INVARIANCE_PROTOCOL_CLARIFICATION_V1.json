@@ -1,0 +1,92 @@
+{
+  "schema": "replaymark.s3c2-barrier-schedule-invariance-protocol-clarification.v1",
+  "status": "FROZEN_PRE_IMPLEMENTATION_PRE_S3C2_LIVE_TARGET_EXPOSURE",
+  "purpose": "Close notation-level schedule ambiguities in the already-frozen S3-C2 protocol before any S3-C2 implementation conformance or live execution. This clarification does not alter the scientific question, matrix, semantic boundary, broker endpoint, gap set, promotion criteria, or known S3-C1 disclosure.",
+  "base_protocol": {
+    "commit": "40bd3e994dd83f7554fb1d05f192707ca9bf996c",
+    "blob": "ba83cdf78e9109ab0c7dcfe1d04bb11dd89880c5",
+    "path": "replaymark/S3C2_BARRIER_SCHEDULE_INVARIANCE_PROTOCOL.json"
+  },
+  "outcome_hygiene": {
+    "s3c1_outcomes_known_and_disclosed": true,
+    "s3c2_live_outcomes_observed_before_this_clarification": false,
+    "s3c2_implementation_present_before_this_clarification": false,
+    "clarification_may_not_be_changed_after_s3c2_implementation_conformance_begins": true
+  },
+  "canonical_schedule_constants": {
+    "seed_ascii": "fd5b25ae05235eb460f426c716e1835783ced32e00ae81c7b67f24d09b83d596",
+    "profiles": [
+      "BARRIER_IMMEDIATE",
+      "BARRIER_JITTERED"
+    ],
+    "gap_set_ms_integer": [
+      0,
+      125,
+      250,
+      500
+    ],
+    "nanoseconds_per_millisecond": 1000000
+  },
+  "canonical_decimal": {
+    "definition": "ASCII base-10 representation of a non-negative integer with no sign, no decimal point, no leading zero except the single character '0', and no surrounding whitespace.",
+    "examples": {
+      "0": "0",
+      "125": "125",
+      "250": "250",
+      "500": "500"
+    }
+  },
+  "jitter_gap_function": {
+    "cell_key": "<seed_ascii>|<replica>|<batch_size>|<trial>",
+    "candidate_digest_preimage": "<cell_key>|gap|<canonical_decimal(gap_ms)>",
+    "digest": "SHA256 over exact UTF-8 bytes of the preimage, rendered as lowercase hexadecimal for ordering",
+    "permutation": "Sort (digest_hex, gap_ms) pairs lexicographically by digest_hex and then numerically by gap_ms. The resulting four gap_ms values are the cell permutation.",
+    "wave_assignment": "For BARRIER_JITTERED, requested gap for a transition after wave_index w is permutation[w mod 4]. Only nonterminal-wave transitions consume a requested gap. BARRIER_IMMEDIATE always requests 0 ms.",
+    "first_wave": "The first wave has no predecessor transition and therefore no pre-wave schedule gap."
+  },
+  "profile_order_function": {
+    "digest_preimage": "<seed_ascii>|order|<replica>|<batch_size>|<trial>",
+    "digest": "SHA256 over exact UTF-8 bytes of the preimage.",
+    "least_significant_bit": "bit 0 of digest byte 31 (the final byte of the 32-byte SHA256 digest)",
+    "mapping": {
+      "0": [
+        "BARRIER_IMMEDIATE",
+        "BARRIER_JITTERED"
+      ],
+      "1": [
+        "BARRIER_JITTERED",
+        "BARRIER_IMMEDIATE"
+      ]
+    }
+  },
+  "transition_timing": {
+    "quiescence_ns": "post_decision_quiescence_mono_ns of the predecessor wave",
+    "requested_gap_ns": "requested_gap_ms * 1000000 exactly",
+    "eligible_ns": "quiescence_ns + requested_gap_ns exactly",
+    "disposition_precedence": [
+      "if next_wave_actual_start_mono_ns < quiescence_ns => BEFORE_QUIESCENCE",
+      "else if next_wave_actual_start_mono_ns < eligible_ns => BEFORE_REQUIRED_GAP",
+      "else => ADMISSIBLE"
+    ],
+    "exact_boundary_is_admissible": true,
+    "host_start_lateness_after_eligibility_ns": "max(0, next_wave_actual_start_mono_ns - eligible_ns)",
+    "post_barrier_observed_gap_ns": "next_wave_actual_start_mono_ns - quiescence_ns; negative values remain negative evidence of a barrier violation and may not be clamped"
+  },
+  "counterfactual_s3c1_metric": {
+    "definition": "For each nonterminal S3-C2 wave, counterfactual_s3c1_500ms_overrun is true iff post_decision_quiescence_mono_ns - wave_actual_start_mono_ns > 500000000.",
+    "strict_boundary": "Exactly 500000000 ns is false; 500000001 ns is true.",
+    "descriptive_only": true,
+    "may_affect_dispatch": false,
+    "may_affect_inclusion": false,
+    "may_affect_promotion": false
+  },
+  "forbidden_interpretations": [
+    "Treating implementation language defaults as authority for an unspecified mapping",
+    "Changing the profile-bit mapping after any S3-C2 conformance or live result",
+    "Changing canonical decimal rendering after any S3-C2 conformance or live result",
+    "Using host lateness after eligibility as a scientific failure",
+    "Using the counterfactual S3-C1 metric to adapt pacing",
+    "Representing this clarification as a repair or PASS of S3-C1"
+  ],
+  "next_only_if_exact": "S3-C2 implementation conformance must be an exact child of this clarification authority and must independently reconstruct every schedule function above before any S3-C2 live target exposure."
+}
