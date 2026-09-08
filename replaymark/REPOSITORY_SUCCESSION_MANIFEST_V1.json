@@ -1,0 +1,81 @@
+{
+  "schema": "replaymark.repository-succession-manifest.v1",
+  "status": "FROZEN_BEFORE_S3C2_LIVE_EXECUTION",
+  "decision": "MIGRATE_REPLAYMARK_TO_DEDICATED_SUCCESSOR_REPOSITORY",
+  "origin_repository": "risu-research/appeal-discovery-consumer",
+  "destination_repository": "risu-research/replaymark",
+  "migration_model": "CLEAN_SUCCESSOR_SNAPSHOT_WITH_IMMUTABLE_ORIGIN_PROVENANCE",
+  "rationale": {
+    "conceptual_ownership": "ReplayMark is a distinct research system and should not remain structurally owned by an appeal-semantic reference-consumer repository.",
+    "reviewer_clarity": "A dedicated repository separates ReplayMark's protocol, runtime, verification, experiments, and artifacts from unrelated repository history.",
+    "provenance_priority": "Historical authority remains where it actually occurred; the successor must not rewrite or impersonate S3-C1 history.",
+    "why_not_history_rewrite": "Filtering or rebasing old commits would change commit identities and can obscure which exact bytes and GitHub Actions runs produced the authoritative measurements.",
+    "why_not_delete_origin": "S3-C1 first-complete evidence, run metadata, artifacts, and exact commit identities remain scientific provenance and must stay resolvable."
+  },
+  "origin_freeze": {
+    "s3c1_protocol_head": "274b870313696adaf2f80b52632e9b6ea854fd90",
+    "s3c1_conformance_head": "104dcc38c07e33029acebd05c72f975051e70f21",
+    "s3c1_first_complete_execution_head": "5ca9f341d4f3048da1d555b4b333f8f8f8cae815",
+    "s3c1_authority_diagnosis_head": "8eada1d86c7c40bde96627367aa5fadb2fe9421e",
+    "s3c1_actions_run_id": 34178917658,
+    "s3c1_paired_artifact_id": 10038517155,
+    "s3c1_paired_artifact_sha256": "803b5c06d58c3f3ccbfe3f11883a98f47b90eb35b912eb4667ebeccbc795deb3",
+    "s3c1_independent_validation_sha256": "79f97a8d59fcf89348b2897de0182ca8f3b723bd97b7a75a572c8123e4819604",
+    "s3c1_verdict": "FAIL",
+    "s3c1_promotion": "NOT_PROMOTED"
+  },
+  "s3c2_pre_live_chain": {
+    "protocol_head": "40bd3e994dd83f7554fb1d05f192707ca9bf996c",
+    "protocol_blob": "ba83cdf78e9109ab0c7dcfe1d04bb11dd89880c5",
+    "schedule_clarification_head": "b1841de01e1343e14eb9563eef97877a3fbba83c",
+    "schedule_clarification_blob": "d4fc55e81c6fa2310c539e94de4b352c1e6fb5b9",
+    "schedule_conformance_head": "c290786d92e7546345b348916b3b3d1c11780e4c",
+    "schedule_conformance_tree": "e42aad02fe19a74a2b7e724a5294b9ed19645e82",
+    "schedule_module_blob": "0989c21706c2c9983fad91e16f2b7cd82238f2da",
+    "schedule_verifier_blob": "0cad3bfb3a8e07a49f902d497d0eca470163a4d1",
+    "schedule_workflow_blob": "0b787a593c840430e8fb1dedab5d426c332a8580",
+    "schedule_conformance_run_id": 34181539656,
+    "schedule_conformance_run_conclusion": "success",
+    "schedule_conformance_artifact_id": 10039069919,
+    "schedule_conformance_artifact_sha256": "47a121b4550260f76e2ad319a275ff34e58e0069e9609c339185f9b5e1ce29ee",
+    "s3c2_live_target_exposed": false
+  },
+  "successor_snapshot_roots": [
+    "replaymark/",
+    "replaymark_verification/",
+    "agentmark_e3b_lab/e3_mqtt/",
+    ".github/workflows/replaymark*"
+  ],
+  "successor_bootstrap_requirements": {
+    "fresh_repository_required": true,
+    "default_branch": "main",
+    "first_commit_scientific_result": false,
+    "first_commit_must_identify_origin_repository": true,
+    "first_commit_must_record_all_origin_heads_and_artifact_digests_above": true,
+    "imported_files_must_be_byte_identical_to_origin_schedule_conformance_head": true,
+    "bootstrap_must_generate_sha256_manifest_for_imported_regular_files": true,
+    "bootstrap_must_not_claim_old_commits_exist_in_destination_history": true,
+    "bootstrap_must_not_relabel_s3c1_fail_as_pass": true,
+    "bootstrap_must_not_reexecute_s3c1": true,
+    "bootstrap_must_preserve_s3c2_protocol_and_schedule_conformance_bytes": true
+  },
+  "origin_retention_policy": {
+    "delete_replaymark_origin_branches": false,
+    "force_push_origin_authority_branches": false,
+    "rewrite_origin_commit_history": false,
+    "delete_origin_actions_artifacts_before_normal_retention": false,
+    "treat_destination_copy_as_replacement_authority": false
+  },
+  "post_migration_execution_boundary": {
+    "no_s3c2_live_120_cell_execution_in_origin_repository": true,
+    "full_s3c2_runner_and_independent_validator_may_be_developed_pre_live_only_if_their_origin_bytes_are_attested_at_migration": true,
+    "preferred_first_new_scientific_live_authority_repository": "risu-research/replaymark",
+    "first_destination_live_execution_must_prove_bootstrap_provenance_and_exact_s3c2_frozen_inputs_before_target_exposure": true
+  },
+  "anti_confusion_rules": [
+    "Old GitHub Actions run IDs always refer to the origin repository.",
+    "Old commit SHAs are cited as origin commit SHAs, not destination ancestors.",
+    "The successor README must state that S3-C1 first-complete authority occurred before repository succession and remained FAIL/NOT_PROMOTED.",
+    "S3-C2 may earn a new result only after destination-side preflight proves the imported frozen bytes and successor provenance manifest."
+  ]
+}
