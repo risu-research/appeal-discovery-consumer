@@ -1,0 +1,90 @@
+{
+  "schema": "replaymark.s3c1-first-complete-authority-diagnosis.v1",
+  "status": "POST_AUTHORITY_DIAGNOSIS_FROZEN_NO_RERUN",
+  "source_authority": {
+    "repository": "risu-research/appeal-discovery-consumer",
+    "branch": "replaymark-runtime-gate-s3c1-first-complete-execution-v3",
+    "execution_commit": "5ca9f341d4f3048da1d555b4b333f8f8f8cae815",
+    "conformance_parent": "104dcc38c07e33029acebd05c72f975051e70f21",
+    "protocol_head": "274b870313696adaf2f80b52632e9b6ea854fd90",
+    "github_actions_run_id": 34178917658,
+    "paired_deployment_artifact_id": 10038517155,
+    "paired_deployment_artifact_sha256": "803b5c06d58c3f3ccbfe3f11883a98f47b90eb35b912eb4667ebeccbc795deb3",
+    "independent_validation_sha256": "79f97a8d59fcf89348b2897de0182ca8f3b723bd97b7a75a572c8123e4819604",
+    "matrix_completeness_prevalidation_sha256": "4f75977168d0e49127c966606cf48efc3d576d6be0a11c6d9cfc0afc03a61a80",
+    "authority_rule_sha256": "a64ed9357f090e763cd23a0c7723c12ea337ca52812a82e2faa03cc2bbedea77"
+  },
+  "authority_interpretation": {
+    "full_matrix_present": true,
+    "canonical_cells": 60,
+    "independent_validator_invoked_after_full_matrix": true,
+    "first_complete_authority": true,
+    "later_exact_runs_replication_only": true,
+    "frozen_validator_verdict": "FAIL",
+    "s3c1_promotion": "NOT_PROMOTED",
+    "failure_scope": "FROZEN_STRUCTURAL_WAVE_CADENCE",
+    "rerun_may_not_supersede_this_authority": true
+  },
+  "cell_check_pass_counts_out_of_60": {
+    "broker_authority_exact": 60,
+    "direct_and_rm_classification_equal": 60,
+    "direct_and_rm_delivered_lost_equal": 60,
+    "direct_and_rm_generated_role_vectors_equal": 60,
+    "direct_reference_routes_exact": 60,
+    "no_runner_scientific_oracle": 60,
+    "pairing_taskwise_evidence_equal": 60,
+    "queue_conservation_all_arms": 60,
+    "rm_native_exact_unsafe_set": 60,
+    "rm_retains_all_safe_history": 60,
+    "rm_reuse_exact_safe_set": 60,
+    "rm_unnecessary_native_zero": 60,
+    "rm_unsafe_historical_zero": 60,
+    "role_conservation_all_arms": 60,
+    "structural_complete": 0
+  },
+  "failure_localization": {
+    "cells_with_implementation_errors": 0,
+    "cells_with_route_errors": 0,
+    "cells_with_temporal_errors": 0,
+    "cells_with_queue_errors": 0,
+    "cells_with_evidence_mismatch_tasks": 0,
+    "cells_with_wave_errors": 60,
+    "wave_error_count": 876,
+    "wave_error_kinds": [
+      "next_wave_schedule_overrun"
+    ],
+    "total_waves": 3000,
+    "eligible_inter_wave_boundaries": 2940,
+    "overrun_boundaries": 876,
+    "frozen_wave_period_ms": 500.0,
+    "waves_with_quiescence_missing": 0,
+    "interpretation": "Every canonical cell violated the frozen no-overrun structural criterion at least once. No cell failed implementation, routing, temporal-order, queue-conservation, taskwise-evidence, or ReplayMark/direct semantic checks. The evidence localizes the S3-C1 frozen verdict failure to the fixed inter-wave schedule criterion; it does not establish a causal mechanism for those overruns."
+  },
+  "scientific_observations_not_promoted_under_s3c1": {
+    "direct_native_equals_replaymark_native_all_60_cells": true,
+    "replaymark_reuse_set_equals_independent_safe_set_all_60_cells": true,
+    "replaymark_native_set_equals_independent_unsafe_set_all_60_cells": true,
+    "unsafe_historical_executions": 0,
+    "unnecessary_native_recoveries": 0,
+    "tested_frontier": {
+      "A": {
+        "DIRECT_NATIVE": 200,
+        "REPLAYMARK_NATIVE": 200
+      },
+      "B": {
+        "DIRECT_NATIVE": 200,
+        "REPLAYMARK_NATIVE": 200
+      }
+    },
+    "two_sided_negative_controls_each_replica": true,
+    "promotion_note": "These observations are preserved as measurements from the authoritative first-complete run but cannot promote the frozen S3-C1 claim because all frozen promotion criteria were conjunctive and structural_complete failed."
+  },
+  "next_gate_constraints": {
+    "do_not_modify_s3c1_protocol": true,
+    "do_not_modify_s3c1_first_complete_artifact": true,
+    "do_not_rerun_s3c1_to_replace_authority": true,
+    "no_live_target_before_new_protocol_freeze": true,
+    "required_next_step": "Prospectively define a distinct post-failure protocol before any new live execution. It may test whether the queue/semantic claim survives a barrier-driven wave lifecycle that preserves quiescence and all semantic/queue invariants without requiring a fixed 500 ms inter-wave wall-clock cadence, but that design must be frozen as a new authority and must not relabel the S3-C1 FAIL.",
+    "anti_tuning_requirement": "Any new protocol must explicitly disclose that S3-C1 outcomes are known and must prevent the new run from being represented as the original first-complete or as an outcome-blind replacement."
+  }
+}
