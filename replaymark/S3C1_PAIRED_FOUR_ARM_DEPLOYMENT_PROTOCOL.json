@@ -1,0 +1,362 @@
+{
+  "anti_leakage_and_pairing": {
+    "direct_and_replaymark_evidence_token_equality_required_taskwise": true,
+    "direct_reference_may_not_import_replaymark_runner_or_production": true,
+    "mismatch_is_gate_failure_not_exclusion": true,
+    "queue_outcome_may_not_change_any_parameter": true,
+    "replaymark_may_not_read_hidden_class": true,
+    "runner_may_not_read_independent_oracle_result_before_dispatch": true,
+    "target_class_may_not_depend_on_arm": true,
+    "target_class_may_not_depend_on_policy": true
+  },
+  "authority": {
+    "exact_parent_s3c0_result_seal": "94584db84bebd73e664f19f0fe2d3b9f5998c813",
+    "legacy_default_flip_execution": "23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d",
+    "legacy_default_flip_outcome_blob": "6d9c90d629b0e384b568a25fa93504dbe23828e6",
+    "legacy_default_flip_protocol_blob": "d05917bf9ad69edb8adf1a642efda598b9b2aa0e",
+    "legacy_default_flip_result": "ac20890bb4aa926e439802510de3723b74591c94",
+    "p6_target_blob": "5b57bc44e91dc38e44eaafc760286fa4b616ff9c",
+    "parent_tree": "4b23ec476b4613d7e5688865deb4963d709b414d",
+    "runtime_action_realizer_blob": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+    "runtime_bridge_blob": "5c2b13f35edcae9ce42fa062f51f1b6ce46747bf",
+    "runtime_observation_realizer_blob": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+    "s1_execution_gate_blob": "22748a5aa820e83e4700a339e8af297cdd9f9143",
+    "s3_live_runner_blob": "cd4150585e36c07b737e27e5a879030b031dab4f",
+    "s3_result_json_blob": "35658806601f84a67199cd691607d0ead388952b",
+    "s3_result_seal": "cf1f09398ad6148dfa1907dd2a02bdc443308ab7",
+    "s3c0_protocol_head": "cadd8483691246853030722fecdd8fcdc4717ffc",
+    "s3c0_result_json_blob": "6590883c26977cc66487e7111097ec0a6b3266db",
+    "same_task_correlation_blob": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e"
+  },
+  "c1_protocol_boundary": {
+    "experiment_runner_added": false,
+    "protocol_only": true,
+    "queue_execution_permitted": false,
+    "result_file_added": false,
+    "target_implementation_added": false,
+    "target_outcomes_visible": false
+  },
+  "failure_authority": {
+    "batch_substitution_after_outcome": false,
+    "deadline_retune": false,
+    "delay_retune": false,
+    "drop_failed_cell": false,
+    "first_complete_full_matrix_and_validator_certificate_is_authoritative": true,
+    "implementation_failure_may_not_be_relabeled_as_scientific_success": true,
+    "later_exact_runs_are_replication_only": true,
+    "queue_retune": false,
+    "same_generation_retune": false,
+    "scientific_mismatch_is_preserved": true,
+    "wave_retune": false
+  },
+  "frozen_semantic_boundary": {
+    "automatic_retry": "ABSENT",
+    "caller_owned_native_recovery": true,
+    "fallback_inside_replaymark": false,
+    "historical_act2_template_modified": false,
+    "historical_act2_template_sha256": "e86d5f42a09b8257185b6e3608ac83c0ac41deeba7890b914c22b0441a8b8888",
+    "post_confirmation_gap_ms": 20.0,
+    "regeneration_inside_replaymark": false,
+    "replaymark_semantic_core_modified": false,
+    "runtime_realizers_modified": false,
+    "s1_execution_gate_modified": false,
+    "task_timeout_ms": 1000,
+    "verify_deadline_ms": 100.0
+  },
+  "gate": "S3-C1_PAIRED_FOUR_ARM_DEPLOYMENT_CLOSURE",
+  "independent_validation": {
+    "U_definition": "count of not_visible_by_deadline tasks in the DIRECT_NATIVE arm; REPLAYMARK_NATIVE must match taskwise",
+    "endpoint_truth": "derive command/query/state generated and delivered vectors from raw events only; policy labels are used only to select the frozen expected law after counts are independently reconstructed",
+    "evidence_truth": "For each arm/task, independently derive confirmed_by_deadline or not_visible_by_deadline from that arm's frozen pre-decision snapshot using the frozen inclusive 100ms boundary.",
+    "hidden_target_class_is_semantic_truth": false,
+    "imports_live_runner": false,
+    "imports_replaymark_production": false,
+    "inputs": "raw frozen observation snapshots, raw application publish provenance, independent online role-event ledger, raw persistent-collector deliveries, exact broker config bytes, exact source/blob identities",
+    "runs_after_all_live_dispatch_and_all_queue_drains_for_cell": true,
+    "trusts_runner_summary_fields": false
+  },
+  "next_only_if_protocol_freeze_passes": "Implement the frozen paired runner/target/independent validator as an exact child; execute only after implementation CI proves protocol conformance.",
+  "nonclaims": [
+    "global Mosquitto capacity theorem",
+    "legacy 166 boundary for this workload",
+    "sequence equivalence",
+    "latency speedup",
+    "broker delivery exactly once",
+    "cross-process exactly once",
+    "prevalence across deployed MQTT systems",
+    "hidden target class as semantic truth",
+    "arbitrary-metric compositionality"
+  ],
+  "paired_four_arm_design": {
+    "ALWAYS_NATIVE": {
+      "consult_evidence_for_decision": false,
+      "consult_replaymark": false,
+      "fresh_act2_after_query_confirmation": true,
+      "query_every_task": true,
+      "role": "pessimistic rerun-all negative control; explicitly not deployment truth",
+      "work_law": {
+        "command": "2N",
+        "query": "N",
+        "state": "3N",
+        "total": "6N"
+      }
+    },
+    "ALWAYS_REUSE": {
+      "consult_evidence_for_decision": false,
+      "consult_replaymark": false,
+      "execute_exact_historical_act2_once_for_every_task": true,
+      "query_every_task": false,
+      "role": "optimistic negative control",
+      "work_law": {
+        "command": "2N",
+        "query": "0",
+        "state": "2N",
+        "total": "4N"
+      }
+    },
+    "DIRECT_NATIVE": {
+      "decision_rule": "own frozen evidence confirmed_by_deadline -> fresh ACT2 without query; own frozen evidence not_visible_by_deadline -> QUERY A, await current-state confirmation, then fresh ACT2",
+      "fresh_act2_generated_after_decision_evidence": true,
+      "imports_replaymark": false,
+      "role": "primary deployment truth",
+      "uses_certificate": false,
+      "uses_historical_act2": false,
+      "work_law": {
+        "command": "2N",
+        "query": "U",
+        "state": "2N+U",
+        "total": "4N+2U"
+      }
+    },
+    "REPLAYMARK_NATIVE": {
+      "decision_rule": "certified VALID+REUSE -> exact historical ACT2; otherwise BLOCK_REUSE and caller-owned QUERY/current-confirmation/fresh-ACT2",
+      "role": "primary system",
+      "unnecessary_native_recovery_required": 0,
+      "unsafe_historical_execution_required": 0,
+      "uses_unchanged_replaymark_chain": true,
+      "work_law": {
+        "command": "2N",
+        "query": "U",
+        "state": "2N+U",
+        "total": "4N+2U"
+      }
+    },
+    "arm_names_absent_from_target_class_function": true,
+    "arms": [
+      "ALWAYS_REUSE",
+      "DIRECT_NATIVE",
+      "REPLAYMARK_NATIVE",
+      "ALWAYS_NATIVE"
+    ],
+    "hidden_target_class_absent_from_replaymark_input": true,
+    "hidden_target_class_absent_from_wire": true,
+    "independent_queue_per_arm": true,
+    "same_hidden_target_class_for_four_twins": true,
+    "same_logical_task_population": true
+  },
+  "permitted_claim_if_promoted": "On the frozen paired heterogeneous Mosquitto workload, ReplayMark-Native reaches the same persistent-queue deployment classification as an independent direct target controller while retaining every historical ACT2 certified safe; blind reuse can be optimistically wrong and rerun-all can be pessimistically wrong.",
+  "promotion_criteria": {
+    "all_required": true,
+    "decisive_negative_controls": [
+      "within each hosted replica, at least one canonical cell has ALWAYS_REUSE=LOSSLESS while DIRECT_NATIVE=REPLAYMARK_NATIVE=LOSSY",
+      "within each hosted replica, at least one canonical cell has ALWAYS_NATIVE=LOSSY while DIRECT_NATIVE=REPLAYMARK_NATIVE=LOSSLESS"
+    ],
+    "pairing": [
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE evidence tokens equal task-by-task in every cell",
+      "no evidence mismatch is excluded or repaired"
+    ],
+    "primary": [
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE generated role vectors equal exactly in every cell",
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE delivered/lost counts equal exactly in every cell",
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE LOSSLESS/LOSSY classifications equal exactly in every cell",
+      "REPLAYMARK_NATIVE historical reuse set equals independent safe-evidence set",
+      "REPLAYMARK_NATIVE caller-native set equals independent unsafe-evidence set",
+      "REPLAYMARK_NATIVE unsafe historical executions=0",
+      "REPLAYMARK_NATIVE unnecessary native recoveries=0",
+      "REPLAYMARK_NATIVE retains every certified-safe historical ACT2"
+    ],
+    "queue_conservation": [
+      "for every arm/cell delivered=min(generated,1000)",
+      "for every arm/cell lost=max(generated-1000,0)",
+      "persistent session present and duplicate delivery count zero"
+    ],
+    "role_conservation": [
+      "ALWAYS_REUSE raw roles equal command=2N,query=0,state=2N,total=4N",
+      "DIRECT_NATIVE raw roles equal command=2N,query=U,state=2N+U,total=4N+2U",
+      "REPLAYMARK_NATIVE raw roles equal command=2N,query=U,state=2N+U,total=4N+2U",
+      "ALWAYS_NATIVE raw roles equal command=2N,query=N,state=3N,total=6N"
+    ],
+    "secondary_tested_frontier": {
+      "definition": "maximum tested N in the frozen ladder for which every canonical cell at N is LOSSLESS",
+      "direct_native_equals_replaymark_native": true,
+      "global_capacity_claim": false
+    },
+    "structural": [
+      "all 60 paired cells present",
+      "all four arms complete in every cell",
+      "all configured tasks present with no exclusions",
+      "exact frozen class schedule and four-twin pairing",
+      "exact broker image/version/config and no queue-policy override",
+      "all frozen ReplayMark runtime blobs unchanged"
+    ]
+  },
+  "queue_endpoint": {
+    "broad_cross_arm_subscription_forbidden": true,
+    "broker": "Eclipse Mosquitto 2.1.2",
+    "broker_image_digest": "sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797",
+    "broker_image_tag": "eclipse-mosquitto:2.1.2-alpine",
+    "canonical_config_sha256": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "delivery_law": "delivered=min(generated,1000); lost=max(generated-1000,0)",
+    "documented_default_max_queued_bytes": 0,
+    "documented_default_max_queued_messages": 1000,
+    "explicit_device_filter_set_per_arm": true,
+    "forbidden_queue_directives": [
+      "max_queued_messages",
+      "max_queued_bytes",
+      "max_inflight_messages",
+      "queue_qos0_messages"
+    ],
+    "fresh_broker_and_empty_state_per_paired_cell": true,
+    "measured_qos": 1,
+    "measured_terminal_roles": [
+      "command",
+      "query",
+      "state"
+    ],
+    "one_isolated_persistent_client_per_arm": true,
+    "persistent_session_clean_session": false,
+    "queue_policy_override": false,
+    "sequence_equivalence_claim": false
+  },
+  "replication": {
+    "all_cells_required": true,
+    "arm_task_executions_total": 48000,
+    "cell_lifecycle": "fresh broker + target process + four fresh persistent sessions + unique namespaces, then complete all four arms, close harness, drain all queues, and only then run independent validation",
+    "early_stop": false,
+    "hosted_replicas": [
+      "A",
+      "B"
+    ],
+    "logical_rows_per_replica": 6000,
+    "logical_rows_total": 12000,
+    "paired_cells_total": 60,
+    "trials_per_batch_per_replica": 6
+  },
+  "schema": "replaymark.s3c1-paired-four-arm-deployment-closure-protocol.v1",
+  "scientific_question": "Under one prospectively frozen heterogeneous target workload and the stock documented-default Mosquitto persistent QoS-1 queue endpoint, does ReplayMark-Native reach exactly the same deployment conclusion as an independent direct target controller while retaining every historical ACT2 decision certified safe?",
+  "status": "FROZEN_BEFORE_IMPLEMENTATION_OR_QUEUE_EXECUTION",
+  "stress_ladder": {
+    "batch_sizes": [
+      192,
+      196,
+      200,
+      204,
+      208
+    ],
+    "derivation": "Q=1000 and C0's 4-message safe / 6-message query branch imply a nominal exactly-balanced mean of 5 messages/task; Q/5=200 is a stress center, not an asserted boundary.",
+    "hardcode_166": false,
+    "interpretation": "All scientific endpoint predictions use observed evidence-derived U, never the nominal half-shifted class count.",
+    "legacy_166_boundary_inherited": false,
+    "no_preselected_native_boundary": true,
+    "nominal_counts": [
+      {
+        "ALWAYS_NATIVE": 1152,
+        "ALWAYS_REUSE": 768,
+        "DIRECT_NATIVE": 960,
+        "REPLAYMARK_NATIVE": 960,
+        "batch_size": 192,
+        "nominal_U": 96
+      },
+      {
+        "ALWAYS_NATIVE": 1176,
+        "ALWAYS_REUSE": 784,
+        "DIRECT_NATIVE": 980,
+        "REPLAYMARK_NATIVE": 980,
+        "batch_size": 196,
+        "nominal_U": 98
+      },
+      {
+        "ALWAYS_NATIVE": 1200,
+        "ALWAYS_REUSE": 800,
+        "DIRECT_NATIVE": 1000,
+        "REPLAYMARK_NATIVE": 1000,
+        "batch_size": 200,
+        "nominal_U": 100
+      },
+      {
+        "ALWAYS_NATIVE": 1224,
+        "ALWAYS_REUSE": 816,
+        "DIRECT_NATIVE": 1020,
+        "REPLAYMARK_NATIVE": 1020,
+        "batch_size": 204,
+        "nominal_U": 102
+      },
+      {
+        "ALWAYS_NATIVE": 1248,
+        "ALWAYS_REUSE": 832,
+        "DIRECT_NATIVE": 1040,
+        "REPLAYMARK_NATIVE": 1040,
+        "batch_size": 208,
+        "nominal_U": 104
+      }
+    ],
+    "nominal_stress_center_tasks": 200,
+    "offsets_from_center": [
+      -8,
+      -4,
+      0,
+      4,
+      8
+    ]
+  },
+  "target_class_schedule": {
+    "algorithm": "For each (batch_size,trial), SHA256-rank task ids 0..N-1 by '<seed>|batch=<N>|trial=<trial>|task=<task_id>'; lowest N/2 are SHIFTED and the rest REFERENCE.",
+    "batches": [
+      192,
+      196,
+      200,
+      204,
+      208
+    ],
+    "canonical_schedule_sha256": "3330c82c66cd344e01b48ac16e96e5fb4b4cb3a6b55ea880fe6285621e039af8",
+    "certificate_blind": true,
+    "exact_half_shifted_each_cell": true,
+    "outcome_blind": true,
+    "policy_blind": true,
+    "same_class_for_all_four_arm_twins": true,
+    "schedule_rows_per_replica": 6000,
+    "seed": "replaymark.s3c1.paired-target-class.v1|c0=94584db84bebd73e664f19f0fe2d3b9f5998c813",
+    "trials": 6
+  },
+  "target_workload": {
+    "evidence_mismatch_never_truncates_workload": true,
+    "kind": "PROSPECTIVELY_FROZEN_PAIRED_HETEROGENEOUS_E3B_TARGET",
+    "late_events_do_not_modify_frozen_snapshot": true,
+    "logical_wave_size": 4,
+    "no_post_hoc_task_exclusion": true,
+    "physical_four_arm_twins_per_wave": 16,
+    "post_confirmation_gap_ms": 20.0,
+    "query_response": "immediate current-state publication",
+    "reference_delay_ms": 0,
+    "shifted_delay_ms": 180,
+    "target_implementation_contract": {
+      "additive_lab_only": true,
+      "class_applies_to_roles": [
+        "a",
+        "b"
+      ],
+      "class_label_on_wire": false,
+      "mechanism_matches_frozen_p6_command_query_state_semantics": true,
+      "no_certificate_input": true,
+      "no_oracle_input": true,
+      "no_policy_input": true,
+      "no_replaymark_import": true,
+      "no_runtime_adaptation": true,
+      "only_allowed_semantic_generalization": "support the frozen S3-C1 batch/trial schedule while retaining immutable per-device 0ms/180ms delay and immediate query response"
+    },
+    "task_timeout_ms": 1000,
+    "verify_deadline_ms": 100.0,
+    "wave_observation_barrier": "For each logical wave, all four-arm pre-decision snapshots for every logical task close immutably before any arm may issue QUERY or ACT2; all post-decision consequences quiesce before the next wave.",
+    "wave_period_ms": 500.0
+  }
+}

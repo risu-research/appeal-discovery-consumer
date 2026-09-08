@@ -1,0 +1,52 @@
+name: ReplayMark Gate S3-C1 paired four-arm deployment protocol freeze
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-gate-s3c1-paired-four-arm-deployment-protocol
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s3c1-protocol:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch frozen cross-history queue authorities only
+        run: |
+          git fetch --no-tags --depth=1 origin 23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d
+          git fetch --no-tags --depth=1 origin ac20890bb4aa926e439802510de3723b74591c94
+
+      - name: Static compile protocol verifier
+        run: |
+          python -m py_compile replaymark_verification/verify_s3c1_paired_four_arm_deployment_protocol.py
+
+      - name: Verify frozen S3-C1 protocol
+        run: |
+          mkdir -p /tmp/replaymark-s3c1p
+          python replaymark_verification/verify_s3c1_paired_four_arm_deployment_protocol.py \
+            --out /tmp/replaymark-s3c1p/s3c1_protocol_verification.json
+
+      - name: Seal protocol-only evidence
+        run: |
+          cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.json /tmp/replaymark-s3c1p/
+          cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.md /tmp/replaymark-s3c1p/
+          cp replaymark_verification/verify_s3c1_paired_four_arm_deployment_protocol.py /tmp/replaymark-s3c1p/
+          git show --no-patch --format=fuller HEAD > /tmp/replaymark-s3c1p/SEAL_COMMIT.txt
+          sha256sum /tmp/replaymark-s3c1p/* > /tmp/replaymark-s3c1p/SHA256SUMS
+
+      - name: Upload S3-C1 protocol evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s3c1-paired-four-arm-deployment-protocol
+          path: /tmp/replaymark-s3c1p
+          if-no-files-found: error
+          retention-days: 90
