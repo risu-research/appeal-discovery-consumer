@@ -1,0 +1,381 @@
+{
+  "schema": "replaymark.s3c2-barrier-schedule-invariance-protocol.v1",
+  "gate": "S3-C2_BARRIER_SCHEDULE_INVARIANCE_CLOSURE",
+  "status": "FROZEN_POST_S3C1_FAILURE_BEFORE_IMPLEMENTATION_OR_NEW_LIVE_TARGET_EXPOSURE",
+  "scientific_question": "Under the same frozen heterogeneous target semantics and stock Mosquitto persistent QoS-1 queue endpoint, does ReplayMark-Native remain taskwise identical to an independent Direct-Native controller, retain exactly the independently safe historical ACT2 set, and reach the same queue endpoint classification when inter-wave pacing is changed prospectively between two barrier-respecting schedule profiles?",
+  "why_this_is_a_distinct_gate": {
+    "s3c1_remains_authoritative": true,
+    "s3c1_verdict": "FAIL",
+    "s3c1_promotion": "NOT_PROMOTED",
+    "s3c1_failure_scope": "FROZEN_STRUCTURAL_WAVE_CADENCE",
+    "s3c1_is_not_rewritten_or_rerun_to_replace_authority": true,
+    "s3c2_does_not_claim_to_repair_s3c1": true,
+    "s3c2_new_question": "whether the semantic and persistent-queue conclusions are invariant to prospectively frozen barrier-respecting pacing, rather than whether a fixed 500 ms wall-clock schedule is met",
+    "outcome_awareness_disclosed": true
+  },
+  "authority": {
+    "repository": "risu-research/appeal-discovery-consumer",
+    "parent_authority_diagnosis_commit": "8eada1d86c7c40bde96627367aa5fadb2fe9421e",
+    "parent_authority_diagnosis_blob": "703a6305660a9d25ef9a8a0b9a7d818cf05fe28a",
+    "s3c1_execution_commit": "5ca9f341d4f3048da1d555b4b333f8f8f8cae815",
+    "s3c1_conformance_commit": "104dcc38c07e33029acebd05c72f975051e70f21",
+    "s3c1_protocol_head": "274b870313696adaf2f80b52632e9b6ea854fd90",
+    "s3c1_actions_run_id": 34178917658,
+    "s3c1_paired_artifact_id": 10038517155,
+    "s3c1_paired_artifact_sha256": "803b5c06d58c3f3ccbfe3f11883a98f47b90eb35b912eb4667ebeccbc795deb3",
+    "s3c1_independent_validation_sha256": "79f97a8d59fcf89348b2897de0182ca8f3b723bd97b7a75a572c8123e4819604",
+    "frozen_source_blobs": {
+      "s3c1_runner_reference": "8d68a9680fcd49597fb1255392fb17b3cf4c834e",
+      "s3c1_independent_validator_reference": "8c5e66213e9ec6cb7f7e01731ab2273c2f3bc0a5",
+      "direct_native_reference": "22456d02b5b3a3b2258b2bc1893ae45a221873f7",
+      "heterogeneous_target": "0042bfeb1c570e8de3b61973336187d9a46d58aa",
+      "runtime_execution_gate": "22748a5aa820e83e4700a339e8af297cdd9f9143",
+      "runtime_action_realizer": "d5d483751eb06fd8b00f7bb2eff613a20f0f796c",
+      "runtime_observation_realizer": "de6cdc8ccdbb9b189e238cc5dbad173060fe17ab",
+      "same_task_correlation": "bbdc243eccf29c0a26b92bc78c0acdb96222da8e",
+      "runtime_bridge": "5c2b13f35edcae9ce42fa062f51f1b6ce46747bf",
+      "mosquitto_config": "0b68187c4590e780409048ea8c9e3144d34ccaa6"
+    }
+  },
+  "protocol_boundary": {
+    "protocol_only_commit_required": true,
+    "target_outcomes_after_s3c1_not_visible_before_this_freeze": true,
+    "new_s3c2_runner_present_in_this_commit": false,
+    "new_s3c2_validator_present_in_this_commit": false,
+    "new_s3c2_workflow_present_in_this_commit": false,
+    "new_live_target_execution_permitted_in_this_commit": false,
+    "implementation_must_be_a_later_exact_child": true
+  },
+  "known_s3c1_evidence_disclosure": {
+    "canonical_cells": 60,
+    "structural_complete_pass_cells": 0,
+    "cells_with_wave_errors": 60,
+    "wave_error_count": 876,
+    "total_waves": 3000,
+    "eligible_inter_wave_boundaries": 2940,
+    "s3c1_fixed_wave_period_ms": 500.0,
+    "waves_with_quiescence_missing": 0,
+    "cells_with_implementation_errors": 0,
+    "cells_with_route_errors": 0,
+    "cells_with_temporal_errors": 0,
+    "cells_with_queue_errors": 0,
+    "cells_with_evidence_mismatch_tasks": 0,
+    "direct_native_equals_replaymark_native_all_cells_observed": true,
+    "replaymark_reuse_set_equals_independent_safe_set_all_cells_observed": true,
+    "replaymark_native_set_equals_independent_unsafe_set_all_cells_observed": true,
+    "interpretation_limit": "S3-C1 established an authoritative structural failure and preserved non-promoted semantic observations. S3-C2 is designed with those outcomes known and therefore must earn a distinct claim under a distinct prospectively frozen protocol."
+  },
+  "unchanged_semantic_boundary": {
+    "arms": [
+      "ALWAYS_REUSE",
+      "DIRECT_NATIVE",
+      "REPLAYMARK_NATIVE",
+      "ALWAYS_NATIVE"
+    ],
+    "same_four_arm_decision_rules_as_s3c1": true,
+    "same_hidden_target_class_function_as_s3c1": true,
+    "target_class_may_not_depend_on_schedule_profile": true,
+    "target_class_may_not_depend_on_arm": true,
+    "target_class_may_not_depend_on_policy": true,
+    "hidden_target_class_absent_from_replaymark_input": true,
+    "hidden_target_class_absent_from_wire": true,
+    "same_target_delays_ms": [
+      0.0,
+      180.0
+    ],
+    "verify_deadline_ms": 100.0,
+    "task_timeout_ms": 1000,
+    "post_confirmation_gap_ms": 20.0,
+    "historical_act2_template_sha256": "e86d5f42a09b8257185b6e3608ac83c0ac41deeba7890b914c22b0441a8b8888",
+    "fallback_inside_replaymark": false,
+    "regeneration_inside_replaymark": false,
+    "automatic_retry": "ABSENT",
+    "caller_owned_native_recovery": true,
+    "replaymark_semantic_core_modified": false,
+    "runtime_realizers_modified": false,
+    "runtime_execution_gate_modified": false,
+    "direct_native_reference_modified": false,
+    "heterogeneous_target_modified": false
+  },
+  "unchanged_queue_endpoint": {
+    "broker": "Eclipse Mosquitto 2.1.2",
+    "broker_image_tag": "eclipse-mosquitto:2.1.2-alpine",
+    "broker_image_digest": "sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797",
+    "canonical_config_sha256": "886f26936b560ebfbf584744c8c4f5f2dd3eeeba946313ad1d2f7f8848bf0858",
+    "queue_limit_messages": 1000,
+    "forbidden_queue_directives": [
+      "max_queued_messages",
+      "max_queued_bytes",
+      "max_inflight_messages",
+      "queue_qos0_messages"
+    ],
+    "queue_policy_override": false,
+    "persistent_session_clean_session": false,
+    "one_isolated_persistent_client_per_arm": true,
+    "explicit_device_filter_set_per_arm": true,
+    "fresh_broker_and_empty_state_per_physical_cell": true,
+    "measured_qos": 1,
+    "measured_terminal_roles": [
+      "command",
+      "query",
+      "state"
+    ],
+    "delivery_law": "delivered=min(generated,1000); lost=max(generated-1000,0)",
+    "sequence_equivalence_claim": false
+  },
+  "unchanged_matrix": {
+    "hosted_replicas": [
+      "A",
+      "B"
+    ],
+    "batch_sizes": [
+      192,
+      196,
+      200,
+      204,
+      208
+    ],
+    "trials_per_batch_per_replica": 6,
+    "logical_wave_size": 4,
+    "physical_four_arm_twins_per_wave": 16,
+    "source_logical_cells": 60,
+    "schedule_profiles_per_source_cell": 2,
+    "physical_cells_total": 120,
+    "logical_rows_total": 24000,
+    "arm_task_executions_total": 96000,
+    "early_stop": false,
+    "cell_exclusion": false,
+    "batch_substitution_after_outcome": false,
+    "deadline_retune": false,
+    "target_delay_retune": false,
+    "queue_retune": false
+  },
+  "schedule_factor": {
+    "scientific_role": "prospectively perturb only cross-wave pacing while preserving the within-wave evidence, action, target, broker, and quiescence semantics",
+    "profiles": {
+      "BARRIER_IMMEDIATE": {
+        "next_wave_eligibility": "previous wave post-decision quiescence barrier",
+        "additional_gap_ms": 0.0,
+        "upper_wall_clock_deadline_for_start": null,
+        "interpretation": "start as soon as the host schedules execution after the required quiescence barrier; host scheduling lateness is recorded but is not a scientific failure"
+      },
+      "BARRIER_JITTERED": {
+        "next_wave_eligibility": "previous wave post-decision quiescence barrier plus a prospectively frozen deterministic gap",
+        "gap_set_ms": [
+          0.0,
+          125.0,
+          250.0,
+          500.0
+        ],
+        "schedule_seed_sha256": "fd5b25ae05235eb460f426c716e1835783ced32e00ae81c7b67f24d09b83d596",
+        "gap_permutation_rule": "For each source cell, compute cell_key='fd5b25ae05235eb460f426c716e1835783ced32e00ae81c7b67f24d09b83d596|<replica>|<batch_size>|<trial>'. For each candidate gap g in [0,125,250,500], compute SHA256(cell_key+'|gap|'+canonical_decimal(g)); sort the four gaps by ascending hexadecimal digest, breaking impossible digest ties by numeric gap; assign the resulting four-gap permutation cyclically by wave_index mod 4.",
+        "upper_wall_clock_deadline_for_start": null,
+        "interpretation": "the intervention is a predeclared minimum post-barrier idle gap, not an exact real-time launch deadline"
+      }
+    },
+    "paired_block_execution": {
+      "same_hosted_runner_for_both_profiles_of_source_cell": true,
+      "fresh_broker_target_and_persistent_sessions_for_each_profile": true,
+      "same_replica_batch_trial_and_hidden_class_schedule": true,
+      "distinct_namespaces_and_nonces": true,
+      "profile_order_seed_sha256": "fd5b25ae05235eb460f426c716e1835783ced32e00ae81c7b67f24d09b83d596",
+      "profile_order_rule": "SHA256(seed+'|order|<replica>|<batch_size>|<trial>') least-significant bit selects which profile runs first; no outcome may change the order.",
+      "reason": "pair the pacing perturbation within one hosted runner while alternating order prospectively to reduce host-drift and order confounding"
+    },
+    "forbidden": [
+      "fixed 500 ms next-wave deadline as a promotion criterion",
+      "starting any wave before the previous wave quiescence barrier",
+      "changing a gap after observing any task, queue, or classification outcome",
+      "dropping a schedule profile after failure",
+      "using schedule profile as ReplayMark input",
+      "using schedule profile in hidden target class assignment"
+    ]
+  },
+  "wave_lifecycle": {
+    "required_order": [
+      "wave_actual_start",
+      "ACT1_dispatch_complete",
+      "all_four_arm_predecision_snapshots_closed",
+      "all_postdecision_QUERY_or_ACT2_dispatch_complete",
+      "all_required_current_state_confirmations_complete",
+      "post_decision_quiescence_complete",
+      "schedule_profile_gap_eligible",
+      "next_wave_actual_start"
+    ],
+    "predecision_barrier": "For every logical task in the wave, all four arm snapshots close immutably before any arm may issue QUERY or ACT2 for that logical task population.",
+    "postdecision_barrier": "All command/query/state consequences required by the frozen task semantics must quiesce before the next wave can become eligible.",
+    "quiescence_missing_is_failure": true,
+    "next_wave_before_quiescence_is_failure": true,
+    "jitter_profile_next_wave_before_required_gap_is_failure": true,
+    "host_lateness_after_eligibility_is_descriptive_not_failure": true,
+    "no_task_or_wave_exclusion": true
+  },
+  "mechanism_instrumentation": {
+    "required_raw_monotonic_timestamps_per_wave": [
+      "wave_actual_start_mono_ns",
+      "act1_dispatch_complete_mono_ns",
+      "snapshot_barrier_closed_mono_ns",
+      "postdecision_dispatch_complete_mono_ns",
+      "current_state_confirmations_complete_mono_ns",
+      "post_decision_quiescence_mono_ns",
+      "next_wave_eligible_mono_ns",
+      "next_wave_actual_start_mono_ns_if_any"
+    ],
+    "required_derived_descriptive_fields": [
+      "active_wave_duration_ns",
+      "post_barrier_requested_gap_ns",
+      "post_barrier_observed_gap_ns",
+      "host_start_lateness_after_eligibility_ns",
+      "counterfactual_s3c1_500ms_overrun"
+    ],
+    "counterfactual_s3c1_500ms_overrun_definition": "for every nonterminal wave, post_decision_quiescence_mono_ns - wave_actual_start_mono_ns > 500000000",
+    "counterfactual_field_may_affect_dispatch": false,
+    "counterfactual_field_may_affect_inclusion": false,
+    "counterfactual_field_may_affect_promotion": false,
+    "purpose": "localize pacing cost without turning S3-C1's failed fixed cadence into an adaptive tuning signal"
+  },
+  "four_arm_work_laws": {
+    "ALWAYS_REUSE": {
+      "command": "2N",
+      "query": "0",
+      "state": "2N",
+      "total": "4N"
+    },
+    "DIRECT_NATIVE": {
+      "command": "2N",
+      "query": "U",
+      "state": "2N+U",
+      "total": "4N+2U"
+    },
+    "REPLAYMARK_NATIVE": {
+      "command": "2N",
+      "query": "U",
+      "state": "2N+U",
+      "total": "4N+2U"
+    },
+    "ALWAYS_NATIVE": {
+      "command": "2N",
+      "query": "N",
+      "state": "3N",
+      "total": "6N"
+    },
+    "U_definition": "count of independently derived not_visible_by_deadline tasks in DIRECT_NATIVE; REPLAYMARK_NATIVE must match taskwise within each physical cell and across the two schedule profiles of the paired source cell"
+  },
+  "independent_validation": {
+    "new_validator_required": true,
+    "imports_s3c2_live_runner": false,
+    "imports_s3c1_live_runner": false,
+    "imports_replaymark_production": false,
+    "trusts_runner_summary_fields": false,
+    "runs_only_after_all_120_physical_cells_are_present": true,
+    "inputs": [
+      "raw frozen observation snapshots",
+      "raw application publish provenance",
+      "independent online role-event ledger",
+      "raw persistent-collector deliveries",
+      "exact broker config bytes and image identity",
+      "raw wave lifecycle timestamps",
+      "frozen schedule seed and independently reconstructed gap/order functions",
+      "exact source and implementation blob identities"
+    ],
+    "evidence_truth": "independently derive confirmed_by_deadline or not_visible_by_deadline from each arm/task raw predecision snapshot using the inclusive frozen 100 ms decision boundary",
+    "endpoint_truth": "independently reconstruct generated and delivered command/query/state vectors and queue loss from raw events only",
+    "schedule_truth": "independently reconstruct profile order and per-wave minimum gap; verify no wave begins before quiescence or before a required jitter gap",
+    "cross_profile_truth": "compare independently derived task evidence tokens, safe/unsafe sets, role vectors, queue counts, and arm classifications for the two schedule twins of each source cell"
+  },
+  "promotion_criteria": {
+    "all_required": true,
+    "structural": [
+      "all 120 physical cells present with zero exclusions",
+      "all four semantic arms complete in every physical cell",
+      "both schedule profiles complete for every source cell",
+      "exact frozen target semantics, broker identity/config, ReplayMark runtime blobs, Direct-Native reference, stress ladder, trials, and hosted replicas",
+      "every wave satisfies predecision snapshot barrier",
+      "every wave satisfies postdecision quiescence barrier",
+      "every BARRIER_JITTERED next-wave start occurs no earlier than the independently reconstructed required gap",
+      "profile execution order equals the frozen independent order function"
+    ],
+    "within_profile_semantic": [
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE evidence tokens equal task-by-task in every physical cell",
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE generated role vectors equal exactly in every physical cell",
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE delivered/lost counts equal exactly in every physical cell",
+      "DIRECT_NATIVE and REPLAYMARK_NATIVE LOSSLESS/LOSSY classifications equal exactly in every physical cell",
+      "REPLAYMARK_NATIVE historical reuse set equals the independent safe-evidence set in every physical cell",
+      "REPLAYMARK_NATIVE caller-native set equals the independent unsafe-evidence set in every physical cell",
+      "REPLAYMARK_NATIVE unsafe historical executions=0",
+      "REPLAYMARK_NATIVE unnecessary native recoveries=0",
+      "REPLAYMARK_NATIVE retains every independently certified-safe historical ACT2"
+    ],
+    "cross_profile_invariance": [
+      "for each source cell, independently derived DIRECT_NATIVE evidence-token vector is identical across BARRIER_IMMEDIATE and BARRIER_JITTERED",
+      "for each source cell, independently derived REPLAYMARK_NATIVE evidence-token vector is identical across BARRIER_IMMEDIATE and BARRIER_JITTERED",
+      "for each source cell and arm, generated command/query/state vector is identical across profiles",
+      "for each source cell and arm, delivered/lost counts are identical across profiles",
+      "for each source cell and arm, LOSSLESS/LOSSY classification is identical across profiles",
+      "for each source cell, independent safe/unsafe task sets are identical across profiles",
+      "for each source cell, ReplayMark historical-reuse and caller-native task sets are identical across profiles"
+    ],
+    "queue_conservation": [
+      "for every arm/physical-cell delivered=min(generated,1000)",
+      "for every arm/physical-cell lost=max(generated-1000,0)",
+      "persistent session present on drain",
+      "duplicate delivery count zero"
+    ],
+    "negative_controls": [
+      "within each hosted replica and each schedule profile, at least one canonical cell has ALWAYS_REUSE=LOSSLESS while DIRECT_NATIVE=REPLAYMARK_NATIVE=LOSSY",
+      "within each hosted replica and each schedule profile, at least one canonical cell has ALWAYS_NATIVE=LOSSY while DIRECT_NATIVE=REPLAYMARK_NATIVE=LOSSLESS"
+    ],
+    "tested_frontier_secondary": {
+      "definition": "maximum tested N in the frozen ladder for which every canonical cell at N is LOSSLESS, computed separately by hosted replica and schedule profile",
+      "direct_native_equals_replaymark_native_required": true,
+      "same_frontier_across_schedule_profiles_required_for_promotion": true,
+      "global_capacity_claim": false
+    }
+  },
+  "failure_authority": {
+    "first_complete_120_cell_matrix_plus_independent_validator_is_authoritative": true,
+    "implementation_failure_before_120_cells_creates_no_scientific_authority": true,
+    "scientific_mismatch_is_preserved": true,
+    "later_exact_runs_are_replication_only": true,
+    "profile_substitution_after_outcome": false,
+    "gap_set_retune_after_outcome": false,
+    "schedule_seed_retune_after_outcome": false,
+    "batch_or_trial_retune_after_outcome": false,
+    "deadline_or_target_delay_retune_after_outcome": false,
+    "queue_retune_after_outcome": false,
+    "failed_cell_drop": false,
+    "failed_profile_drop": false,
+    "s3c2_failure_may_not_be_relabeled_as_s3c1_success": true
+  },
+  "implementation_conformance_requirements": {
+    "new_files_only_until_conformance_passes": true,
+    "existing_s3c1_protocol_runner_validator_and_authority_files_must_remain_byte_identical": true,
+    "frozen_target_direct_native_replaymark_runtime_and_broker_config_must_remain_blob_identical": true,
+    "runner_may_not_import_independent_validator": true,
+    "runner_may_not_read_independent_oracle_output": true,
+    "validator_may_not_import_runner_or_replaymark_production": true,
+    "schedule_profile_may_not_enter_replaymark_certificate_input": true,
+    "schedule_profile_may_not_enter_target_class_function": true,
+    "conformance_must_test_both_profile_order_outcomes": true,
+    "conformance_must_test_all_four_jitter_gap_values": true,
+    "conformance_must_test_fail_closed_on_early_next_wave": true,
+    "conformance_must_test_fail_closed_on_wrong_gap_or_wrong_profile_order": true,
+    "conformance_must_test_cross_profile_mismatch_detection": true,
+    "no_live_120_cell_execution_until_conformance_is_green": true
+  },
+  "permitted_claim_if_promoted": "On the frozen paired heterogeneous Mosquitto persistent-queue workload, ReplayMark-Native is taskwise identical to an independent Direct-Native controller, reuses exactly the independently safe historical ACT2 set, and reaches the same queue endpoint conclusion under two prospectively frozen quiescence-respecting inter-wave pacing regimes; blind reuse and rerun-all remain directionally wrong controls where the frozen matrix exposes them.",
+  "nonclaims": [
+    "S3-C1 passed",
+    "the S3-C1 500 ms structural criterion was invalid in general",
+    "global Mosquitto capacity theorem",
+    "arbitrary inter-wave schedule invariance",
+    "throughput or latency speedup",
+    "broker exactly-once delivery",
+    "cross-process exactly-once execution",
+    "sequence equivalence",
+    "prevalence across deployed MQTT systems",
+    "hidden target class as deployment truth",
+    "arbitrary-metric compositionality"
+  ],
+  "next_only_if_this_protocol_freeze_is_exact": "Implement S3-C2 as a later exact child using new runner, independent validator, implementation-conformance tests, and execution workflow; prove all frozen source blobs unchanged before any new live target exposure."
+}
