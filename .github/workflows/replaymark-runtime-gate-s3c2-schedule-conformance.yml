@@ -1,0 +1,45 @@
+name: ReplayMark S3-C2 schedule implementation conformance
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-gate-s3c2-schedule-implementation-conformance-v1
+
+permissions:
+  contents: read
+
+jobs:
+  exact-schedule-conformance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile pure schedule implementation and independent verifier
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/s3c2_schedule.py \
+            replaymark_verification/verify_s3c2_schedule_conformance.py
+
+      - name: Prove S3-C2 schedule implementation conformance
+        run: |
+          set -euo pipefail
+          python replaymark_verification/verify_s3c2_schedule_conformance.py \
+            --out /tmp/S3C2_SCHEDULE_IMPLEMENTATION_CONFORMANCE.json
+
+      - name: Upload conformance authority
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-s3c2-schedule-implementation-conformance-v1
+          path: /tmp/S3C2_SCHEDULE_IMPLEMENTATION_CONFORMANCE.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
