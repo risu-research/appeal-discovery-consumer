@@ -1,0 +1,62 @@
+{
+  "schema": "replaymark.s3c0-claim-to-queue-composition-result-seal.v1",
+  "status": "FROZEN_PASS",
+  "authority": {
+    "protocol_head": "cadd8483691246853030722fecdd8fcdc4717ffc",
+    "protocol_tree": "c37efad15de8a02aa3467fe1281ff40b617cc311",
+    "parent_s3_result_seal": "cf1f09398ad6148dfa1907dd2a02bdc443308ab7",
+    "workflow_run": 34173629381,
+    "workflow_job": 101898621916
+  },
+  "artifact": {
+    "id": 10036506766,
+    "name": "replaymark-gate-s3c0-claim-to-queue-composition",
+    "size_bytes": 13598,
+    "sha256": "74e4f45a47fb63b88e271efdf4156466be312b13527b08789fd00873e18e770e"
+  },
+  "composition": {
+    "queue_endpoint_roles": ["command", "query", "state"],
+    "qos": 1,
+    "safe_direct": {"command": 2, "query": 0, "state": 2, "total": 4},
+    "safe_replaymark_native": {"command": 2, "query": 0, "state": 2, "total": 4},
+    "unsafe_direct": {"command": 2, "query": 1, "state": 3, "total": 6},
+    "unsafe_replaymark_native": {"command": 2, "query": 1, "state": 3, "total": 6},
+    "aggregate_law": "4*N + 2*U",
+    "aggregate_exhaustive_domain": "0 <= N <= 512, 0 <= U <= N",
+    "policy_label_free_endpoint_oracle": true
+  },
+  "critical_distinctions": {
+    "s3_always_native_is_direct_native_truth": false,
+    "direct_native_reference": "queries only when the frozen decision evidence requires the query branch",
+    "legacy_166_boundary_inherited": false,
+    "legacy_166_recomputed_for_old_homogeneous_all_query_workload": true,
+    "hardcode_166_in_s3c1": false
+  },
+  "verification": {
+    "all_checks_pass": true,
+    "all_frozen_blobs_match": true,
+    "exact_s3_result_parent": true,
+    "declared_four_files_only": true,
+    "safe_task_endpoint_equal": true,
+    "unsafe_task_endpoint_equal": true,
+    "aggregate_law_exhaustive": true,
+    "policy_label_free_endpoint_oracle": true,
+    "no_live_queue_execution": true,
+    "no_result_or_live_runner_added": true
+  },
+  "s3c1": {
+    "admitted": true,
+    "required_native_reference": "independent direct target controller",
+    "primary_target": "deployment conclusion equality under the same prospectively frozen workload",
+    "preselected_numeric_boundary": null,
+    "required_replaymark_property": "preserve every historical decision certified safe while matching the direct-native queue endpoint"
+  },
+  "interpretation_boundary": {
+    "arbitrary_metric_compositionality": false,
+    "queue_sequence_equivalence": false,
+    "new_queue_outcome_observed": false,
+    "latency_claim": false,
+    "cross_process_exactly_once_claim": false,
+    "broker_delivery_exactly_once_claim": false
+  }
+}
