@@ -1,0 +1,347 @@
+name: ReplayMark Gate S3-C1 first-complete paired deployment
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-gate-s3c1-first-complete-execution
+
+permissions:
+  contents: read
+
+env:
+  CONFORMANCE_HEAD: b6ee8ec8223528850fc78431a4ffd32becfc27e6
+  PROTOCOL_HEAD: 274b870313696adaf2f80b52632e9b6ea854fd90
+  EXPECTED_BROKER_DIGEST: sha256:6f8d8a947c506f8a2290ec65cd4bd2bc7cb4d43fb5f6271f861cb013e2ef9797
+  LAB: agentmark_e3b_lab/e3_mqtt
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PREFLIGHT: /tmp/replaymark-s3c1-execution-preflight
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prove exact execution boundary before target exposure
+        run: |
+          set -euo pipefail
+          mkdir -p "$PREFLIGHT"
+          test "$(git rev-parse HEAD^)" = "$CONFORMANCE_HEAD"
+          test "$(git rev-parse HEAD^^)" = "$PROTOCOL_HEAD"
+          changed="$(git diff --name-only HEAD^ HEAD)"
+          test "$changed" = ".github/workflows/replaymark-runtime-gate-s3c1-first-complete-execution.yml"
+
+          check_blob() {
+            path="$1" expected="$2"
+            actual="$(git rev-parse "HEAD:$path")"
+            printf '%s  %s\n' "$actual" "$path" >> "$PREFLIGHT/BLOB_IDENTITIES.txt"
+            test "$actual" = "$expected"
+          }
+          check_blob replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.json 2b9654e325376b63e39e8171ff75371c235d6eb2
+          check_blob agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py b288fe3719dcf39313bea9c7e0b912691a6e91bb
+          check_blob agentmark_e3b_lab/e3_mqtt/app/s3c1_direct_native.py 22456d02b5b3a3b2258b2bc1893ae45a221873f7
+          check_blob agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py fc2706f1da590317c13bc3da13f70c56d7203841
+          check_blob replaymark_verification/verify_s3c1_paired_deployment.py 8c5e66213e9ec6cb7f7e01731ab2273c2f3bc0a5
+          check_blob replaymark_verification/verify_s3c1_implementation_conformance.py 801770fae58937b677c8cb9f61b6820e0f65e53f
+          check_blob replaymark/runtime_e3b_execution_gate.py 22748a5aa820e83e4700a339e8af297cdd9f9143
+          check_blob replaymark/runtime_e3b_action.py d5d483751eb06fd8b00f7bb2eff613a20f0f796c
+          check_blob replaymark/runtime_e3b_observation.py de6cdc8ccdbb9b189e238cc5dbad173060fe17ab
+          check_blob replaymark/runtime_e3b_correlation.py bbdc243eccf29c0a26b92bc78c0acdb96222da8e
+          check_blob replaymark/runtime_e3b_bridge.py 5c2b13f35edcae9ce42fa062f51f1b6ce46747bf
+          check_blob agentmark_e3b_lab/e3_mqtt/mosquitto/mosquitto.conf 0b68187c4590e780409048ea8c9e3144d34ccaa6
+
+          python -m py_compile \
+            agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py \
+            agentmark_e3b_lab/e3_mqtt/app/s3c1_direct_native.py \
+            agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py \
+            replaymark_verification/verify_s3c1_paired_deployment.py
+          git show --no-patch --format=fuller HEAD > "$PREFLIGHT/EXECUTION_COMMIT.txt"
+          git diff --name-status HEAD^ HEAD > "$PREFLIGHT/EXECUTION_DELTA.txt"
+
+      - name: Pin broker image digest before target exposure
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          docker pull eclipse-mosquitto:2.1.2-alpine
+          docker image inspect eclipse-mosquitto:2.1.2-alpine \
+            --format '{{range .RepoDigests}}{{println .}}{{end}}' | sort -u \
+            > "$PREFLIGHT/BROKER_REPO_DIGESTS.txt"
+          grep -Fx "eclipse-mosquitto@${EXPECTED_BROKER_DIGEST}" "$PREFLIGHT/BROKER_REPO_DIGESTS.txt"
+          printf '%s\n' "$EXPECTED_BROKER_DIGEST" > "$PREFLIGHT/EXPECTED_BROKER_DIGEST.txt"
+
+      - name: Seal pre-target execution admission
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$PREFLIGHT"
+          find "$PREFLIGHT" -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+            | sort -z | xargs -0 sha256sum > "$PREFLIGHT/SHA256SUMS" || true
+
+      - name: Upload pre-target execution admission
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s3c1-execution-preflight
+          path: ${{ env.PREFLIGHT }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+  paired-live-replica:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        replica: [A, B]
+    env:
+      REPLICA: ${{ matrix.replica }}
+      RAWDIR: /tmp/replaymark-s3c1-raw-${{ matrix.replica }}
+      LOGDIR: /tmp/replaymark-s3c1-logs-${{ matrix.replica }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Prepare exact immutable live image
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RAWDIR" "$LOGDIR" results
+          rm -f results/cell-*.json
+          docker pull eclipse-mosquitto:2.1.2-alpine
+          docker image inspect eclipse-mosquitto:2.1.2-alpine \
+            --format '{{range .RepoDigests}}{{println .}}{{end}}' | sort -u \
+            > "$LOGDIR/BROKER_REPO_DIGESTS.txt"
+          grep -Fx "eclipse-mosquitto@${EXPECTED_BROKER_DIGEST}" "$LOGDIR/BROKER_REPO_DIGESTS.txt"
+          docker compose build runner_shadow
+          docker compose images > "$LOGDIR/COMPOSE_IMAGES.txt"
+          git show --no-patch --format=fuller HEAD > "$LOGDIR/EXECUTION_COMMIT.txt"
+
+      - name: Execute all 30 frozen paired cells for replica
+        working-directory: ${{ env.LAB }}
+        run: |
+          set -euo pipefail
+          printf 'replica=%s\n' "$REPLICA" > "$LOGDIR/CELL_LIFECYCLE.txt"
+          for n in 192 196 200 204 208; do
+            for trial in 0 1 2 3 4 5; do
+              cell="${REPLICA}-${n}-${trial}"
+              fname="cell-${REPLICA}-${n}-${trial}.json"
+              nonce="${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}${REPLICA}${n}${trial}"
+              target="replaymark-s3c1-target-${REPLICA,,}-${n}-${trial}"
+              printf 'START %s %s\n' "$cell" "$(date -u +%FT%TZ)" | tee -a "$LOGDIR/CELL_LIFECYCLE.txt"
+
+              docker rm -f "$target" >/dev/null 2>&1 || true
+              docker compose down -v --remove-orphans || true
+              docker compose up -d mosquitto
+              ready=0
+              for i in $(seq 1 30); do
+                if docker compose exec -T mosquitto mosquitto_sub -h 127.0.0.1 -p 1883 \
+                    -t '$SYS/broker/version' -C 1 -W 2 >/dev/null 2>&1; then
+                  ready=1
+                  break
+                fi
+                sleep 1
+              done
+              test "$ready" -eq 1
+
+              docker compose run -d --name "$target" --no-deps runner_shadow \
+                python /workspace/agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py \
+                --broker mosquitto
+              target_ready=0
+              for i in $(seq 1 30); do
+                if docker logs "$target" 2>&1 | grep -q '"ready": true'; then
+                  target_ready=1
+                  break
+                fi
+                if ! docker inspect "$target" >/dev/null 2>&1; then
+                  break
+                fi
+                sleep 1
+              done
+              if [ "$target_ready" -ne 1 ]; then
+                docker logs "$target" > "$LOGDIR/target-${cell}-FAILED.log" 2>&1 || true
+                exit 21
+              fi
+              sleep 0.2
+
+              rm -f "results/$fname"
+              timeout 180s docker compose run --rm --no-deps runner_shadow \
+                python /workspace/agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py \
+                --broker mosquitto \
+                --replica "$REPLICA" \
+                --batch-size "$n" \
+                --trial "$trial" \
+                --nonce "$nonce" \
+                --config-path /workspace/agentmark_e3b_lab/e3_mqtt/mosquitto/mosquitto.conf \
+                --broker-image-digest "$EXPECTED_BROKER_DIGEST" \
+                --out "/results/$fname"
+
+              test -s "results/$fname"
+              cp "results/$fname" "$RAWDIR/$fname"
+              docker logs "$target" > "$LOGDIR/target-${cell}.log" 2>&1 || true
+              docker inspect "$target" > "$LOGDIR/target-${cell}-inspect.json" 2>/dev/null || true
+              docker rm -f "$target" >/dev/null 2>&1 || true
+              docker compose down -v --remove-orphans
+              printf 'DONE %s %s\n' "$cell" "$(date -u +%FT%TZ)" | tee -a "$LOGDIR/CELL_LIFECYCLE.txt"
+            done
+          done
+          count="$(find "$RAWDIR" -maxdepth 1 -type f -name 'cell-*.json' | wc -l)"
+          test "$count" -eq 30
+          printf '%s\n' "$count" > "$LOGDIR/RAW_CELL_COUNT.txt"
+
+      - name: Cleanup live processes
+        if: always()
+        working-directory: ${{ env.LAB }}
+        run: |
+          docker ps -aq --filter 'name=replaymark-s3c1-target-' | xargs -r docker rm -f >/dev/null 2>&1 || true
+          docker compose down -v --remove-orphans || true
+
+      - name: Seal raw replica evidence without scientific evaluation
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$RAWDIR" "$LOGDIR"
+          printf 'scientific_validator_invoked=false\n' > "$LOGDIR/LIVE_JOB_BOUNDARY.txt"
+          printf 'independent_oracle_invoked=false\n' >> "$LOGDIR/LIVE_JOB_BOUNDARY.txt"
+          find "$RAWDIR" "$LOGDIR" -type f ! -name SHA256SUMS -print0 \
+            | sort -z | xargs -0 sha256sum > "$LOGDIR/SHA256SUMS" || true
+
+      - name: Upload raw replica evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-s3c1-first-complete-raw-${{ matrix.replica }}
+          path: |
+            ${{ env.RAWDIR }}
+            ${{ env.LOGDIR }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+  independent-final-evaluation:
+    needs: [preflight, paired-live-replica]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      RAWROOT: /tmp/replaymark-s3c1-first-complete-raw
+      FINAL: /tmp/replaymark-s3c1-first-complete-final
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare aggregate evidence directories
+        run: |
+          mkdir -p "$RAWROOT/A" "$RAWROOT/B" "$FINAL"
+
+      - name: Download replica A raw evidence
+        id: download_a
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: replaymark-s3c1-first-complete-raw-A
+          path: ${{ env.RAWROOT }}/A
+
+      - name: Download replica B raw evidence
+        id: download_b
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: replaymark-s3c1-first-complete-raw-B
+          path: ${{ env.RAWROOT }}/B
+
+      - name: Establish full-matrix completeness before oracle invocation
+        id: completeness
+        run: |
+          set -euo pipefail
+          a="$(find "$RAWROOT/A" -type f -name 'cell-A-*.json' | wc -l)"
+          b="$(find "$RAWROOT/B" -type f -name 'cell-B-*.json' | wc -l)"
+          total=$((a+b))
+          printf '{\n  "replica_A_cells": %s,\n  "replica_B_cells": %s,\n  "total_cells": %s,\n  "required_total": 60,\n  "scientific_validator_invoked": false\n}\n' \
+            "$a" "$b" "$total" > "$FINAL/MATRIX_COMPLETENESS_PREVALIDATION.json"
+          if [ "$a" -eq 30 ] && [ "$b" -eq 30 ] && [ "$total" -eq 60 ]; then
+            echo 'complete=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'complete=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run independent raw-event validator only after all 60 cells exist
+        if: steps.completeness.outputs.complete == 'true'
+        run: |
+          python replaymark_verification/verify_s3c1_paired_deployment.py \
+            --matrix-dir "$RAWROOT" \
+            --out "$FINAL/S3C1_FIRST_COMPLETE_INDEPENDENT_VALIDATION.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path(os.environ['FINAL'])/'MATRIX_COMPLETENESS_PREVALIDATION.json'
+          x=json.loads(p.read_text())
+          x['scientific_validator_invoked']=True
+          p.write_text(json.dumps(x, indent=2, sort_keys=True)+'\n')
+          PY
+
+      - name: Seal first-complete evidence before enforcing verdict
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$FINAL/raw"
+          cp -a "$RAWROOT/A" "$FINAL/raw/" 2>/dev/null || true
+          cp -a "$RAWROOT/B" "$FINAL/raw/" 2>/dev/null || true
+          cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.json "$FINAL/" || true
+          cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.md "$FINAL/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/replaymark_s3c1_paired_deployment.py "$FINAL/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/s3c1_direct_native.py "$FINAL/" || true
+          cp agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py "$FINAL/" || true
+          cp replaymark_verification/verify_s3c1_paired_deployment.py "$FINAL/" || true
+          git show --no-patch --format=fuller HEAD > "$FINAL/EXECUTION_COMMIT.txt"
+          git diff --name-status HEAD^ HEAD > "$FINAL/EXECUTION_DELTA.txt"
+          printf 'first_complete_full_matrix_and_validator_certificate_is_authority=true\n' \
+            > "$FINAL/AUTHORITY_RULE.txt"
+          printf 'later_exact_runs_are_replication_only=true\n' >> "$FINAL/AUTHORITY_RULE.txt"
+          find "$FINAL" -type f ! -name SHA256SUMS -print0 \
+            | sort -z | xargs -0 sha256sum > "$FINAL/SHA256SUMS" || true
+
+      - name: Upload immutable first-complete aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s3c1-first-complete-paired-deployment
+          path: ${{ env.FINAL }}
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Enforce completeness and frozen scientific verdict after sealing
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.completeness.outputs.complete }}" != "true" ]; then
+            echo 'first-complete matrix is incomplete; no scientific validator authority exists' >&2
+            exit 31
+          fi
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path(os.environ['FINAL'])/'S3C1_FIRST_COMPLETE_INDEPENDENT_VALIDATION.json'
+          if not p.exists():
+              raise SystemExit('independent validator report missing after complete matrix')
+          report=json.loads(p.read_text())
+          print(json.dumps(report.get('checks', {}), indent=2, sort_keys=True))
+          if report.get('verdict') != 'PASS':
+              raise SystemExit('S3-C1 first-complete frozen scientific verdict is not PASS')
+          PY
