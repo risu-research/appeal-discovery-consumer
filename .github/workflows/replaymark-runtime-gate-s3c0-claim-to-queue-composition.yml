@@ -1,0 +1,52 @@
+name: ReplayMark Gate S3-C0 claim-to-queue composition
+
+on:
+  push:
+    branches:
+      - replaymark-runtime-gate-s3c0-claim-to-queue-composition
+
+permissions:
+  contents: read
+
+jobs:
+  gate-s3c0-composition:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch frozen legacy queue authorities only
+        run: |
+          git fetch --no-tags --depth=1 origin 23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d
+          git fetch --no-tags --depth=1 origin ac20890bb4aa926e439802510de3723b74591c94
+
+      - name: Static compile composition verifier
+        run: |
+          python -m py_compile replaymark_verification/verify_s3c0_claim_to_queue_composition.py
+
+      - name: Verify claim-to-queue composition boundary
+        run: |
+          mkdir -p /tmp/replaymark-s3c0
+          python replaymark_verification/verify_s3c0_claim_to_queue_composition.py \
+            --out /tmp/replaymark-s3c0/s3c0_verification.json
+
+      - name: Seal protocol-only evidence
+        run: |
+          cp replaymark/S3C0_CLAIM_TO_QUEUE_COMPOSITION.json /tmp/replaymark-s3c0/
+          cp replaymark/S3C0_CLAIM_TO_QUEUE_COMPOSITION.md /tmp/replaymark-s3c0/
+          cp replaymark_verification/verify_s3c0_claim_to_queue_composition.py /tmp/replaymark-s3c0/
+          git show --no-patch --format=fuller HEAD > /tmp/replaymark-s3c0/SEAL_COMMIT.txt
+          sha256sum /tmp/replaymark-s3c0/* > /tmp/replaymark-s3c0/SHA256SUMS
+
+      - name: Upload S3-C0 composition evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaymark-gate-s3c0-claim-to-queue-composition
+          path: /tmp/replaymark-s3c0
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,129 @@
+{
+  "schema": "replaymark.s3c0-claim-to-queue-composition.v1",
+  "status": "PROSPECTIVE_COMPOSITION_GATE",
+  "scientific_question": "Does the frozen S3 ReplayMark-Native task semantics refine the already-promoted Mosquitto persistent-queue endpoint task-by-task, without consulting policy or hidden target labels?",
+  "parent_authority": {
+    "s3_result_seal_head": "cf1f09398ad6148dfa1907dd2a02bdc443308ab7",
+    "s3_execution_head": "8333e8808d5a950effd8a4e552718be3324909d3",
+    "s3_protocol_head": "75d5d4379fdda221c0b9661f799d7779d6bba9f2",
+    "s3_artifact_id": 10035602271,
+    "s3_artifact_sha256": "31bd3972787ee09e0e2c366a46d2fc8f9cc1049d5d33668bb8b253901f5af2db"
+  },
+  "legacy_queue_authority": {
+    "default_flip_protocol_head": "b8ae9503cbb32a260c32284f0aba0e679480050d",
+    "default_flip_execution_head": "23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d",
+    "default_flip_result_head": "ac20890bb4aa926e439802510de3723b74591c94",
+    "default_flip_workflow_run": 34002935533,
+    "default_flip_artifact_id": 9980049060,
+    "default_flip_artifact_sha256": "9f8f78ddd0d80e3cf27f34a1625ed172553690342a31baee788f2764cd2f1dee",
+    "documented_default_queue_messages": 1000,
+    "measured_terminal_kinds": ["command", "query", "state"],
+    "qos": 1
+  },
+  "frozen_blobs": {
+    "s3_runner": {
+      "ref": "cf1f09398ad6148dfa1907dd2a02bdc443308ab7",
+      "path": "agentmark_e3b_lab/e3_mqtt/app/replaymark_s3_caller_native_restoration.py",
+      "blob": "cd4150585e36c07b737e27e5a879030b031dab4f"
+    },
+    "p6_target": {
+      "ref": "cf1f09398ad6148dfa1907dd2a02bdc443308ab7",
+      "path": "agentmark_e3b_lab/e3_mqtt/app/s2p6_heterogeneous_device.py",
+      "blob": "5b57bc44e91dc38e44eaafc760286fa4b616ff9c"
+    },
+    "legacy_queue_pilot": {
+      "ref": "23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d",
+      "path": "replaymark_e3b_downstream/pilot/pilot.py",
+      "blob": "20075962ad2448ce39e98066623e3080dc32b9e6"
+    },
+    "legacy_queue_device": {
+      "ref": "23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d",
+      "path": "replaymark_e3b_downstream/pilot/device.py",
+      "blob": "a53cb4e7de887e9159001bd2cc826658241c0595"
+    },
+    "legacy_default_flip_runner": {
+      "ref": "23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d",
+      "path": "replaymark_e3b_default_flip/confirmatory/default_flip.py",
+      "blob": "10f2763a7c24d97cbe2a067d0ea06b30acfd9e6f"
+    },
+    "legacy_default_flip_protocol": {
+      "ref": "23b7c85bca6cb85fde9f4361a0f9664d21c8ae8d",
+      "path": "replaymark_e3b_default_flip/DEFAULT_FLIP_PROTOCOL.md",
+      "blob": "d05917bf9ad69edb8adf1a642efda598b9b2aa0e"
+    },
+    "legacy_default_flip_outcome": {
+      "ref": "ac20890bb4aa926e439802510de3723b74591c94",
+      "path": "replaymark_e3b_default_flip/CONFIRMATORY_OUTCOME.md",
+      "blob": "6d9c90d629b0e384b568a25fa93504dbe23828e6"
+    }
+  },
+  "queue_endpoint": {
+    "name": "persistent_offline_qos1_count_endpoint",
+    "projection": "count QoS-1 PUBLISHes in the task namespace whose terminal role is command, query, or state; classify the batch as lossless iff the persistent offline subscriber later recovers every counted message",
+    "order_sensitive": false,
+    "payload_sensitive_beyond_role_and_qos": false,
+    "control_namespace_messages_counted": false,
+    "query_and_query_caused_state_counted": true,
+    "reason_order_is_not_required": "the promoted capacity claim is a queue-count/lossless endpoint, not trace-sequence equivalence"
+  },
+  "native_reference": {
+    "definition": "direct target-controller branch under the same frozen decision evidence",
+    "safe_evidence_branch": "ACT1 -> observed state by decision deadline -> ACT2",
+    "unsafe_evidence_branch": "ACT1 -> no state by decision deadline -> QUERY_A -> current-state confirmation -> ACT2",
+    "s3_always_native_is_direct_native_reference": false,
+    "reason": "S3 ALWAYS_NATIVE deliberately queries every task as a conservative rerun-all baseline; direct target-native queries only when deadline evidence requires it"
+  },
+  "taskwise_composition": {
+    "confirmed_by_deadline": {
+      "direct_native_kind_counts": {"command": 2, "query": 0, "state": 2, "total": 4},
+      "replaymark_native_kind_counts": {"command": 2, "query": 0, "state": 2, "total": 4},
+      "endpoint_equal": true,
+      "replaymark_route": "certified historical ACT2"
+    },
+    "not_visible_by_deadline": {
+      "direct_native_kind_counts": {"command": 2, "query": 1, "state": 3, "total": 6},
+      "replaymark_native_kind_counts": {"command": 2, "query": 1, "state": 3, "total": 6},
+      "endpoint_equal": true,
+      "replaymark_route": "BLOCK_REUSE then caller-owned QUERY_A/current confirmation/fresh ACT2"
+    }
+  },
+  "aggregate_law": {
+    "N": "number of tasks",
+    "U": "number of tasks whose frozen decision evidence requires the direct-native query branch",
+    "direct_native_count": "4*N + 2*U",
+    "replaymark_native_count": "4*N + 2*U",
+    "equality": "M_direct_native = M_replaymark_native for any finite batch satisfying the concrete taskwise obligations"
+  },
+  "legacy_166_boundary": {
+    "inherited_into_heterogeneous_s3_workload": false,
+    "legacy_derivation": "all tasks took the 6-message native branch, so floor(1000/6)=166",
+    "reason_not_inherited": "the heterogeneous workload contains both 4-message and 6-message direct-native branches; its aggregate count is 4*N+2*U rather than 6*N",
+    "hardcoding_166_in_s3c1": "FORBIDDEN"
+  },
+  "s3c1_admission": {
+    "admitted_if_s3c0_passes": true,
+    "required_reference": "independent direct target-native controller, not S3 ALWAYS_NATIVE",
+    "primary_equality": "ReplayMark-Native queue-endpoint result must equal independent direct-target-native queue-endpoint result under the same workload",
+    "required_reuse_property": "ReplayMark-Native historical reuse must remain positive whenever the frozen workload supplies independently safe tasks",
+    "fixed_numeric_boundary": null,
+    "queue_outcomes_observed_in_s3c0": false
+  },
+  "promotion": {
+    "requires_exact_parent": true,
+    "requires_all_frozen_blobs": true,
+    "requires_source-derived_endpoint_roles": true,
+    "requires_taskwise_composition_equalities": true,
+    "requires_independent_policy-label-free_aggregate_oracle": true,
+    "requires_legacy_166_not_inherited": true,
+    "requires_no_live_queue_execution": true,
+    "failure_action": "preserve S3-C0 failure and do not execute S3-C1"
+  },
+  "nonclaims": [
+    "no global compositionality theorem for arbitrary ReplayMark contracts",
+    "no sequence-equivalence claim for the persistent queue",
+    "no claim that S3 ALWAYS_NATIVE is the direct native controller",
+    "no inherited 166-task boundary for the heterogeneous workload",
+    "no new queue outcome in S3-C0",
+    "no latency or exactly-once promotion"
+  ]
+}
