@@ -3,7 +3,7 @@ name: ReplayMark Gate S3-C1 implementation conformance
 on:
   push:
     branches:
-      - replaymark-runtime-gate-s3c1-implementation-conformance-v2
+      - replaymark-runtime-gate-s3c1-implementation-conformance-v3
 
 permissions:
   contents: read
@@ -22,6 +22,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Prepare conformance evidence directory
+        run: mkdir -p "$GATE"
 
       - name: Fetch frozen cross-history queue authorities only
         run: |
@@ -48,7 +51,9 @@ jobs:
             echo 'Paho Callback API v2 ReasonCode must not be coerced with int()' >&2
             exit 41
           fi
-          test "$(grep -hFc 'reason_code != 0' "${files[@]}")" -eq 3
+          count="$(grep -hF 'reason_code != 0' "${files[@]}" | wc -l | tr -d '[:space:]')"
+          test "$count" -eq 3
+          printf 'paho_v2_reasoncode_direct_comparisons=%s\n' "$count" > "$GATE/PAHO_V2_REASONCODE_COMPAT.txt"
 
       - name: Prove implementation conformance without live execution
         run: |
@@ -59,6 +64,8 @@ jobs:
       - name: Seal implementation-conformance evidence
         if: always()
         run: |
+          set -euo pipefail
+          mkdir -p "$GATE"
           cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.json "$GATE/" || true
           cp replaymark/S3C1_PAIRED_FOUR_ARM_DEPLOYMENT_PROTOCOL.md "$GATE/" || true
           cp agentmark_e3b_lab/e3_mqtt/app/s3c1_paired_heterogeneous_device.py "$GATE/" || true
@@ -68,13 +75,14 @@ jobs:
           cp replaymark_verification/verify_s3c1_implementation_conformance.py "$GATE/" || true
           git show --no-patch --format=fuller HEAD > "$GATE/SEAL_COMMIT.txt"
           git diff --name-status HEAD^ HEAD > "$GATE/IMPLEMENTATION_DELTA.txt"
-          sha256sum "$GATE"/* > "$GATE/SHA256SUMS"
+          find "$GATE" -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+            | sort -z | xargs -0 sha256sum > "$GATE/SHA256SUMS" || true
 
       - name: Upload implementation-conformance evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: replaymark-gate-s3c1-implementation-conformance-v2
+          name: replaymark-gate-s3c1-implementation-conformance-v3
           path: ${{ env.GATE }}
           if-no-files-found: error
           retention-days: 90
