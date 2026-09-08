@@ -144,7 +144,7 @@ def schedule_state(device: str, cause: str, delay_ms: int) -> None:
 
 
 def on_connect(c, _userdata, _flags, reason_code, _properties) -> None:
-    if int(reason_code) != 0:
+    if reason_code != 0:
         raise RuntimeError(f"target connect failed: {reason_code}")
     c.subscribe("agentmark/+/command", qos=1)
     c.subscribe("agentmark/+/query", qos=1)
